@@ -217,3 +217,17 @@ test('Claude client sends the routed model and parses the reply', async () => {
   assert.equal(body.model, 'test-model');
   assert.equal(r.stopReason, 'end_turn');
 });
+
+test('Supabase store sends new secret keys only in apikey, legacy JWTs also as Bearer', async () => {
+  const { SupabaseStore } = await import('../core/supabase-store.js');
+  const seen: Record<string, string>[] = [];
+  const fakeFetch = (async (_u: string, init: RequestInit) => {
+    seen.push(init.headers as Record<string, string>);
+    return new Response('[]', { status: 200 });
+  }) as unknown as typeof fetch;
+  await new SupabaseStore('https://x.supabase.co', 'sb_secret_abc', fakeFetch).listApprovals('o');
+  await new SupabaseStore('https://x.supabase.co', 'eyJhbGciOi.eyJyb2xlIjoi.c2ln', fakeFetch).listApprovals('o');
+  assert.equal(seen[0].apikey, 'sb_secret_abc');
+  assert.equal(seen[0].authorization, undefined);
+  assert.equal(seen[1].authorization, 'Bearer eyJhbGciOi.eyJyb2xlIjoi.c2ln');
+});

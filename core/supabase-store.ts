@@ -4,6 +4,9 @@ import type { Approval, AuditEvent, Briefing, Feedback, Memory, Task, TaskType }
 
 type Row = Record<string, unknown>;
 
+/** Legacy anon/service_role keys are JWTs; new publishable/secret keys (sb_…) are not. */
+export const isLegacyJwt = (key: string): boolean => key.startsWith('eyJ') && key.split('.').length === 3;
+
 const snake = (s: string) => s.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
 const camel = (s: string) => s.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
 const toRow = (o: object): Row => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined).map(([k, v]) => [snake(k), v]));
@@ -18,8 +21,9 @@ export class SupabaseStore implements Store {
     const res = await this.fetchImpl(`${this.url}/rest/v1/${path}`, {
       ...init,
       headers: {
+        // New Supabase secret keys (sb_secret_…) go only in the apikey header; legacy service_role JWTs also go in Authorization.
         apikey: this.serviceKey,
-        authorization: `Bearer ${this.serviceKey}`,
+        ...(isLegacyJwt(this.serviceKey) ? { authorization: `Bearer ${this.serviceKey}` } : {}),
         'content-type': 'application/json',
         prefer: 'return=representation',
         ...(init.headers ?? {}),
