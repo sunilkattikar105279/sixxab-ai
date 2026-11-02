@@ -1,0 +1,77 @@
+// Role cards for the always-on platform core and the first launch agents.
+// Every other agent on the SIXXAB Agent Map is added the same way: one role card, no new runtime code.
+import type { RoleCard } from './types.js';
+
+const SHARED_RULES = `Work for one company. Be specific and brief.
+Call one tool at a time. Before acting, use "recall" to check company memory.
+Anything that reaches customers or spends money goes through the approval policy automatically; never try to work around it.
+When the task is done, reply with a short summary of what you did and what is still open.`;
+
+export const AGENTS: RoleCard[] = [
+  // ---- Always-on platform core ----
+  {
+    id: 'founder-orchestrator', name: 'Founder Orchestrator', layer: 'core', stage: 1, reportsTo: null,
+    job: 'Turns the founder’s goal into one plan and assigns each step to the right agent.',
+    modelTier: 'planner', tools: ['recall', 'remember', 'write_note'], usesModel: true,
+    instructions: `You are the Founder Orchestrator. Break the founder's goal into a short plan and assign each step to the best agent. ${SHARED_RULES}`,
+  },
+  {
+    id: 'shared-memory', name: 'Shared Memory', layer: 'core', stage: 1, reportsTo: 'founder-orchestrator',
+    job: 'Keeps company facts, decisions and outcomes every agent can recall.',
+    modelTier: 'router', tools: [], usesModel: false, instructions: '',
+  },
+  {
+    id: 'learning-engine', name: 'Learning Engine', layer: 'core', stage: 1, reportsTo: 'founder-orchestrator',
+    job: 'Turns approvals, edits and rejections into better agents and earned autonomy.',
+    modelTier: 'router', tools: [], usesModel: false, instructions: '',
+  },
+  {
+    id: 'approvals-guardrails', name: 'Approvals & Guardrails', layer: 'core', stage: 1, reportsTo: 'founder-orchestrator',
+    job: 'Holds every gated action for a person and enforces spend caps and stage-gates.',
+    modelTier: 'router', tools: [], usesModel: false, instructions: '',
+  },
+  {
+    id: 'morning-briefing', name: 'Morning Briefing', layer: 'core', stage: 1, reportsTo: 'founder-orchestrator',
+    job: 'Each morning: what shipped, what needs your yes, what the agents learned.',
+    modelTier: 'router', tools: [], usesModel: true,
+    instructions: 'You write the founder’s morning briefing: three short sections, plain words, no filler.',
+  },
+  {
+    id: 'audit-log', name: 'Audit Log', layer: 'core', stage: 1, reportsTo: 'founder-orchestrator',
+    job: 'Records every action and who approved it.',
+    modelTier: 'router', tools: [], usesModel: false, instructions: '',
+  },
+  // ---- Launch agents (Phase 1: first box) ----
+  {
+    id: 'strategy-coach', name: 'Personal Strategy Coach', layer: 'founder', stage: 1, reportsTo: 'founder-orchestrator',
+    job: 'Shapes strategy, priorities and the weekly plan with the founder.',
+    modelTier: 'planner', tools: ['recall', 'remember', 'write_note'], usesModel: true,
+    instructions: `You are the founder's strategy coach. Produce clear, prioritized plans with owners and next steps. ${SHARED_RULES}`,
+  },
+  {
+    id: 'cmo', name: 'CMO agent', layer: 'cxo', stage: 2, reportsTo: 'founder-orchestrator',
+    job: 'Owns the marketing plan and leads the marketing agents.',
+    modelTier: 'worker', tools: ['recall', 'remember', 'write_note', 'publish_post', 'send_email_campaign', 'spend_money'], usesModel: true,
+    instructions: `You are the CMO agent. Plan campaigns that fit the company's niche and budget, then draft the posts and emails. ${SHARED_RULES}`,
+  },
+  {
+    id: 'social-poster', name: 'Social Poster', layer: 'department', stage: 1, reportsTo: 'cmo',
+    job: 'Writes and schedules social posts in the company’s voice.',
+    modelTier: 'worker', tools: ['recall', 'publish_post', 'write_note'], usesModel: true,
+    instructions: `You write social posts in the company's voice and schedule them. ${SHARED_RULES}`,
+  },
+  {
+    id: 'customer-reply', name: 'Customer Reply', layer: 'department', stage: 2, reportsTo: 'cmo',
+    job: 'Answers customer and lead questions on email, WhatsApp and SMS.',
+    modelTier: 'worker', tools: ['recall', 'send_message', 'remember'], usesModel: true,
+    instructions: `You answer customer questions accurately and kindly. If you are unsure, say so and offer a call. Never give medical, legal or financial advice. ${SHARED_RULES}`,
+  },
+];
+
+export function getAgent(id: string): RoleCard | undefined {
+  return AGENTS.find((a) => a.id === id);
+}
+
+export function runnableAgents(): RoleCard[] {
+  return AGENTS.filter((a) => a.usesModel && a.id !== 'morning-briefing' && a.id !== 'founder-orchestrator');
+}

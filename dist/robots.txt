@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+Disallow: /app
+Sitemap: https://sixxab.ai/sitemap.xml

@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "SIXXAB AI",
+    "slug": "sixxab-ai",
+    "scheme": "sixxab",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#02060f",
+    "icon": "./assets/icon.png",
+    "splash": { "image": "./assets/icon.png", "resizeMode": "contain", "backgroundColor": "#02060f" },
+    "ios": { "bundleIdentifier": "ai.sixxab.app", "supportsTablet": true },
+    "android": { "package": "ai.sixxab.app", "adaptiveIcon": { "foregroundImage": "./assets/icon.png", "backgroundColor": "#02060f" } },
+    "extra": { "apiBase": "https://sixxab.ai" }
+  }
+}

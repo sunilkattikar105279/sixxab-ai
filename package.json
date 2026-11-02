@@ -1,0 +1,22 @@
+{
+  "name": "sixxab-ai",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "SIXXAB AI: launch site, email + mobile login, and the autonomous agent platform core",
+  "scripts": {
+    "convert": "node scripts/convert-dc.mjs design/Landing.dc.html src/landing",
+    "build": "node scripts/build.mjs",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "playwright": "1.63.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "tsx": "4.23.12",
+    "typescript": "6.0.3",
+    "@types/node": "*"
+  }
+}

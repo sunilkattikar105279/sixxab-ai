@@ -1,0 +1,312 @@
+import React, { useCallback, useEffect, useState } from 'react';
+import { api, getSession, sessionFromRedirect, signOut, type Session } from '../lib/auth';
+import type { Approval, AuditEvent, Briefing, RoleCard, TaskType } from '../../core/types';
+import { Brand, Spinner } from './ui';
+
+type Tab = 'today' | 'approvals' | 'agents' | 'activity';
+type AgentInfo = Omit<RoleCard, 'instructions'>;
+interface TaskRow { id: string; agentId: string; goal: string; status: string; output: string | null; updatedAt: string }
+
+const LEVEL = { 1: 'L1 Assist', 2: 'L2 Approve', 3: 'L3 Autonomous' } as const;
+const STATUS: Record<string, string> = {
+  done: 'Done', running: 'Running', planned: 'Planned', awaiting_approval: 'Waiting for you', draft_for_human: 'Draft for you', failed: 'Stopped', rejected: 'Rejected',
+};
+
+export default function Dashboard() {
+  const [session, setSession] = useState<Session | null>(null);
+  const [checked, setChecked] = useState(false);
+  const [tab, setTab] = useState<Tab>('today');
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    (async () => {
+      const s = (await sessionFromRedirect()) ?? (await getSession());
+      if (!s) {
+        location.replace('/login');
+        return;
+      }
+      setSession(s);
+      setChecked(true);
+    })();
+  }, []);
+
+  if (!checked || !session) return <div className="center-page"><Spinner label="Opening your workspace…" /></div>;
+  const who = session.user.email ?? session.user.phone ?? 'Founder';
+
+  return (
+    <div className="app">
+      <header className="app-top">
+        <Brand />
+        <div className="app-user">
+          <span className="muted small">{who}</span>
+          <button type="button" className="btn-ghost" onClick={async () => { await signOut(); location.replace('/'); }}>Sign out</button>
+        </div>
+      </header>
+      <nav className="app-tabs" aria-label="Workspace">
+        {(['today', 'approvals', 'agents', 'activity'] as Tab[]).map((t) => (
+          <button key={t} type="button" className={tab === t ? 'app-tab on' : 'app-tab'} aria-current={tab === t ? 'page' : undefined} onClick={() => setTab(t)}>
+            {t === 'today' ? 'Today' : t === 'approvals' ? `Approvals${pendingCount ? ` (${pendingCount})` : ''}` : t === 'agents' ? 'Agents' : 'Activity'}
+          </button>
+        ))}
+      </nav>
+      <main className="app-main">
+        {tab === 'today' && <Today onPending={setPendingCount} goApprovals={() => setTab('approvals')} />}
+        {tab === 'approvals' && <Approvals onCount={setPendingCount} />}
+        {tab === 'agents' && <Agents />}
+        {tab === 'activity' && <Activity />}
+      </main>
+    </div>
+  );
+}
+
+function useLoad<T>(path: string) {
+  const [data, setData] = useState<T | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const reload = useCallback(() => {
+    setError(null);
+    api<T>(path).then(setData).catch((e: Error) => setError(e.message));
+  }, [path]);
+  useEffect(reload, [reload]);
+  return { data, error, reload };
+}
+
+function Today({ onPending, goApprovals }: { onPending: (n: number) => void; goApprovals: () => void }) {
+  const brief = useLoad<{ briefing: Briefing }>('/api/briefing');
+  const [goal, setGoal] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ steps: { agentId: string; goal: string; status: string; output: string | null }[] } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api<{ approvals: Approval[] }>('/api/approvals').then((r) => onPending(r.approvals.length)).catch(() => undefined);
+  }, [result, onPending]);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (goal.trim().length < 3) return;
+    setBusy(true);
+    setError(null);
+    setResult(null);
+    try {
+      setResult(await api('/api/agents', { method: 'POST', body: JSON.stringify({ goal }) }));
+      setGoal('');
+      brief.reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not start the agents.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const b = brief.data?.briefing;
+  return (
+    <div className="stack">
+      <section className="panel glass-card">
+        <h2>What should your company get done?</h2>
+        <form onSubmit={submit} className="goal-form">
+          <label className="sr-only" htmlFor="goal">Goal</label>
+          <textarea id="goal" rows={3} placeholder="e.g. Plan our launch week and draft three LinkedIn posts" value={goal} onChange={(e) => setGoal(e.target.value)} maxLength={4000} />
+          <button type="submit" className="btn-primary" disabled={busy || goal.trim().length < 3}>{busy ? <Spinner label="Agents working…" /> : 'Hand it to the agents'}</button>
+        </form>
+        {error && <p className="error" role="alert">{error}</p>}
+        {result && (
+          <ol className="steps">
+            {result.steps.map((s, i) => (
+              <li key={i}>
+                <strong>{s.agentId}</strong> <span className={`pill pill-${s.status}`}>{STATUS[s.status] ?? s.status}</span>
+                <div className="muted small">{s.goal}</div>
+                {s.output && <p className="output">{s.output}</p>}
+              </li>
+            ))}
+          </ol>
+        )}
+        {result?.steps.some((s) => s.status === 'awaiting_approval' || s.status === 'draft_for_human') && (
+          <button type="button" className="btn-ghost" onClick={goApprovals}>Review what needs your yes</button>
+        )}
+      </section>
+
+      <section className="panel glass-card">
+        <h2>Morning briefing</h2>
+        {brief.error && <p className="error">{brief.error}</p>}
+        {!b && !brief.error && <Spinner label="Loading…" />}
+        {b && (
+          <>
+            <p className="lead">{b.summary}</p>
+            <div className="grid3">
+              <BriefList title="Done" items={b.shipped} empty="Nothing yet today." />
+              <BriefList title="Needs you" items={b.needsYou} empty="Nothing is waiting on you." />
+              <BriefList title="Learned" items={b.learned} empty="No new lessons." />
+            </div>
+          </>
+        )}
+      </section>
+    </div>
+  );
+}
+
+const BriefList = ({ title, items, empty }: { title: string; items: string[]; empty: string }) => (
+  <div>
+    <h3>{title}</h3>
+    {items.length ? <ul className="plain">{items.map((t, i) => <li key={i}>{t}</li>)}</ul> : <p className="muted small">{empty}</p>}
+  </div>
+);
+
+function Approvals({ onCount }: { onCount: (n: number) => void }) {
+  const { data, error, reload } = useLoad<{ approvals: Approval[] }>('/api/approvals');
+  useEffect(() => { if (data) onCount(data.approvals.length); }, [data, onCount]);
+  if (error) return <p className="error">{error}</p>;
+  if (!data) return <Spinner label="Loading approvals…" />;
+  if (!data.approvals.length) return <section className="panel glass-card"><h2>All clear</h2><p className="muted">Nothing needs your yes right now.</p></section>;
+  return (
+    <div className="stack">
+      {data.approvals.map((a) => <ApprovalCard key={a.id} a={a} onDone={reload} />)}
+    </div>
+  );
+}
+
+function ApprovalCard({ a, onDone }: { a: Approval; onDone: () => void }) {
+  const fields = Object.entries(a.proposed).filter(([, v]) => typeof v === 'string' || typeof v === 'number');
+  const [vals, setVals] = useState<Record<string, string>>(Object.fromEntries(fields.map(([k, v]) => [k, String(v)])));
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const changed = fields.some(([k, v]) => String(v) !== vals[k]);
+  async function decide(approved: boolean) {
+    setBusy(true);
+    setMsg(null);
+    const edited = changed
+      ? Object.fromEntries(Object.entries(a.proposed).map(([k, v]) => [k, k in vals ? (typeof v === 'number' ? Number(vals[k]) : vals[k]) : v]))
+      : null;
+    try {
+      const r = await api<{ promotion: { taskType: string; from: number; to: number; because: string } | null }>('/api/approvals', {
+        method: 'POST', body: JSON.stringify({ approvalId: a.id, approved, edited, reason: reason || undefined }),
+      });
+      if (r.promotion) setMsg(`This task has earned an upgrade to L${r.promotion.to} (${r.promotion.because}). Confirm it in Agents.`);
+      setTimeout(onDone, r.promotion ? 2500 : 0);
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : 'Could not save your decision.');
+      setBusy(false);
+    }
+  }
+
+  return (
+    <article className="panel glass-card approval">
+      <div className="row-between">
+        <span className={`pill ${a.kind === 'draft' ? 'pill-draft_for_human' : 'pill-awaiting_approval'}`}>{a.kind === 'draft' ? 'Draft for you to send' : 'Needs your approval'}</span>
+        <span className="muted small">{new Date(a.createdAt).toLocaleString()}</span>
+      </div>
+      <h3>{a.summary}</h3>
+      {fields.map(([k]) => (
+        <label key={k} className="field">
+          <span>{k}</span>
+          {String(vals[k]).length > 60 ? (
+            <textarea rows={4} value={vals[k]} onChange={(e) => setVals({ ...vals, [k]: e.target.value })} />
+          ) : (
+            <input value={vals[k]} onChange={(e) => setVals({ ...vals, [k]: e.target.value })} />
+          )}
+        </label>
+      ))}
+      <label className="field">
+        <span>Note to the agent (optional)</span>
+        <input value={reason} placeholder="Why, or what to change next time" onChange={(e) => setReason(e.target.value)} maxLength={1000} />
+      </label>
+      <div className="row-end">
+        <button type="button" className="btn-ghost" disabled={busy} onClick={() => decide(false)}>Reject</button>
+        <button type="button" className="btn-primary" disabled={busy} onClick={() => decide(true)}>
+          {busy ? <Spinner label="Saving…" /> : a.kind === 'draft' ? 'Accept draft' : changed ? 'Approve with my edits' : 'Approve'}
+        </button>
+      </div>
+      {msg && <p className="notice" role="status">{msg}</p>}
+    </article>
+  );
+}
+
+function Agents() {
+  const { data, error, reload } = useLoad<{ agents: AgentInfo[]; taskTypes: TaskType[]; tasks: TaskRow[] }>('/api/agents');
+  const [busy, setBusy] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  if (error) return <p className="error">{error}</p>;
+  if (!data) return <Spinner label="Loading agents…" />;
+
+  async function setLevel(t: TaskType, to: number) {
+    setBusy(t.key);
+    setMsg(null);
+    try {
+      await api('/api/autonomy', { method: 'POST', body: JSON.stringify({ taskType: t.key, from: t.level, to }) });
+      reload();
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : 'Could not change the level.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="stack">
+      <section className="panel glass-card">
+        <h2>Autonomy</h2>
+        <p className="muted small">Each kind of action earns autonomy on its own. Money stays capped at L2.</p>
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th>Action</th><th>Level</th><th>Change</th></tr></thead>
+            <tbody>
+              {data.taskTypes.map((t) => (
+                <tr key={t.key}>
+                  <td>{t.label}</td>
+                  <td><span className={`lvl lvl-${t.level}`}>{LEVEL[t.level]}</span></td>
+                  <td className="nowrap">
+                    <button type="button" className="btn-mini" disabled={busy === t.key || t.level <= 1} onClick={() => setLevel(t, t.level - 1)} aria-label={`Lower ${t.label}`}>Lower</button>
+                    <button type="button" className="btn-mini" disabled={busy === t.key || t.level >= t.maxLevel} onClick={() => setLevel(t, t.level + 1)} aria-label={`Raise ${t.label}`}>Raise</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {msg && <p className="error">{msg}</p>}
+      </section>
+      <section className="panel glass-card">
+        <h2>Your agents</h2>
+        <div className="grid2">
+          {data.agents.map((a) => (
+            <div key={a.id} className="agent">
+              <div className="row-between"><strong>{a.name}</strong><span className="muted small">{a.layer}</span></div>
+              <p className="muted small">{a.job}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+      <section className="panel glass-card">
+        <h2>Recent tasks</h2>
+        {data.tasks.length ? (
+          <ul className="plain">
+            {data.tasks.map((t) => (
+              <li key={t.id}><span className={`pill pill-${t.status}`}>{STATUS[t.status] ?? t.status}</span> <strong>{t.agentId}</strong>: {t.goal}</li>
+            ))}
+          </ul>
+        ) : <p className="muted">No tasks yet. Give the agents a goal on the Today tab.</p>}
+      </section>
+    </div>
+  );
+}
+
+function Activity() {
+  const { data, error } = useLoad<{ events: AuditEvent[] }>('/api/activity');
+  if (error) return <p className="error">{error}</p>;
+  if (!data) return <Spinner label="Loading activity…" />;
+  return (
+    <section className="panel glass-card">
+      <h2>Activity</h2>
+      <p className="muted small">Every action and who approved it. This log cannot be edited.</p>
+      <ul className="plain activity">
+        {data.events.map((e) => (
+          <li key={e.id}>
+            <span className="muted small">{new Date(e.at).toLocaleString()}</span>
+            <span><strong>{e.actor}</strong> {e.action.replace('.', ' ')}{typeof e.detail.summary === 'string' ? `: ${e.detail.summary}` : ''}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
