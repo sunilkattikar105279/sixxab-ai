@@ -8,6 +8,13 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dist = path.join(root, 'dist');
 const port = Number(process.argv[2] || 4173);
+// Apply the same global headers as production (CSP etc.) so local checks catch policy breakage.
+const vercel = JSON.parse(fs.readFileSync(path.join(root, 'vercel.json'), 'utf8'));
+const globalHeaders = Object.fromEntries((vercel.headers.find((h) => h.source === '/(.*)')?.headers ?? []).map((h) => [h.key, h.value]));
+const _writeHead = http.ServerResponse.prototype.writeHead;
+http.ServerResponse.prototype.writeHead = function (status, headers) {
+  return _writeHead.call(this, status, { ...globalHeaders, ...(headers || {}) });
+};
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.xml': 'application/xml', '.txt': 'text/plain', '.svg': 'image/svg+xml' };
 
 function resolveStatic(p) {

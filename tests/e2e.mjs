@@ -69,7 +69,7 @@ await check('landing works on a phone, menu opens', async () => {
 });
 
 // ---------- login + app with mocked services ----------
-const MOCK = 'http://mock.supabase.local';
+const MOCK = 'https://mock-project.supabase.co';
 async function mockServices(ctx, state) {
   await ctx.route(/cloudfront\.net|fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
   await ctx.route('**/api/config', (r) => r.fulfill({ json: { supabaseUrl: MOCK, supabaseAnonKey: 'anon', bookingUrl: 'https://calendar.app.google/test', contactEmail: 'x@y.z' } }));
