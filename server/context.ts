@@ -73,9 +73,14 @@ export async function requireUser(request: Request): Promise<{ userId: string; o
   const user = await verifyUser(url, anon, token);
   if (!user) throw new HttpError(401, 'Please sign in again');
   const s = store();
-  const orgId = await s.orgForUser(user.id);
-  if (!orgId) throw new HttpError(403, 'No workspace found for this account');
-  return { userId: user.id, orgId, label: user.email ?? user.phone ?? user.id, store: s };
+  const label = user.email ?? user.phone ?? user.id;
+  let orgId = await s.orgForUser(user.id);
+  if (!orgId) {
+    // Two first requests can race; both then settle on the oldest workspace so the user always sees one.
+    const created = await s.provisionWorkspace(user.id, label);
+    orgId = (await s.orgForUser(user.id)) ?? created;
+  }
+  return { userId: user.id, orgId, label, store: s };
 }
 
 export async function readJson<T>(request: Request, maxBytes = 64_000): Promise<T> {

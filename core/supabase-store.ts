@@ -1,5 +1,6 @@
 // Production Store over Supabase's REST API (PostgREST) using the service role key, server-side only.
 import type { Store } from './store.js';
+import { DEFAULT_TASK_TYPES } from './policy.js';
 import type { Approval, AuditEvent, Briefing, Feedback, Memory, Task, TaskType } from './types.js';
 
 type Row = Record<string, unknown>;
@@ -107,6 +108,26 @@ export class SupabaseStore implements Store {
   async orgForUser(userId: string): Promise<string | null> {
     const rows = await this.req(`org_members?user_id=eq.${userId}&select=org_id&order=created_at.asc&limit=1`);
     return rows[0] ? String(rows[0].org_id) : null;
+  }
+
+  /**
+   * Creates a workspace for a user who has none (for example, an account made before the database
+   * trigger existed). Mirrors handle_new_user() in the migration: org, owner membership, default autonomy.
+   */
+  async provisionWorkspace(userId: string, label: string): Promise<string> {
+    const org = this.one<{ id: string }>(await this.req('orgs', { method: 'POST', body: JSON.stringify({ name: label.slice(0, 200) || 'My company' }) }), 'Org');
+    await this.req('org_members', { method: 'POST', body: JSON.stringify({ org_id: org.id, user_id: userId, role: 'owner' }), headers: { prefer: 'return=minimal' } });
+    const types = DEFAULT_TASK_TYPES.map((t) => ({
+      org_id: org.id, key: t.key, label: t.label, level: t.level, risk: t.risk,
+      approvals_to_promote: t.approvalsToPromote, max_level: t.maxLevel, spend_cap_minor: t.spendCapMinor ?? null,
+    }));
+    await this.req('task_types', { method: 'POST', body: JSON.stringify(types), headers: { prefer: 'return=minimal' } });
+    await this.req('audit_log', {
+      method: 'POST',
+      body: JSON.stringify({ org_id: org.id, actor: 'platform', action: 'org.created', detail: { user: userId, via: 'first-sign-in' } }),
+      headers: { prefer: 'return=minimal' },
+    });
+    return org.id;
   }
 
   async listOrgIds(): Promise<string[]> {

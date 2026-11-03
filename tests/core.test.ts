@@ -242,3 +242,24 @@ test('Supabase URL is accepted as a full URL, a bare host, or just the project r
   assert.equal(normalizeSupabaseUrl('http://evil.example.com'), undefined);
   assert.equal(normalizeSupabaseUrl(undefined), undefined);
 });
+
+test('a signed-in user with no workspace gets one created with default autonomy levels', async () => {
+  const { SupabaseStore } = await import('../core/supabase-store.js');
+  const calls: { path: string; body: unknown }[] = [];
+  const fakeFetch = (async (url: string, init: RequestInit) => {
+    const path = url.split('/rest/v1/')[1];
+    calls.push({ path, body: init.body ? JSON.parse(String(init.body)) : null });
+    if (path.startsWith('orgs')) return new Response(JSON.stringify([{ id: 'org-new' }]), { status: 201 });
+    return new Response('[]', { status: 201 });
+  }) as unknown as typeof fetch;
+  const store = new SupabaseStore('https://x.supabase.co', 'sb_secret_abc', fakeFetch);
+  const orgId = await store.provisionWorkspace('user-1', 'founder@acme.com');
+  assert.equal(orgId, 'org-new');
+  assert.deepEqual(calls[0].body, { name: 'founder@acme.com' });
+  assert.deepEqual(calls[1].body, { org_id: 'org-new', user_id: 'user-1', role: 'owner' });
+  const types = calls[2].body as { key: string; level: number; org_id: string }[];
+  assert.equal(types.length, DEFAULT_TASK_TYPES.length);
+  assert.ok(types.every((t) => t.org_id === 'org-new'));
+  assert.equal(types.find((t) => t.key === 'spend_money')!.level, 1);
+  assert.ok(calls[3].path.startsWith('audit_log'));
+});

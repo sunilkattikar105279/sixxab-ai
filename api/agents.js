@@ -156,6 +156,14 @@ function effectiveGate(taskType, amountMinor) {
   if (!spend.allowed) return level === 1 ? "draft_for_human" : "await_approval";
   return gateFor(level);
 }
+var DEFAULT_TASK_TYPES = [
+  { key: "internal_note", label: "Write an internal note or plan", level: 3, risk: "internal", approvalsToPromote: 0, maxLevel: 3 },
+  { key: "memory_write", label: "Save a fact to company memory", level: 3, risk: "internal", approvalsToPromote: 0, maxLevel: 3 },
+  { key: "send_message", label: "Send a customer message", level: 2, risk: "external", approvalsToPromote: 20, maxLevel: 3 },
+  { key: "publish_post", label: "Publish a social post", level: 2, risk: "external", approvalsToPromote: 15, maxLevel: 3 },
+  { key: "send_email_campaign", label: "Send an email campaign", level: 1, risk: "external", approvalsToPromote: 10, maxLevel: 2 },
+  { key: "spend_money", label: "Spend money (ads, purchases, payments)", level: 1, risk: "money", approvalsToPromote: 30, maxLevel: 2, spendCapMinor: 5e4 }
+];
 
 // core/store.ts
 function newId() {
@@ -629,6 +637,31 @@ var SupabaseStore = class {
     const rows = await this.req(`org_members?user_id=eq.${userId}&select=org_id&order=created_at.asc&limit=1`);
     return rows[0] ? String(rows[0].org_id) : null;
   }
+  /**
+   * Creates a workspace for a user who has none (for example, an account made before the database
+   * trigger existed). Mirrors handle_new_user() in the migration: org, owner membership, default autonomy.
+   */
+  async provisionWorkspace(userId, label) {
+    const org = this.one(await this.req("orgs", { method: "POST", body: JSON.stringify({ name: label.slice(0, 200) || "My company" }) }), "Org");
+    await this.req("org_members", { method: "POST", body: JSON.stringify({ org_id: org.id, user_id: userId, role: "owner" }), headers: { prefer: "return=minimal" } });
+    const types = DEFAULT_TASK_TYPES.map((t) => ({
+      org_id: org.id,
+      key: t.key,
+      label: t.label,
+      level: t.level,
+      risk: t.risk,
+      approvals_to_promote: t.approvalsToPromote,
+      max_level: t.maxLevel,
+      spend_cap_minor: t.spendCapMinor ?? null
+    }));
+    await this.req("task_types", { method: "POST", body: JSON.stringify(types), headers: { prefer: "return=minimal" } });
+    await this.req("audit_log", {
+      method: "POST",
+      body: JSON.stringify({ org_id: org.id, actor: "platform", action: "org.created", detail: { user: userId, via: "first-sign-in" } }),
+      headers: { prefer: "return=minimal" }
+    });
+    return org.id;
+  }
   async listOrgIds() {
     return (await this.req("orgs?select=id")).map((r) => String(r.id));
   }
@@ -691,9 +724,13 @@ async function requireUser(request) {
   const user = await verifyUser(url, anon, token);
   if (!user) throw new HttpError(401, "Please sign in again");
   const s = store();
-  const orgId = await s.orgForUser(user.id);
-  if (!orgId) throw new HttpError(403, "No workspace found for this account");
-  return { userId: user.id, orgId, label: user.email ?? user.phone ?? user.id, store: s };
+  const label = user.email ?? user.phone ?? user.id;
+  let orgId = await s.orgForUser(user.id);
+  if (!orgId) {
+    const created = await s.provisionWorkspace(user.id, label);
+    orgId = await s.orgForUser(user.id) ?? created;
+  }
+  return { userId: user.id, orgId, label, store: s };
 }
 async function readJson(request, maxBytes = 64e3) {
   const text = await request.text();
