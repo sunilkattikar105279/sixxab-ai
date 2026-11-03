@@ -5,7 +5,7 @@ import { Brand, Spinner } from './ui';
 
 type Tab = 'today' | 'approvals' | 'agents' | 'activity';
 type AgentInfo = Omit<RoleCard, 'instructions'>;
-interface TaskRow { id: string; agentId: string; goal: string; status: string; output: string | null; updatedAt: string }
+interface TaskRow { id: string; agentId: string; goal: string; status: string; output: string | null; updatedAt: string; createdAt: string; parentTaskId: string | null }
 
 const LEVEL = { 1: 'L1 Assist', 2: 'L2 Approve', 3: 'L3 Autonomous' } as const;
 const STATUS: Record<string, string> = {
@@ -172,6 +172,34 @@ function Today({ onPending, goApprovals }: { onPending: (n: number) => void; goA
   }, [onPending]);
   useEffect(refreshPending, [refreshPending]);
 
+  const waiting = useLoad<{ tasks: TaskRow[] }>('/api/agents');
+  const leftover: Step[] = busy || steps ? [] : (waiting.data?.tasks ?? [])
+    .filter((t) => t.status === 'planned' && t.agentId !== 'founder-orchestrator')
+    .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1))
+    .map((t) => ({ taskId: t.id, agentId: t.agentId, goal: t.goal, status: 'planned' }));
+
+  /** Runs planned steps one request at a time, showing progress. Each step is its own server call. */
+  async function runSteps(initial: Step[]) {
+    let current = initial;
+    setSteps(current);
+    for (let i = 0; i < current.length; i++) {
+      setPhase(`Step ${i + 1} of ${current.length}: ${current[i].agentId} is working…`);
+      current = current.map((s, j) => (j === i ? { ...s, status: 'running' } : s));
+      setSteps(current);
+      try {
+        const r = await api<{ status: string; output: string | null; queued: number }>('/api/agents', { method: 'POST', body: JSON.stringify({ taskId: current[i].taskId }) });
+        current = current.map((s, j) => (j === i ? { ...s, status: r.status, output: r.output, queued: r.queued } : s));
+      } catch (err) {
+        current = current.map((s, j) => (j === i ? { ...s, status: 'failed', output: err instanceof Error ? err.message : 'Step failed' } : s));
+      }
+      setSteps(current);
+      refreshPending();
+    }
+    setPhase(null);
+    brief.reload();
+    waiting.reload();
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (goal.trim().length < 3) return;
@@ -181,27 +209,21 @@ function Today({ onPending, goApprovals }: { onPending: (n: number) => void; goA
     try {
       setPhase('Planning…');
       const plan = await api<{ steps: Step[] }>('/api/agents', { method: 'POST', body: JSON.stringify({ goal }) });
-      let current = plan.steps;
-      setSteps(current);
       setGoal('');
-      for (let i = 0; i < current.length; i++) {
-        setPhase(`Step ${i + 1} of ${current.length}: ${current[i].agentId} is working…`);
-        current = current.map((s, j) => (j === i ? { ...s, status: 'running' } : s));
-        setSteps(current);
-        try {
-          const r = await api<{ status: string; output: string | null; queued: number }>('/api/agents', { method: 'POST', body: JSON.stringify({ taskId: current[i].taskId }) });
-          current = current.map((s, j) => (j === i ? { ...s, status: r.status, output: r.output, queued: r.queued } : s));
-        } catch (err) {
-          current = current.map((s, j) => (j === i ? { ...s, status: 'failed', output: err instanceof Error ? err.message : 'Step failed' } : s));
-        }
-        setSteps(current);
-        refreshPending();
-      }
-      setPhase(null);
-      brief.reload();
+      await runSteps(plan.steps);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not start the agents.');
       setPhase(null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function continueLeftover() {
+    setBusy(true);
+    setError(null);
+    try {
+      await runSteps(leftover);
     } finally {
       setBusy(false);
     }
@@ -221,6 +243,12 @@ function Today({ onPending, goApprovals }: { onPending: (n: number) => void; goA
           <button type="submit" className="btn-primary" disabled={busy || goal.trim().length < 3}>{busy ? <Spinner label={phase ?? 'Working…'} /> : 'Hand it to the agents'}</button>
         </form>
         {error && <p className="error" role="alert">{error}</p>}
+        {leftover.length > 0 && (
+          <div className="notice" role="status">
+            <p style={{ margin: '0 0 10px' }}>{leftover.length} planned step{leftover.length === 1 ? '' : 's'} from an earlier goal haven&apos;t run yet.</p>
+            <button type="button" className="btn-primary" onClick={continueLeftover}>Run {leftover.length === 1 ? 'it' : `all ${leftover.length}`} now</button>
+          </div>
+        )}
         {steps && (
           <ol className="steps">
             {steps.map((s) => (

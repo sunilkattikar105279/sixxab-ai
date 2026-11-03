@@ -96,7 +96,7 @@ async function mockServices(ctx, state) {
       state.ran = [...(state.ran ?? []), body.taskId];
       return r.fulfill({ json: body.taskId === 't1' ? { status: 'done', output: 'Plan saved.', queued: 0 } : { status: 'done', output: 'Post queued.', queued: 1 } });
     }
-    return r.fulfill({ json: { agents: [{ id: 'cmo', name: 'CMO agent', layer: 'cxo', job: 'Owns marketing' }], taskTypes: [{ key: 'publish_post', label: 'Publish a social post', level: 2, maxLevel: 3 }], tasks: [] } });
+    return r.fulfill({ json: { agents: [{ id: 'cmo', name: 'CMO agent', layer: 'cxo', job: 'Owns marketing' }], taskTypes: [{ key: 'publish_post', label: 'Publish a social post', level: 2, maxLevel: 3 }], tasks: state.leftover ?? [] } });
   });
   await ctx.route('**/api/profile', async (r) => {
     const fields = [{ key: 'name', label: 'Company name' }, { key: 'offer', label: 'What we sell' }, { key: 'customers', label: 'Who we sell to' }];
@@ -180,6 +180,26 @@ await check('workspace: run a goal, edit and approve, see agents and activity', 
   await page.screenshot({ path: `${SHOTS}/app-agents.png` });
   await page.getByRole('button', { name: 'Activity' }).click();
   await page.getByText(/approval requested/).waitFor();
+  await ctx.close();
+});
+
+await check('planned steps that never ran can be continued from the Today tab', async () => {
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const now = Date.now();
+  const state = { otp: [], decisions: [], pending: [], profile: { name: 'SIXXAB AI', offer: 'Agents' }, leftover: [
+    { id: 't2', agentId: 'social-poster', goal: 'Announce', status: 'planned', createdAt: new Date(now + 1000).toISOString() },
+    { id: 't1', agentId: 'strategy-coach', goal: 'Write launch plan', status: 'planned', createdAt: new Date(now).toISOString() },
+    { id: 'p', agentId: 'founder-orchestrator', goal: 'Launch', status: 'running', createdAt: new Date(now - 1000).toISOString() },
+  ] };
+  await mockServices(ctx, state);
+  await ctx.addInitScript(() => localStorage.setItem('sixxab.session', JSON.stringify({ accessToken: 'at', refreshToken: 'rt', expiresAt: Math.floor(Date.now() / 1000) + 3600, user: { id: 'u1', email: 'founder@acme.com' } })));
+  const page = await ctx.newPage();
+  await page.goto(BASE + '/app');
+  await page.getByText("2 planned steps from an earlier goal haven't run yet.").waitFor();
+  state.leftover = [];
+  await page.getByRole('button', { name: 'Run all 2 now' }).click();
+  await page.getByText('Post queued.').waitFor();
+  assert.deepEqual(state.ran, ['t1', 't2'], 'oldest step first');
   await ctx.close();
 });
 
