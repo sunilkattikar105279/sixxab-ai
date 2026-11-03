@@ -87,65 +87,6 @@ test('autonomous tool runs immediately and the task finishes', async () => {
   assert.ok(store.auditLog.some((e) => e.action === 'tool.executed'));
 });
 
-test('external action pauses for approval, then executes the edited version and resumes', async () => {
-  const { store, integrations, deps } = setup([
-    [{ type: 'tool_use', id: 'p1', name: 'publish_post', input: { network: 'instagram', text: 'Draft post' } }],
-    [{ type: 'text', text: 'Posted.' }],
-  ]);
-  const task = await createTask(store, ORG, 'social-poster', 'Post about our launch');
-  const run = await runTask(deps, task.id);
-  assert.equal(run.task.status, 'awaiting_approval');
-  assert.ok(run.approval);
-  assert.equal(integrations.sent.length, 0, 'nothing is sent before approval');
-
-  const res = await decide(deps, run.approval!.id, { approved: true, edited: { network: 'instagram', text: 'Edited post' }, by: 'founder' });
-  assert.equal(res.task.status, 'done');
-  assert.deepEqual(integrations.sent[0], { action: 'publish_post', payload: { network: 'instagram', text: 'Edited post', when: 'now' } });
-  const cases = await evalCases(store, ORG);
-  assert.equal(cases.length, 1, 'edits become eval cases');
-});
-
-test('rejection is fed back to the agent and nothing is sent', async () => {
-  const { store, integrations, deps } = setup([
-    [{ type: 'tool_use', id: 'm1', name: 'send_message', input: { channel: 'sms', to: '+15555550100', text: 'Hi' } }],
-    [{ type: 'text', text: 'Understood, I will not send it.' }],
-  ]);
-  const task = await createTask(store, ORG, 'customer-reply', 'Reply to lead');
-  const run = await runTask(deps, task.id);
-  const res = await decide(deps, run.approval!.id, { approved: false, reason: 'Wrong tone', by: 'founder' });
-  assert.equal(res.task.status, 'done');
-  assert.equal(integrations.sent.length, 0);
-  const last = res.task.transcript.at(-2);
-  assert.ok(JSON.stringify(last).includes('Wrong tone'));
-});
-
-test('rejecting an autonomous task demotes it to approval', async () => {
-  const types = DEFAULT_TASK_TYPES.map((t) => (t.key === 'spend_money' ? { ...t, level: 3 as const, maxLevel: 3 as const } : t));
-  const { store, integrations, deps } = setup([
-    [{ type: 'tool_use', id: 's1', name: 'spend_money', input: { amountMinor: 90_000, currency: 'USD', purpose: 'Ads', payee: 'Meta' } }],
-    [{ type: 'text', text: 'Holding the spend.' }],
-  ], types);
-  const task = await createTask(store, ORG, 'cmo', 'Boost the launch');
-  const run = await runTask(deps, task.id);
-  assert.equal(run.task.status, 'awaiting_approval', 'over the cap, even L3 must ask');
-  await decide(deps, run.approval!.id, { approved: false, reason: 'Too much', by: 'founder' });
-  assert.equal((await store.getTaskTypes(ORG)).find((t) => t.key === 'spend_money')!.level, 2);
-  assert.equal(integrations.sent.length, 0);
-});
-
-test('an L1 task becomes a draft and is never executed by the agent', async () => {
-  const { store, integrations, deps } = setup([
-    [{ type: 'tool_use', id: 'e1', name: 'send_email_campaign', input: { list: 'all', subject: 'Hi', body: 'Body' } }],
-    [{ type: 'text', text: 'Draft handed over.' }],
-  ]);
-  const task = await createTask(store, ORG, 'cmo', 'Email everyone');
-  const run = await runTask(deps, task.id);
-  assert.equal(run.task.status, 'draft_for_human');
-  const res = await decide(deps, run.approval!.id, { approved: true, by: 'founder' });
-  assert.equal(res.task.status, 'done');
-  assert.equal(integrations.sent.length, 0, 'the person sends L1 work themselves');
-});
-
 test('agent cannot call a tool outside its role card', async () => {
   const { store, integrations, deps } = setup([
     [{ type: 'tool_use', id: 's1', name: 'spend_money', input: { amountMinor: 100, currency: 'USD', purpose: 'x', payee: 'y' } }],
@@ -187,23 +128,6 @@ test('plan parser keeps only known agents and caps steps', () => {
   const plan = parsePlan('Here: {"steps":[{"agentId":"cmo","goal":"Plan launch"},{"agentId":"hacker","goal":"x"},{"agentId":"social-poster","goal":""}]}');
   assert.deepEqual(plan, [{ agentId: 'cmo', goal: 'Plan launch' }]);
   assert.deepEqual(parsePlan('no json'), []);
-});
-
-test('orchestrator plans, runs each step and reports what waits on a person', async () => {
-  const { store, deps } = setup([
-    [{ type: 'text', text: '{"steps":[{"agentId":"strategy-coach","goal":"Write launch plan"},{"agentId":"social-poster","goal":"Announce launch"}]}' }],
-    [{ type: 'tool_use', id: 'n1', name: 'write_note', input: { title: 'Launch plan', body: 'Steps' } }],
-    [{ type: 'text', text: 'Plan saved.' }],
-    [{ type: 'tool_use', id: 'p1', name: 'publish_post', input: { network: 'linkedin', text: 'We are live' } }],
-  ]);
-  const res = await orchestrate(deps, ORG, 'Launch this week');
-  assert.equal(res.steps.length, 2);
-  assert.equal(res.steps[0].task.status, 'done');
-  assert.equal(res.steps[1].task.status, 'awaiting_approval');
-  assert.equal(res.parent.status, 'awaiting_approval');
-  const brief = await buildBriefing(store, ORG);
-  assert.equal(brief.needsYou.length, 1);
-  assert.ok(brief.shipped.some((s) => s.includes('Launch plan')));
 });
 
 test('Claude client sends the routed model and parses the reply', async () => {
@@ -299,4 +223,120 @@ test('tools accept numbers where text is expected and explain what was missing',
   const ctx = { store, orgId: ORG, task: {} as never, agent: { id: 'cmo' } as never, integrations: new RecordingIntegrations() };
   assert.equal(await TOOLS.write_note.execute({ title: 2026, body: 'Plan' }, ctx), 'Saved note "2026"');
   await assert.rejects(() => TOOLS.write_note.execute({ title: 'Plan' }, ctx), /body/);
+});
+
+// ---------- non-blocking approvals (second live run) ----------
+
+test('several posts are all queued for approval in one run; nothing is sent until approved', async () => {
+  const { store, integrations, deps } = setup([
+    [{ type: 'tool_use', id: 'p1', name: 'publish_post', input: { network: 'linkedin', text: 'Monday post' } }],
+    [{ type: 'tool_use', id: 'p2', name: 'publish_post', input: { network: 'linkedin', text: 'Tuesday post' } }],
+    [{ type: 'text', text: 'Queued both posts.' }],
+  ]);
+  const task = await createTask(store, ORG, 'social-poster', 'Write the week of LinkedIn posts');
+  const run = await runTask(deps, task.id);
+  assert.equal(run.task.status, 'done', 'the agent finishes instead of waiting');
+  assert.equal(run.approvals?.length, 2);
+  assert.equal((await store.listApprovals(ORG, 'pending')).length, 2);
+  assert.equal(integrations.sent.length, 0, 'nothing is sent before approval');
+
+  await decide(deps, run.approvals![0].id, { approved: true, edited: { text: 'Monday post, edited' }, by: 'founder' });
+  assert.deepEqual(integrations.sent[0], { action: 'publish_post', payload: { network: 'linkedin', text: 'Monday post, edited', when: 'now' } });
+  await decide(deps, run.approvals![1].id, { approved: false, reason: 'Wrong tone', by: 'founder' });
+  assert.equal(integrations.sent.length, 1, 'a rejected post is never sent');
+  assert.equal((await evalCases(store, ORG)).length, 1, 'edits become eval cases');
+  assert.ok((await store.listFeedback(ORG)).some((f) => f.outcome === 'rejected' && f.reason === 'Wrong tone'));
+});
+
+test('an empty post is refused before it reaches the approvals inbox', async () => {
+  const { store, model, deps } = setup([
+    [{ type: 'tool_use', id: 'x1', name: 'publish_post', input: { network: 'x', text: '' } }],
+    [{ type: 'tool_use', id: 'x2', name: 'publish_post', input: { network: 'x', text: 'Real tweet' } }],
+    [{ type: 'text', text: 'Done.' }],
+  ]);
+  const task = await createTask(store, ORG, 'social-poster', 'Tweet the launch');
+  const run = await runTask(deps, task.id);
+  const pending = await store.listApprovals(ORG, 'pending');
+  assert.equal(pending.length, 1);
+  assert.equal(pending[0].proposed.text, 'Real tweet');
+  assert.match(JSON.stringify(model.calls[1].messages.at(-1)), /Missing \\"text\\"/);
+  assert.equal(run.task.status, 'done');
+});
+
+test('workers get room for long content and a cut-off reply is nudged to finish', async () => {
+  const { store, model, deps } = setup([]);
+  model.complete = async function (req) {
+    this.calls.push(req);
+    return this.calls.length === 1
+      ? { content: [{ type: 'text', text: 'A very long plan that got cut' }], stopReason: 'max_tokens' }
+      : { content: [{ type: 'text', text: 'Short summary.' }], stopReason: 'end_turn' };
+  };
+  const task = await createTask(store, ORG, 'cmo', 'Plan the quarter');
+  const run = await runTask(deps, task.id);
+  assert.ok((model.calls[0].maxTokens ?? 0) >= 8000);
+  assert.equal(run.task.output, 'Short summary.');
+  assert.match(JSON.stringify(model.calls[1].messages.at(-1)), /cut off/);
+});
+
+test('rejecting an autonomous task demotes it to approval', async () => {
+  const types = DEFAULT_TASK_TYPES.map((t) => (t.key === 'spend_money' ? { ...t, level: 3 as const, maxLevel: 3 as const } : t));
+  const { store, integrations, deps } = setup([
+    [{ type: 'tool_use', id: 's1', name: 'spend_money', input: { amountMinor: 90_000, currency: 'USD', purpose: 'Ads', payee: 'Meta' } }],
+    [{ type: 'text', text: 'Holding the spend.' }],
+  ], types);
+  const task = await createTask(store, ORG, 'cmo', 'Boost the launch');
+  const run = await runTask(deps, task.id);
+  assert.equal(run.approvals?.length, 1, 'over the cap, even L3 must ask');
+  await decide(deps, run.approvals![0].id, { approved: false, reason: 'Too much', by: 'founder' });
+  assert.equal((await store.getTaskTypes(ORG)).find((t) => t.key === 'spend_money')!.level, 2);
+  assert.equal(integrations.sent.length, 0);
+});
+
+test('an L1 task becomes a draft and is never executed by the platform', async () => {
+  const { store, integrations, deps } = setup([
+    [{ type: 'tool_use', id: 'e1', name: 'send_email_campaign', input: { list: 'all', subject: 'Hi', body: 'Body' } }],
+    [{ type: 'text', text: 'Draft handed over.' }],
+  ]);
+  const task = await createTask(store, ORG, 'cmo', 'Email everyone');
+  const run = await runTask(deps, task.id);
+  assert.equal(run.approvals?.[0].kind, 'draft');
+  await decide(deps, run.approvals![0].id, { approved: true, by: 'founder' });
+  assert.equal(integrations.sent.length, 0, 'the person sends L1 work themselves');
+});
+
+test('a goal is planned first, then each step runs on its own, then the goal settles', async () => {
+  const { planGoal, settleParent } = await import('../core/orchestrator.js');
+  const { store, deps } = setup([
+    [{ type: 'text', text: '{"steps":[{"agentId":"strategy-coach","goal":"Write launch plan"},{"agentId":"social-poster","goal":"Announce launch"}]}' }],
+    [{ type: 'tool_use', id: 'n1', name: 'write_note', input: { title: 'Launch plan', body: 'Steps' } }],
+    [{ type: 'text', text: 'Plan saved.' }],
+    [{ type: 'tool_use', id: 'p1', name: 'publish_post', input: { network: 'linkedin', text: 'We are live' } }],
+    [{ type: 'text', text: 'Post queued.' }],
+  ]);
+  const planned = await planGoal(deps, ORG, 'Launch this week');
+  assert.equal(planned.steps.length, 2);
+  assert.ok(planned.steps.every((s) => s.task.status === 'planned'));
+  assert.equal((await settleParent(deps, planned.parent.id))!.status, 'running', 'not settled while steps remain');
+  for (const s of planned.steps) await runTask(deps, s.task.id);
+  const parent = await settleParent(deps, planned.parent.id);
+  assert.equal(parent!.status, 'done');
+  assert.match(parent!.output ?? '', /1 item\(s\) waiting/);
+  const brief = await buildBriefing(store, ORG);
+  assert.equal(brief.needsYou.length, 1);
+  assert.ok(brief.shipped.some((s) => s.includes('Launch plan')));
+});
+
+test('approvals created by the earlier blocking design still resume their task', async () => {
+  const { store, integrations, deps } = setup([[{ type: 'text', text: 'Resumed and finished.' }]]);
+  const task = await createTask(store, ORG, 'social-poster', 'Old post');
+  const approvalId = 'legacy-1';
+  await store.createApproval({ id: approvalId, orgId: ORG, taskId: task.id, kind: 'approve', taskType: 'publish_post', summary: 'Old', proposed: { network: 'x', text: 'Old post' }, status: 'pending', edited: null, reason: null, decidedBy: null, createdAt: new Date().toISOString(), decidedAt: null });
+  await store.updateTask(task.id, {
+    status: 'awaiting_approval',
+    transcript: [{ role: 'user', content: 'Old post' }, { role: 'assistant', content: [{ type: 'tool_use', id: 'u1', name: 'publish_post', input: { network: 'x', text: 'Old post' } }] }],
+    pending: { tool: 'publish_post', input: { network: 'x', text: 'Old post' }, toolUseId: 'u1', approvalId, priorResults: [], remaining: [] },
+  });
+  const res = await decide(deps, approvalId, { approved: true, by: 'founder' });
+  assert.equal(res.task.status, 'done');
+  assert.equal(integrations.sent.length, 1);
 });

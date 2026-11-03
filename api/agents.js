@@ -359,18 +359,36 @@ async function createTask(store2, orgId, agentId, goal, parentTaskId = null) {
   await audit(store2, orgId, agentId, "task.created", task.id, { goal: task.goal });
   return task;
 }
+function missingFields(tool, input) {
+  const required = tool.spec.input_schema.required ?? [];
+  return required.filter((k) => {
+    const v = input[k];
+    return v === void 0 || v === null || typeof v === "string" && !v.trim();
+  });
+}
 async function processToolUses(deps2, task, agent, types, uses, prior) {
   const results = [...prior];
-  for (let i = 0; i < uses.length; i++) {
-    const use = uses[i];
-    const allowed = agent.tools.includes(use.name) ? TOOLS[use.name] : void 0;
-    if (!allowed) {
+  const approvals = [];
+  for (const use of uses) {
+    const tool = agent.tools.includes(use.name) ? TOOLS[use.name] : void 0;
+    if (!tool) {
       results.push({ type: "tool_result", tool_use_id: use.id, content: `Tool "${use.name}" is not available to ${agent.name}.`, is_error: true });
       continue;
     }
-    const tt = allowed.taskType ? types.get(allowed.taskType) : void 0;
-    if (allowed.taskType && !tt) {
-      results.push({ type: "tool_result", tool_use_id: use.id, content: `Task type "${allowed.taskType}" is not configured for this company.`, is_error: true });
+    const missing = missingFields(tool, use.input ?? {});
+    if (missing.length) {
+      await audit(deps2.store, task.orgId, agent.id, "tool.failed", task.id, { tool: use.name, error: `Missing ${missing.join(", ")}` });
+      results.push({
+        type: "tool_result",
+        tool_use_id: use.id,
+        is_error: true,
+        content: `Missing ${missing.map((m) => `"${m}"`).join(", ")}. Call ${use.name} again with every required field filled in. If the content is long, shorten it or split it into several calls.`
+      });
+      continue;
+    }
+    const tt = tool.taskType ? types.get(tool.taskType) : void 0;
+    if (tool.taskType && !tt) {
+      results.push({ type: "tool_result", tool_use_id: use.id, content: `Task type "${tool.taskType}" is not configured for this company.`, is_error: true });
       continue;
     }
     const amount = typeof use.input.amountMinor === "number" ? use.input.amountMinor : void 0;
@@ -385,7 +403,7 @@ async function processToolUses(deps2, task, agent, types, uses, prior) {
       taskId: task.id,
       kind: gate === "await_approval" ? "approve" : "draft",
       taskType: tt.key,
-      summary: allowed.summarize(use.input),
+      summary: tool.summarize(use.input),
       proposed: use.input,
       status: "pending",
       edited: null,
@@ -395,14 +413,15 @@ async function processToolUses(deps2, task, agent, types, uses, prior) {
       decidedAt: null
     };
     await deps2.store.createApproval(approval);
-    await deps2.store.updateTask(task.id, {
-      status: gate === "await_approval" ? "awaiting_approval" : "draft_for_human",
-      pending: { tool: use.name, input: use.input, toolUseId: use.id, approvalId: approval.id, priorResults: results, remaining: uses.slice(i + 1) }
-    });
+    approvals.push(approval);
     await audit(deps2.store, task.orgId, agent.id, gate === "await_approval" ? "approval.requested" : "draft.created", task.id, { approvalId: approval.id, summary: approval.summary });
-    return { kind: "paused", approval };
+    results.push({
+      type: "tool_result",
+      tool_use_id: use.id,
+      content: gate === "await_approval" ? "Queued for the founder approval. It goes out only if approved. Continue with the rest of the task." : "Saved as a draft for the founder to send themselves. Continue with the rest of the task."
+    });
   }
-  return { kind: "continue", results };
+  return { results, approvals };
 }
 async function executeTool(deps2, task, agent, use, inputOverride) {
   const tool = TOOLS[use.name];
@@ -417,6 +436,7 @@ async function executeTool(deps2, task, agent, use, inputOverride) {
     return { type: "tool_result", tool_use_id: use.id, content: `Failed: ${msg}`, is_error: true };
   }
 }
+var MAX_TOKENS = { router: 1024, worker: 8192, planner: 8192 };
 async function runTask(deps2, taskId) {
   let task = await deps2.store.getTask(taskId);
   if (!task) throw new Error(`Task ${taskId} not found`);
@@ -425,26 +445,36 @@ async function runTask(deps2, taskId) {
   const types = new Map((await deps2.store.getTaskTypes(task.orgId)).map((t) => [t.key, t]));
   const tools = toolsFor(agent).map((t) => t.spec);
   const maxTurns = deps2.maxTurns ?? 8;
+  const queued = [];
   task = await deps2.store.updateTask(task.id, { status: "running" });
   for (let turn = 0; turn < maxTurns; turn++) {
-    const resp = await deps2.model.complete({ tier: agent.modelTier, system: await systemPrompt(deps2.store, agent, task), messages: task.transcript, tools });
+    const resp = await deps2.model.complete({
+      tier: agent.modelTier,
+      system: await systemPrompt(deps2.store, agent, task),
+      messages: task.transcript,
+      tools,
+      maxTokens: MAX_TOKENS[agent.modelTier]
+    });
     const transcript = [...task.transcript, { role: "assistant", content: resp.content }];
     const uses = resp.content.filter((b) => b.type === "tool_use");
     if (uses.length === 0) {
+      if (resp.stopReason === "max_tokens") {
+        const nudge = { role: "user", content: "Your reply was cut off at the length limit. Finish with a shorter summary." };
+        task = await deps2.store.updateTask(task.id, { transcript: [...transcript, nudge] });
+        continue;
+      }
       task = await deps2.store.updateTask(task.id, { transcript, status: "done", output: textOf(resp.content), pending: null });
-      await audit(deps2.store, task.orgId, agent.id, "task.done", task.id, { output: task.output });
-      return { task };
+      await audit(deps2.store, task.orgId, agent.id, "task.done", task.id, { output: task.output, queued: queued.length });
+      return { task, approvals: queued, approval: queued[0] };
     }
     task = await deps2.store.updateTask(task.id, { transcript });
     const step = await processToolUses(deps2, task, agent, types, uses, []);
-    if (step.kind === "paused") {
-      return { task: await deps2.store.getTask(task.id), approval: step.approval };
-    }
+    queued.push(...step.approvals);
     task = await deps2.store.updateTask(task.id, { transcript: [...transcript, { role: "user", content: step.results }] });
   }
   task = await deps2.store.updateTask(task.id, { status: "failed", output: `Stopped after ${maxTurns} turns without finishing.` });
   await audit(deps2.store, task.orgId, agent.id, "task.failed", task.id, { reason: "turn limit" });
-  return { task };
+  return { task, approvals: queued, approval: queued[0] };
 }
 
 // core/orchestrator.ts
@@ -462,38 +492,43 @@ function parsePlan(text) {
     return [];
   }
 }
-async function orchestrate(deps2, orgId, goal) {
+async function planGoal(deps2, orgId, goal) {
   const lead = getAgent("founder-orchestrator");
   let parent = await createTask(deps2.store, orgId, lead.id, goal);
   parent = await deps2.store.updateTask(parent.id, { status: "running" });
   const roster = runnableAgents().map((a) => `- ${a.id}: ${a.name}. ${a.job}`).join("\n");
+  const profile = await profileForPrompt(deps2.store, orgId);
   const resp = await deps2.model.complete({
     tier: lead.modelTier,
-    system: `${lead.instructions}
+    system: `${lead.instructions}${profile}
 
 Agents you can assign:
 ${roster}
 
-Reply with JSON only: {"steps":[{"agentId":"...","goal":"..."}]}. At most ${MAX_STEPS} steps, in the order they should run.`,
-    messages: [{ role: "user", content: goal }]
+Reply with JSON only: {"steps":[{"agentId":"...","goal":"..."}]}. At most ${MAX_STEPS} steps, in the order they should run. Give each step one clear deliverable.`,
+    messages: [{ role: "user", content: goal }],
+    maxTokens: 2048
   });
   const text = resp.content.filter((b) => b.type === "text").map((b) => b.text).join("\n");
   let plan = parsePlan(text);
   if (plan.length === 0) plan = [{ agentId: "strategy-coach", goal }];
   const steps = [];
-  for (const step of plan) {
-    const child = await createTask(deps2.store, orgId, step.agentId, step.goal, parent.id);
-    const run = await runTask(deps2, child.id);
-    steps.push({ step, task: run.task });
-  }
-  const waiting = steps.filter((s) => s.task.status === "awaiting_approval" || s.task.status === "draft_for_human").length;
-  const failed = steps.filter((s) => s.task.status === "failed").length;
-  parent = await deps2.store.updateTask(parent.id, {
-    status: failed ? "failed" : waiting ? "awaiting_approval" : "done",
-    output: `Plan of ${steps.length} step(s): ${steps.map((s) => `${s.step.agentId} (${s.task.status})`).join(", ")}`,
+  for (const step of plan) steps.push({ step, task: await createTask(deps2.store, orgId, step.agentId, step.goal, parent.id) });
+  parent = await deps2.store.updateTask(parent.id, { output: `Plan of ${steps.length} step(s): ${steps.map((s) => s.step.agentId).join(", ")}` });
+  return { parent, steps };
+}
+async function settleParent(deps2, parentId) {
+  const parent = await deps2.store.getTask(parentId);
+  if (!parent) return null;
+  const children = (await deps2.store.listTasks(parent.orgId)).filter((t) => t.parentTaskId === parentId);
+  if (children.some((c) => c.status === "planned" || c.status === "running")) return parent;
+  const pending = (await deps2.store.listApprovals(parent.orgId, "pending")).filter((a) => children.some((c) => c.id === a.taskId)).length;
+  const failed = children.filter((c) => c.status === "failed").length;
+  return deps2.store.updateTask(parentId, {
+    status: failed ? "failed" : "done",
+    output: `${children.length} step(s) finished${failed ? `, ${failed} stopped` : ""}; ${pending} item(s) waiting for your approval.`,
     updatedAt: nowIso()
   });
-  return { parent, steps };
 }
 
 // core/model.ts
@@ -790,10 +825,18 @@ var GET = handle(async (request) => {
 var POST = handle(async (request) => {
   const { orgId, label, store: store2 } = await requireUser(request);
   const body = await readJson(request);
+  const d = deps(store2);
+  if (body.taskId) {
+    const task = await store2.getTask(body.taskId);
+    if (!task || task.orgId !== orgId) throw new HttpError(404, "Step not found");
+    if (task.status !== "planned") throw new HttpError(409, "This step has already run");
+    const run = await runTask(d, task.id);
+    if (task.parentTaskId) await settleParent(d, task.parentTaskId);
+    return json({ taskId: task.id, agentId: task.agentId, status: run.task.status, output: run.task.output, queued: run.approvals?.length ?? 0 });
+  }
   const goal = (body.goal ?? "").trim();
   if (goal.length < 3) throw new HttpError(400, "Describe the goal in a few words");
   if (goal.length > 4e3) throw new HttpError(400, "Goal is too long");
-  const d = deps(store2);
   const limit = Number(process.env.DAILY_GOAL_LIMIT || 50);
   const since = new Date(Date.now() - 24 * 3600 * 1e3).toISOString();
   const used = (await store2.listAudit(orgId, since)).filter((e) => e.action === "goal.submitted").length;
@@ -804,12 +847,12 @@ var POST = handle(async (request) => {
     if (!agent || !agent.usesModel || agent.layer === "core") throw new HttpError(400, "Unknown agent");
     const task = await createTask(store2, orgId, agent.id, goal);
     const run = await runTask(d, task.id);
-    return json({ task: { ...run.task, transcript: void 0 }, approval: run.approval ?? null });
+    return json({ taskId: task.id, agentId: agent.id, status: run.task.status, output: run.task.output, queued: run.approvals?.length ?? 0 });
   }
-  const res = await orchestrate(d, orgId, goal);
+  const planned = await planGoal(d, orgId, goal);
   return json({
-    parent: { ...res.parent, transcript: void 0 },
-    steps: res.steps.map((s) => ({ agentId: s.step.agentId, goal: s.step.goal, status: s.task.status, output: s.task.output }))
+    parentId: planned.parent.id,
+    steps: planned.steps.map((s) => ({ taskId: s.task.id, agentId: s.step.agentId, goal: s.step.goal, status: s.task.status }))
   });
 });
 export {

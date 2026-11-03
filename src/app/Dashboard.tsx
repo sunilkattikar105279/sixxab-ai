@@ -157,33 +157,57 @@ function CompanyProfileCard() {
   );
 }
 
+interface Step { taskId: string; agentId: string; goal: string; status: string; output?: string | null; queued?: number }
+
 function Today({ onPending, goApprovals }: { onPending: (n: number) => void; goApprovals: () => void }) {
   const brief = useLoad<{ briefing: Briefing }>('/api/briefing');
   const [goal, setGoal] = useState('');
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<{ steps: { agentId: string; goal: string; status: string; output: string | null }[] } | null>(null);
+  const [steps, setSteps] = useState<Step[] | null>(null);
+  const [phase, setPhase] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const refreshPending = useCallback(() => {
     api<{ approvals: Approval[] }>('/api/approvals').then((r) => onPending(r.approvals.length)).catch(() => undefined);
-  }, [result, onPending]);
+  }, [onPending]);
+  useEffect(refreshPending, [refreshPending]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (goal.trim().length < 3) return;
     setBusy(true);
     setError(null);
-    setResult(null);
+    setSteps(null);
     try {
-      setResult(await api('/api/agents', { method: 'POST', body: JSON.stringify({ goal }) }));
+      setPhase('Planning…');
+      const plan = await api<{ steps: Step[] }>('/api/agents', { method: 'POST', body: JSON.stringify({ goal }) });
+      let current = plan.steps;
+      setSteps(current);
       setGoal('');
+      for (let i = 0; i < current.length; i++) {
+        setPhase(`Step ${i + 1} of ${current.length}: ${current[i].agentId} is working…`);
+        current = current.map((s, j) => (j === i ? { ...s, status: 'running' } : s));
+        setSteps(current);
+        try {
+          const r = await api<{ status: string; output: string | null; queued: number }>('/api/agents', { method: 'POST', body: JSON.stringify({ taskId: current[i].taskId }) });
+          current = current.map((s, j) => (j === i ? { ...s, status: r.status, output: r.output, queued: r.queued } : s));
+        } catch (err) {
+          current = current.map((s, j) => (j === i ? { ...s, status: 'failed', output: err instanceof Error ? err.message : 'Step failed' } : s));
+        }
+        setSteps(current);
+        refreshPending();
+      }
+      setPhase(null);
       brief.reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not start the agents.');
+      setPhase(null);
     } finally {
       setBusy(false);
     }
   }
+
+  const queuedTotal = (steps ?? []).reduce((n, s) => n + (s.queued ?? 0), 0);
 
   const b = brief.data?.briefing;
   return (
@@ -194,22 +218,23 @@ function Today({ onPending, goApprovals }: { onPending: (n: number) => void; goA
         <form onSubmit={submit} className="goal-form">
           <label className="sr-only" htmlFor="goal">Goal</label>
           <textarea id="goal" rows={3} placeholder="e.g. Plan our launch week and draft three LinkedIn posts" value={goal} onChange={(e) => setGoal(e.target.value)} maxLength={4000} />
-          <button type="submit" className="btn-primary" disabled={busy || goal.trim().length < 3}>{busy ? <Spinner label="Agents working…" /> : 'Hand it to the agents'}</button>
+          <button type="submit" className="btn-primary" disabled={busy || goal.trim().length < 3}>{busy ? <Spinner label={phase ?? 'Working…'} /> : 'Hand it to the agents'}</button>
         </form>
         {error && <p className="error" role="alert">{error}</p>}
-        {result && (
+        {steps && (
           <ol className="steps">
-            {result.steps.map((s, i) => (
-              <li key={i}>
-                <strong>{s.agentId}</strong> <span className={`pill pill-${s.status}`}>{STATUS[s.status] ?? s.status}</span>
+            {steps.map((s) => (
+              <li key={s.taskId}>
+                <strong>{s.agentId}</strong> <span className={`pill pill-${s.status}`}>{s.status === 'running' ? 'Working…' : STATUS[s.status] ?? s.status}</span>
+                {!!s.queued && <span className="pill pill-awaiting_approval">{s.queued} for your approval</span>}
                 <div className="muted small">{s.goal}</div>
                 {s.output && <p className="output">{s.output}</p>}
               </li>
             ))}
           </ol>
         )}
-        {result?.steps.some((s) => s.status === 'awaiting_approval' || s.status === 'draft_for_human') && (
-          <button type="button" className="btn-ghost" onClick={goApprovals}>Review what needs your yes</button>
+        {!busy && queuedTotal > 0 && (
+          <button type="button" className="btn-primary" onClick={goApprovals}>Review {queuedTotal} item{queuedTotal === 1 ? '' : 's'} waiting for your yes</button>
         )}
       </section>
 

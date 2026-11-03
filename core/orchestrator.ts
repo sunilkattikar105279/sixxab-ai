@@ -3,6 +3,7 @@ import { getAgent, runnableAgents } from './agents.js';
 import { createTask, runTask, type RuntimeDeps } from './runtime.js';
 import { nowIso } from './store.js';
 import type { Task, TextBlock } from './types.js';
+import { profileForPrompt } from './profile.js';
 
 export interface PlanStep {
   agentId: string;
@@ -35,34 +36,55 @@ export function parsePlan(text: string): PlanStep[] {
   }
 }
 
-export async function orchestrate(deps: RuntimeDeps, orgId: string, goal: string): Promise<OrchestrationResult> {
+export interface PlannedGoal {
+  parent: Task;
+  steps: { step: PlanStep; task: Task }[];
+}
+
+/** Turns a goal into a plan and creates one planned task per step. Fast: one planner call, no agent runs. */
+export async function planGoal(deps: RuntimeDeps, orgId: string, goal: string): Promise<PlannedGoal> {
   const lead = getAgent('founder-orchestrator')!;
   let parent = await createTask(deps.store, orgId, lead.id, goal);
   parent = await deps.store.updateTask(parent.id, { status: 'running' });
 
   const roster = runnableAgents().map((a) => `- ${a.id}: ${a.name}. ${a.job}`).join('\n');
+  const profile = await profileForPrompt(deps.store, orgId);
   const resp = await deps.model.complete({
     tier: lead.modelTier,
-    system: `${lead.instructions}\n\nAgents you can assign:\n${roster}\n\nReply with JSON only: {"steps":[{"agentId":"...","goal":"..."}]}. At most ${MAX_STEPS} steps, in the order they should run.`,
+    system: `${lead.instructions}${profile}\n\nAgents you can assign:\n${roster}\n\nReply with JSON only: {"steps":[{"agentId":"...","goal":"..."}]}. At most ${MAX_STEPS} steps, in the order they should run. Give each step one clear deliverable.`,
     messages: [{ role: 'user', content: goal }],
+    maxTokens: 2048,
   });
   const text = resp.content.filter((b): b is TextBlock => b.type === 'text').map((b) => b.text).join('\n');
   let plan = parsePlan(text);
   if (plan.length === 0) plan = [{ agentId: 'strategy-coach', goal }];
 
-  const steps: OrchestrationResult['steps'] = [];
-  for (const step of plan) {
-    const child = await createTask(deps.store, orgId, step.agentId, step.goal, parent.id);
-    const run = await runTask(deps, child.id);
-    steps.push({ step, task: run.task });
-  }
+  const steps: PlannedGoal['steps'] = [];
+  for (const step of plan) steps.push({ step, task: await createTask(deps.store, orgId, step.agentId, step.goal, parent.id) });
+  parent = await deps.store.updateTask(parent.id, { output: `Plan of ${steps.length} step(s): ${steps.map((s) => s.step.agentId).join(', ')}` });
+  return { parent, steps };
+}
 
-  const waiting = steps.filter((s) => s.task.status === 'awaiting_approval' || s.task.status === 'draft_for_human').length;
-  const failed = steps.filter((s) => s.task.status === 'failed').length;
-  parent = await deps.store.updateTask(parent.id, {
-    status: failed ? 'failed' : waiting ? 'awaiting_approval' : 'done',
-    output: `Plan of ${steps.length} step(s): ${steps.map((s) => `${s.step.agentId} (${s.task.status})`).join(', ')}`,
+/** Marks the parent goal finished once every step has run, with a one-line summary. */
+export async function settleParent(deps: RuntimeDeps, parentId: string): Promise<Task | null> {
+  const parent = await deps.store.getTask(parentId);
+  if (!parent) return null;
+  const children = (await deps.store.listTasks(parent.orgId)).filter((t) => t.parentTaskId === parentId);
+  if (children.some((c) => c.status === 'planned' || c.status === 'running')) return parent;
+  const pending = (await deps.store.listApprovals(parent.orgId, 'pending')).filter((a) => children.some((c) => c.id === a.taskId)).length;
+  const failed = children.filter((c) => c.status === 'failed').length;
+  return deps.store.updateTask(parentId, {
+    status: failed ? 'failed' : 'done',
+    output: `${children.length} step(s) finished${failed ? `, ${failed} stopped` : ''}; ${pending} item(s) waiting for your approval.`,
     updatedAt: nowIso(),
   });
+}
+
+/** Plans and runs every step in one go (used by tests and background jobs; the web app runs steps one request at a time). */
+export async function orchestrate(deps: RuntimeDeps, orgId: string, goal: string): Promise<OrchestrationResult> {
+  const planned = await planGoal(deps, orgId, goal);
+  const steps: OrchestrationResult['steps'] = [];
+  for (const { step, task } of planned.steps) steps.push({ step, task: (await runTask(deps, task.id)).task });
+  const parent = (await settleParent(deps, planned.parent.id)) ?? planned.parent;
   return { parent, steps };
 }

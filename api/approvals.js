@@ -329,6 +329,9 @@ function webhookIntegrations(url, secret, fetchImpl = fetch) {
     }
   };
 }
+function toolForTaskType(taskType) {
+  return Object.values(TOOLS).find((t) => t.taskType === taskType);
+}
 
 // core/learning.ts
 async function recordDecision(store2, approval, agentId) {
@@ -388,18 +391,36 @@ ${relevant.map((m) => `- ${m.text.slice(0, 1500)}`).join("\n")}` : "";
 
 Your role: ${agent.name}. ${agent.job}${profile}${memo}`;
 }
+function missingFields(tool, input) {
+  const required = tool.spec.input_schema.required ?? [];
+  return required.filter((k) => {
+    const v = input[k];
+    return v === void 0 || v === null || typeof v === "string" && !v.trim();
+  });
+}
 async function processToolUses(deps2, task, agent, types, uses, prior) {
   const results = [...prior];
-  for (let i = 0; i < uses.length; i++) {
-    const use = uses[i];
-    const allowed = agent.tools.includes(use.name) ? TOOLS[use.name] : void 0;
-    if (!allowed) {
+  const approvals = [];
+  for (const use of uses) {
+    const tool = agent.tools.includes(use.name) ? TOOLS[use.name] : void 0;
+    if (!tool) {
       results.push({ type: "tool_result", tool_use_id: use.id, content: `Tool "${use.name}" is not available to ${agent.name}.`, is_error: true });
       continue;
     }
-    const tt = allowed.taskType ? types.get(allowed.taskType) : void 0;
-    if (allowed.taskType && !tt) {
-      results.push({ type: "tool_result", tool_use_id: use.id, content: `Task type "${allowed.taskType}" is not configured for this company.`, is_error: true });
+    const missing = missingFields(tool, use.input ?? {});
+    if (missing.length) {
+      await audit(deps2.store, task.orgId, agent.id, "tool.failed", task.id, { tool: use.name, error: `Missing ${missing.join(", ")}` });
+      results.push({
+        type: "tool_result",
+        tool_use_id: use.id,
+        is_error: true,
+        content: `Missing ${missing.map((m) => `"${m}"`).join(", ")}. Call ${use.name} again with every required field filled in. If the content is long, shorten it or split it into several calls.`
+      });
+      continue;
+    }
+    const tt = tool.taskType ? types.get(tool.taskType) : void 0;
+    if (tool.taskType && !tt) {
+      results.push({ type: "tool_result", tool_use_id: use.id, content: `Task type "${tool.taskType}" is not configured for this company.`, is_error: true });
       continue;
     }
     const amount = typeof use.input.amountMinor === "number" ? use.input.amountMinor : void 0;
@@ -414,7 +435,7 @@ async function processToolUses(deps2, task, agent, types, uses, prior) {
       taskId: task.id,
       kind: gate === "await_approval" ? "approve" : "draft",
       taskType: tt.key,
-      summary: allowed.summarize(use.input),
+      summary: tool.summarize(use.input),
       proposed: use.input,
       status: "pending",
       edited: null,
@@ -424,14 +445,15 @@ async function processToolUses(deps2, task, agent, types, uses, prior) {
       decidedAt: null
     };
     await deps2.store.createApproval(approval);
-    await deps2.store.updateTask(task.id, {
-      status: gate === "await_approval" ? "awaiting_approval" : "draft_for_human",
-      pending: { tool: use.name, input: use.input, toolUseId: use.id, approvalId: approval.id, priorResults: results, remaining: uses.slice(i + 1) }
-    });
+    approvals.push(approval);
     await audit(deps2.store, task.orgId, agent.id, gate === "await_approval" ? "approval.requested" : "draft.created", task.id, { approvalId: approval.id, summary: approval.summary });
-    return { kind: "paused", approval };
+    results.push({
+      type: "tool_result",
+      tool_use_id: use.id,
+      content: gate === "await_approval" ? "Queued for the founder approval. It goes out only if approved. Continue with the rest of the task." : "Saved as a draft for the founder to send themselves. Continue with the rest of the task."
+    });
   }
-  return { kind: "continue", results };
+  return { results, approvals };
 }
 async function executeTool(deps2, task, agent, use, inputOverride) {
   const tool = TOOLS[use.name];
@@ -446,6 +468,7 @@ async function executeTool(deps2, task, agent, use, inputOverride) {
     return { type: "tool_result", tool_use_id: use.id, content: `Failed: ${msg}`, is_error: true };
   }
 }
+var MAX_TOKENS = { router: 1024, worker: 8192, planner: 8192 };
 async function runTask(deps2, taskId) {
   let task = await deps2.store.getTask(taskId);
   if (!task) throw new Error(`Task ${taskId} not found`);
@@ -454,33 +477,43 @@ async function runTask(deps2, taskId) {
   const types = new Map((await deps2.store.getTaskTypes(task.orgId)).map((t) => [t.key, t]));
   const tools = toolsFor(agent).map((t) => t.spec);
   const maxTurns = deps2.maxTurns ?? 8;
+  const queued = [];
   task = await deps2.store.updateTask(task.id, { status: "running" });
   for (let turn = 0; turn < maxTurns; turn++) {
-    const resp = await deps2.model.complete({ tier: agent.modelTier, system: await systemPrompt(deps2.store, agent, task), messages: task.transcript, tools });
+    const resp = await deps2.model.complete({
+      tier: agent.modelTier,
+      system: await systemPrompt(deps2.store, agent, task),
+      messages: task.transcript,
+      tools,
+      maxTokens: MAX_TOKENS[agent.modelTier]
+    });
     const transcript = [...task.transcript, { role: "assistant", content: resp.content }];
     const uses = resp.content.filter((b) => b.type === "tool_use");
     if (uses.length === 0) {
+      if (resp.stopReason === "max_tokens") {
+        const nudge = { role: "user", content: "Your reply was cut off at the length limit. Finish with a shorter summary." };
+        task = await deps2.store.updateTask(task.id, { transcript: [...transcript, nudge] });
+        continue;
+      }
       task = await deps2.store.updateTask(task.id, { transcript, status: "done", output: textOf(resp.content), pending: null });
-      await audit(deps2.store, task.orgId, agent.id, "task.done", task.id, { output: task.output });
-      return { task };
+      await audit(deps2.store, task.orgId, agent.id, "task.done", task.id, { output: task.output, queued: queued.length });
+      return { task, approvals: queued, approval: queued[0] };
     }
     task = await deps2.store.updateTask(task.id, { transcript });
     const step = await processToolUses(deps2, task, agent, types, uses, []);
-    if (step.kind === "paused") {
-      return { task: await deps2.store.getTask(task.id), approval: step.approval };
-    }
+    queued.push(...step.approvals);
     task = await deps2.store.updateTask(task.id, { transcript: [...transcript, { role: "user", content: step.results }] });
   }
   task = await deps2.store.updateTask(task.id, { status: "failed", output: `Stopped after ${maxTurns} turns without finishing.` });
   await audit(deps2.store, task.orgId, agent.id, "task.failed", task.id, { reason: "turn limit" });
-  return { task };
+  return { task, approvals: queued, approval: queued[0] };
 }
 async function decide(deps2, approvalId, d) {
   const approval = await deps2.store.getApproval(approvalId);
   if (!approval) throw new Error("Approval not found");
   if (approval.status !== "pending") throw new Error("Approval already decided");
   const task = await deps2.store.getTask(approval.taskId);
-  if (!task || !task.pending || task.pending.approvalId !== approvalId) throw new Error("Task is not waiting on this approval");
+  if (!task) throw new Error("Task not found");
   const agent = getAgent(task.agentId);
   const decided = await deps2.store.updateApproval(approvalId, {
     status: d.approved ? "approved" : "rejected",
@@ -489,13 +522,23 @@ async function decide(deps2, approvalId, d) {
     decidedBy: d.by,
     decidedAt: nowIso()
   });
-  await audit(deps2.store, task.orgId, d.by, d.approved ? "approval.approved" : "approval.rejected", task.id, { approvalId, reason: d.reason ?? null, edited: Boolean(d.edited) });
+  await audit(deps2.store, task.orgId, d.by, d.approved ? "approval.approved" : "approval.rejected", task.id, { approvalId, summary: approval.summary, reason: d.reason ?? null, edited: Boolean(d.edited) });
   const proposal = await recordDecision(deps2.store, decided, agent.id);
+  if (task.pending?.approvalId === approvalId) return { ...await resumeLegacy(deps2, task, agent, approval, d), proposal };
+  if (d.approved && approval.kind === "approve") {
+    const tool = toolForTaskType(approval.taskType);
+    if (!tool) throw new Error(`No tool for ${approval.taskType}`);
+    const input = { ...approval.proposed, ...d.edited ?? {} };
+    await executeTool(deps2, task, agent, { type: "tool_use", id: `approval-${approvalId}`, name: tool.spec.name, input });
+  }
+  return { task: await deps2.store.getTask(task.id), proposal };
+}
+async function resumeLegacy(deps2, task, agent, approval, d) {
   const p = task.pending;
   const use = { type: "tool_use", id: p.toolUseId, name: p.tool, input: p.input };
   let result;
   if (!d.approved) {
-    result = { type: "tool_result", tool_use_id: p.toolUseId, content: `A person rejected this${d.reason ? `: ${d.reason}` : ""}. Do not retry the same action; adjust or explain.`, is_error: true };
+    result = { type: "tool_result", tool_use_id: p.toolUseId, content: `A person rejected this${d.reason ? `: ${d.reason}` : ""}.`, is_error: true };
   } else if (approval.kind === "draft") {
     result = { type: "tool_result", tool_use_id: p.toolUseId, content: "A person accepted this draft and will carry it out themselves." };
   } else {
@@ -503,11 +546,9 @@ async function decide(deps2, approvalId, d) {
   }
   const types = new Map((await deps2.store.getTaskTypes(task.orgId)).map((t) => [t.key, t]));
   const resumed = await deps2.store.updateTask(task.id, { pending: null, status: "running" });
-  const step = await processToolUses(deps2, resumed, agent, types, p.remaining, [...p.priorResults, result]);
-  if (step.kind === "paused") return { task: await deps2.store.getTask(task.id), approval: step.approval, proposal };
+  const step = await processToolUses(deps2, resumed, agent, types, p.remaining ?? [], [...p.priorResults ?? [], result]);
   await deps2.store.updateTask(task.id, { transcript: [...resumed.transcript, { role: "user", content: step.results }] });
-  const run = await runTask(deps2, task.id);
-  return { ...run, proposal };
+  return runTask(deps2, task.id);
 }
 
 // core/model.ts

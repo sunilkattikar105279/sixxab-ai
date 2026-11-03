@@ -90,7 +90,12 @@ async function mockServices(ctx, state) {
     return r.fulfill({ json: { approvals: state.pending } });
   });
   await ctx.route('**/api/agents', async (r) => {
-    if (r.request().method() === 'POST') return r.fulfill({ json: { parent: {}, steps: [{ agentId: 'strategy-coach', goal: 'Write launch plan', status: 'done', output: 'Plan saved.' }, { agentId: 'social-poster', goal: 'Announce', status: 'awaiting_approval', output: null }] } });
+    if (r.request().method() === 'POST') {
+      const body = r.request().postDataJSON();
+      if (body.goal) return r.fulfill({ json: { parentId: 'p1', steps: [{ taskId: 't1', agentId: 'strategy-coach', goal: 'Write launch plan', status: 'planned' }, { taskId: 't2', agentId: 'social-poster', goal: 'Announce', status: 'planned' }] } });
+      state.ran = [...(state.ran ?? []), body.taskId];
+      return r.fulfill({ json: body.taskId === 't1' ? { status: 'done', output: 'Plan saved.', queued: 0 } : { status: 'done', output: 'Post queued.', queued: 1 } });
+    }
     return r.fulfill({ json: { agents: [{ id: 'cmo', name: 'CMO agent', layer: 'cxo', job: 'Owns marketing' }], taskTypes: [{ key: 'publish_post', label: 'Publish a social post', level: 2, maxLevel: 3 }], tasks: [] } });
   });
   await ctx.route('**/api/profile', async (r) => {
@@ -161,6 +166,9 @@ await check('workspace: run a goal, edit and approve, see agents and activity', 
   await page.getByLabel('Goal').fill('Plan our launch week');
   await page.getByRole('button', { name: 'Hand it to the agents' }).click();
   await page.getByText('Plan saved.').waitFor();
+  await page.getByText('Post queued.').waitFor();
+  assert.deepEqual(state.ran, ['t1', 't2'], 'each step runs as its own request, in order');
+  await page.getByRole('button', { name: /Review 1 item waiting for your yes/ }).waitFor();
   await page.getByRole('button', { name: /^Approvals/ }).click();
   await page.getByLabel('text').fill('We are live! Book a call at sixxab.ai');
   await page.getByRole('button', { name: 'Approve with my edits' }).click();

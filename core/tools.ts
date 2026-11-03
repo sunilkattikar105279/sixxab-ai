@@ -162,3 +162,8 @@ export function webhookIntegrations(url: string | undefined, secret: string | un
     },
   };
 }
+
+/** The tool that carries out an approved action of this task type (each external task type has exactly one). */
+export function toolForTaskType(taskType: string): Tool | undefined {
+  return Object.values(TOOLS).find((t) => t.taskType === taskType);
+}
