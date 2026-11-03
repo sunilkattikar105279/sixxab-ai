@@ -116,7 +116,7 @@ var AGENTS = [
     modelTier: "worker",
     tools: ["recall", "publish_post", "write_note"],
     usesModel: true,
-    instructions: `You write social posts in the company's voice. For every post you write, call publish_post with the network and the final text; the founder approves it before it goes out. ${SHARED_RULES}`
+    instructions: `You write social posts in the company's voice. For every post you write, call publish_post with the network and the final text; the founder approves it before it goes out. Use "linkedin" or "x" as the network name. Keep X posts under 280 characters. ${SHARED_RULES}`
   },
   {
     id: "customer-reply",
@@ -304,6 +304,21 @@ ${body}`, agentId: ctx.agent.id, at: nowIso() });
 function toolsFor(agent) {
   return agent.tools.map((n) => TOOLS[n]).filter((t) => Boolean(t));
 }
+var WEBHOOK_TIMEOUT_MS = 3e4;
+var RECEIPT_MAX = 500;
+function parseReceipt(text) {
+  try {
+    const body = JSON.parse(text);
+    if (!body || typeof body !== "object") return void 0;
+    const { ok, message } = body;
+    return {
+      ok: typeof ok === "boolean" ? ok : void 0,
+      message: typeof message === "string" && message.trim() ? message.trim().slice(0, RECEIPT_MAX) : void 0
+    };
+  } catch {
+    return void 0;
+  }
+}
 function webhookIntegrations(url, secret, fetchImpl = fetch) {
   return {
     async dispatch(action, payload) {
@@ -311,10 +326,13 @@ function webhookIntegrations(url, secret, fetchImpl = fetch) {
       const res = await fetchImpl(url, {
         method: "POST",
         headers: { "content-type": "application/json", ...secret ? { "x-sixxab-secret": secret } : {} },
-        body: JSON.stringify({ action, payload })
+        body: JSON.stringify({ action, payload }),
+        signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS)
       });
-      if (!res.ok) throw new Error(`Automation webhook ${res.status}`);
-      return `Dispatched "${action}"`;
+      const receipt = parseReceipt(await res.text().catch(() => ""));
+      if (!res.ok) throw new Error(`Automation webhook ${res.status}${receipt?.message ? `: ${receipt.message}` : ""}`);
+      if (receipt?.ok === false) throw new Error(`Not sent: ${receipt.message ?? `n8n could not complete "${action}"`}`);
+      return receipt?.message ?? `Dispatched "${action}"`;
     }
   };
 }

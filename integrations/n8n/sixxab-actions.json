@@ -1,0 +1,649 @@
+{
+  "name": "SIXXAB AI: approved actions",
+  "nodes": [
+    {
+      "id": "b476c642-1f7a-4db5-a5c8-595052d703ef",
+      "name": "Setup notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -460,
+        -260
+      ],
+      "parameters": {
+        "width": 420,
+        "height": 400,
+        "content": "## SIXXAB AI actions\nApproved posts and messages from sixxab.ai arrive here.\n\n1. **Webhook** → Credential: Header Auth, name `x-sixxab-secret`, value = your N8N_WEBHOOK_SECRET.\n2. **Route** → set FOUNDER_EMAIL and your Twilio numbers.\n3. Connect LinkedIn, X, Gmail and Twilio credentials on their nodes (pick your LinkedIn profile).\n4. Activate, copy the **Production URL** into Vercel as N8N_WEBHOOK_URL.\n\nSpending is never automatic: it only emails you."
+      }
+    },
+    {
+      "id": "13b4cb70-0c9b-4bda-ad9f-5b8c35ca342b",
+      "name": "SIXXAB webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sixxab-actions",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "daf24098-2b4e-4cb2-aad0-e5ca0d318fb0"
+    },
+    {
+      "id": "387f6174-9524-4456-a5b9-384f04a1b825",
+      "name": "Route",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// SIXXAB AI → n8n router. Edit the settings below, then save the workflow.\nconst FOUNDER_EMAIL = 'you@example.com';      // spending requests and campaign drafts are emailed here\nconst TWILIO_SMS_FROM = '+10000000000';       // your Twilio phone number (E.164)\nconst TWILIO_WHATSAPP_FROM = '+14155238886';  // your Twilio WhatsApp sender (sandbox number shown)\nconst DEFAULT_EMAIL_SUBJECT = 'A note from our team';\n\nconst money = (minor, currency) => {\n  const cur = String(currency || 'USD').toUpperCase();\n  try {\n    return new Intl.NumberFormat(cur === 'INR' ? 'en-IN' : 'en-US', { style: 'currency', currency: cur }).format(Number(minor) / 100);\n  } catch {\n    return (Number(minor) / 100).toFixed(2) + ' ' + cur;\n  }\n};\n\nreturn $input.all().map((item) => {\n  const body = item.json.body || {};\n  const action = String(body.action || '');\n  const p = body.payload || {};\n  const network = String(p.network || '').trim().toLowerCase();\n  const channel = String(p.channel || '').trim().toLowerCase();\n  const out = { action, route: 'unsupported', label: '', reason: 'No n8n route for \"' + action + '\"', founderEmail: FOUNDER_EMAIL };\n\n  if (action === 'publish_post') {\n    out.text = String(p.text || '');\n    if (network.includes('linkedin')) Object.assign(out, { route: 'post_linkedin', label: 'LinkedIn' });\n    else if (network === 'x' || network.startsWith('x ') || network.includes('twitter')) Object.assign(out, { route: 'post_x', label: 'X' });\n    else out.reason = 'Posting to \"' + (p.network || '?') + '\" is not connected in n8n yet';\n  } else if (action === 'send_message') {\n    const text = String(p.text || '');\n    const m = text.match(/^subject:\\s*(.+)\\n+/i);\n    Object.assign(out, { to: String(p.to || '').trim(), text: m ? text.slice(m[0].length) : text, subject: m ? m[1].trim() : DEFAULT_EMAIL_SUBJECT });\n    if (channel === 'email') Object.assign(out, { route: 'message_email', label: 'Email' });\n    else if (channel === 'sms') Object.assign(out, { route: 'message_sms', label: 'SMS', from: TWILIO_SMS_FROM });\n    else if (channel === 'whatsapp') Object.assign(out, { route: 'message_whatsapp', label: 'WhatsApp', from: TWILIO_WHATSAPP_FROM });\n    else out.reason = 'Channel \"' + (p.channel || '?') + '\" is not connected in n8n yet';\n  } else if (action === 'send_email_campaign') {\n    Object.assign(out, {\n      route: 'notify_founder', label: 'Founder email',\n      notifySubject: 'Campaign ready to send: ' + (p.subject || ''),\n      notifyBody: 'You approved this campaign in SIXXAB AI. Send it to the list \"' + (p.list || '') + '\" from your email tool.\\n\\nSubject: ' + (p.subject || '') + '\\n\\n' + (p.body || ''),\n    });\n  } else if (action === 'spend_money') {\n    const amount = money(p.amountMinor, p.currency);\n    Object.assign(out, {\n      route: 'notify_founder', label: 'Founder email', amount,\n      notifySubject: 'Approved spend: ' + amount + ' on ' + (p.purpose || ''),\n      notifyBody: 'You approved this spend in SIXXAB AI. n8n never moves money: make the payment yourself if it is still needed.\\n\\nAmount: ' + amount + '\\nPayee: ' + (p.payee || '') + '\\nPurpose: ' + (p.purpose || ''),\n    });\n  }\n  return { json: out };\n});"
+      }
+    },
+    {
+      "id": "22207b65-0821-4baa-aefc-123a758782a4",
+      "name": "By channel",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "f9708057-955d-4288-adc6-f274e5e5d106",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "post_linkedin",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "LinkedIn"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "ca45aa21-c852-487c-a8fd-53ffb3b7aa43",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "post_x",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "X"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "98a60e40-624f-499d-affd-737e035177d6",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "message_email",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Email"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "b254194e-bd2e-43cd-a3f5-178f083d5d26",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "message_sms",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "SMS"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "191839b1-e93d-4549-a09a-587cced991b3",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "message_whatsapp",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "WhatsApp"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "79f15173-0b2e-4b6b-af96-004fa507498e",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "notify_founder",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Founder"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "Unsupported"
+        }
+      }
+    },
+    {
+      "id": "c90921e4-6d15-4240-a844-809342e7ad8a",
+      "name": "Post on LinkedIn",
+      "type": "n8n-nodes-base.linkedIn",
+      "typeVersion": 1,
+      "position": [
+        720,
+        -400
+      ],
+      "parameters": {
+        "resource": "post",
+        "operation": "create",
+        "postAs": "person",
+        "person": "",
+        "text": "={{ $json.text }}",
+        "shareMediaCategory": "NONE",
+        "additionalFields": {
+          "visibility": "PUBLIC"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "be9fc994-8b03-4e6c-a187-892c519d3382",
+      "name": "Post on X",
+      "type": "n8n-nodes-base.twitter",
+      "typeVersion": 2,
+      "position": [
+        720,
+        -240
+      ],
+      "parameters": {
+        "resource": "tweet",
+        "operation": "create",
+        "text": "={{ $json.text }}",
+        "additionalFields": {}
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "e7a9c4cf-d2b8-4d59-a474-d594b7a3f485",
+      "name": "Send email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        720,
+        -80
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "text",
+        "message": "={{ $json.text }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "b01a89cb-6ab2-4d11-afcd-b053ae8cddb5",
+      "name": "Send SMS",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [
+        720,
+        80
+      ],
+      "parameters": {
+        "resource": "sms",
+        "operation": "send",
+        "from": "={{ $json.from }}",
+        "to": "={{ $json.to }}",
+        "toWhatsapp": false,
+        "message": "={{ $json.text }}",
+        "options": {}
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "c2c7d1dd-b6d7-4266-a48b-58ed0ef49e68",
+      "name": "Send WhatsApp",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [
+        720,
+        240
+      ],
+      "parameters": {
+        "resource": "sms",
+        "operation": "send",
+        "from": "={{ $json.from }}",
+        "to": "={{ $json.to }}",
+        "toWhatsapp": true,
+        "message": "={{ $json.text }}",
+        "options": {}
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "d2a134c6-a207-436e-a17f-86b8d6168e6e",
+      "name": "Email the founder",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        720,
+        400
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $json.founderEmail }}",
+        "subject": "={{ $json.notifySubject }}",
+        "emailType": "text",
+        "message": "={{ $json.notifyBody }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "d02d737b-f5de-44c8-a097-8c87d55ba08a",
+      "name": "Reply: posted on LinkedIn",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1000,
+        -400
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": true, \"message\": \"Posted on LinkedIn\" + (String($json.urn || $json.id || '').startsWith('urn:') ? \": https://www.linkedin.com/feed/update/\" + ($json.urn || $json.id) : \"\") } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "9de04d52-04f9-46ec-a391-ffd663196c1d",
+      "name": "Reply: posted on X",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1000,
+        -240
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": true, \"message\": \"Posted on X\" + ($json.id ? \": https://x.com/i/web/status/\" + $json.id : \"\") } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "2c5a9ec4-7267-40df-aa04-417238b67aaa",
+      "name": "Reply: emailed",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1000,
+        -80
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": true, \"message\": \"Emailed \" + $('Route').item.json.to } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "ffa01727-8e5d-42c7-a186-40ae4f6187f2",
+      "name": "Reply: SMS sent",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1000,
+        80
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": true, \"message\": \"SMS sent to \" + $('Route').item.json.to + ($json.sid ? \" (Twilio \" + $json.sid + \")\" : \"\") } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "bf440a97-b929-4045-affa-e0a22dbb40f4",
+      "name": "Reply: WhatsApp sent",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1000,
+        240
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": true, \"message\": \"WhatsApp sent to \" + $('Route').item.json.to + ($json.sid ? \" (Twilio \" + $json.sid + \")\" : \"\") } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "deddb5e7-2b19-4ea1-a101-fd4dcf225af5",
+      "name": "Reply: founder notified",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1000,
+        400
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": true, \"message\": $('Route').item.json.action === \"spend_money\" ? \"Emailed the founder to pay \" + $('Route').item.json.amount + \" manually; no money was moved\" : \"Emailed the campaign to the founder to send; the list was not emailed\" } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "64b3c850-30a8-4d0b-a5e6-0f064a3baafc",
+      "name": "Reply: not sent",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1000,
+        600
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": false, \"message\": $('Route').item.json.label + \" failed: \" + (typeof $json.error === \"string\" ? $json.error : ($json.error && $json.error.message) || \"unknown error\") } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "0a8a33e0-d595-4ad3-a5d6-f8c8b55b285a",
+      "name": "Reply: no route",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        600
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": false, \"message\": $json.reason } }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "SIXXAB webhook": {
+      "main": [
+        [
+          {
+            "node": "Route",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route": {
+      "main": [
+        [
+          {
+            "node": "By channel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "By channel": {
+      "main": [
+        [
+          {
+            "node": "Post on LinkedIn",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Post on X",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send SMS",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Email the founder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply: no route",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post on LinkedIn": {
+      "main": [
+        [
+          {
+            "node": "Reply: posted on LinkedIn",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply: not sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post on X": {
+      "main": [
+        [
+          {
+            "node": "Reply: posted on X",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply: not sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send email": {
+      "main": [
+        [
+          {
+            "node": "Reply: emailed",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply: not sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send SMS": {
+      "main": [
+        [
+          {
+            "node": "Reply: SMS sent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply: not sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Reply: WhatsApp sent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply: not sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email the founder": {
+      "main": [
+        [
+          {
+            "node": "Reply: founder notified",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply: not sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

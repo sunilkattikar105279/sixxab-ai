@@ -370,3 +370,52 @@ test('agents are told never to invent offers, prices or claims', async () => {
     assert.match(a.instructions, /Never invent offers, prices, discounts, free trials, guarantees, customer names or statistics/);
   }
 });
+
+test('n8n reply becomes the receipt; the secret header and payload are sent', async () => {
+  const { webhookIntegrations } = await import('../core/tools.js');
+  let seen: { url: string; init: RequestInit } | undefined;
+  const fakeFetch = (async (url: string, init: RequestInit) => {
+    seen = { url, init };
+    return new Response(JSON.stringify({ ok: true, message: 'Posted to LinkedIn: https://lnkd.in/x' }), { status: 200 });
+  }) as unknown as typeof fetch;
+  const out = await webhookIntegrations('https://n8n.example/webhook/sixxab', 's3cret', fakeFetch).dispatch('publish_post', { network: 'linkedin', text: 'hi' });
+  assert.equal(out, 'Posted to LinkedIn: https://lnkd.in/x');
+  assert.equal((seen!.init.headers as Record<string, string>)['x-sixxab-secret'], 's3cret');
+  assert.deepEqual(JSON.parse(String(seen!.init.body)), { action: 'publish_post', payload: { network: 'linkedin', text: 'hi' } });
+  assert.ok(seen!.init.signal, 'request has a timeout signal');
+});
+
+test('n8n saying it could not publish is an error, not a success', async () => {
+  const { webhookIntegrations } = await import('../core/tools.js');
+  const fakeFetch = (async () => new Response(JSON.stringify({ ok: false, message: 'LinkedIn token expired' }), { status: 200 })) as unknown as typeof fetch;
+  await assert.rejects(webhookIntegrations('https://n8n.example/w', 's', fakeFetch).dispatch('publish_post', {}), /LinkedIn token expired/);
+});
+
+test('a plain 2xx reply from n8n without JSON still counts as dispatched', async () => {
+  const { webhookIntegrations } = await import('../core/tools.js');
+  const fakeFetch = (async () => new Response('Workflow was started', { status: 200 })) as unknown as typeof fetch;
+  assert.match(await webhookIntegrations('https://n8n.example/w', 's', fakeFetch).dispatch('send_message', {}), /Dispatched "send_message"/);
+});
+
+test('a failing n8n webhook reports its status and message', async () => {
+  const { webhookIntegrations } = await import('../core/tools.js');
+  const fakeFetch = (async () => new Response(JSON.stringify({ message: 'Authorization data is wrong!' }), { status: 403 })) as unknown as typeof fetch;
+  await assert.rejects(webhookIntegrations('https://n8n.example/w', 's', fakeFetch).dispatch('publish_post', {}), /403.*Authorization data is wrong/);
+});
+
+test('an approved post that n8n fails to publish shows up in the log with the reason', async () => {
+  const { webhookIntegrations } = await import('../core/tools.js');
+  const { store, deps } = setup([
+    [{ type: 'tool_use', id: 'p1', name: 'publish_post', input: { network: 'x', text: 'Hello' } }],
+    [{ type: 'text', text: 'Queued.' }],
+  ]);
+  const fakeFetch = (async () => new Response(JSON.stringify({ ok: false, message: 'X account not connected in n8n' }), { status: 200 })) as unknown as typeof fetch;
+  const d = { ...deps, integrations: webhookIntegrations('https://n8n.example/w', 's', fakeFetch) };
+  const task = await createTask(store, ORG, 'social-poster', 'Post');
+  const run = await runTask(d, task.id);
+  await decide(d, run.approvals![0].id, { approved: true, by: 'founder' });
+  const ev = store.auditLog.find((e) => e.action === 'tool.failed');
+  assert.ok(ev, 'failure is logged');
+  assert.match(String(ev!.detail.error), /X account not connected/);
+  assert.ok(!store.auditLog.some((e) => e.action === 'tool.executed' && e.detail.tool === 'publish_post'));
+});

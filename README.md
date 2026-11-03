@@ -27,7 +27,7 @@ core, and the starting code for the native iOS/Android app.
    Add the environment variables in `.env.example`.
 3. **Domain**: Vercel → Domains → add `sixxab.ai` and `www.sixxab.ai`, then set the DNS records Vercel shows at your registrar.
 4. **Booking**: create a Google Calendar appointment schedule and set `BOOKING_URL`.
-5. **Automations** (optional at launch): point `N8N_WEBHOOK_URL` at an n8n workflow that sends posts, messages and emails.
+5. **Automations** (optional at launch): import `integrations/n8n/sixxab-actions.json` into n8n and follow `docs/n8n-setup.md`. Approved posts go to LinkedIn/X; messages to Gmail/Twilio SMS/WhatsApp; spending only emails you.
    Until then, approved actions are logged but not sent.
 6. Check `https://sixxab.ai/api/health`: every value should be `true`.
 

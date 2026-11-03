@@ -8,15 +8,16 @@
     "convert": "node scripts/convert-dc.mjs design/Landing.dc.html src/landing",
     "build": "node scripts/build.mjs",
     "test": "node --import tsx --test tests/*.test.ts",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "n8n:workflow": "node scripts/build-n8n-workflow.mjs"
   },
   "devDependencies": {
+    "@types/node": "*",
     "esbuild": "0.28.2",
     "playwright": "1.63.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "tsx": "4.23.12",
-    "typescript": "6.0.3",
-    "@types/node": "*"
+    "typescript": "6.0.3"
   }
 }

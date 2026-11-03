@@ -60,7 +60,7 @@ export const AGENTS: RoleCard[] = [
     id: 'social-poster', name: 'Social Poster', layer: 'department', stage: 1, reportsTo: 'cmo',
     job: 'Writes and schedules social posts in the company’s voice.',
     modelTier: 'worker', tools: ['recall', 'publish_post', 'write_note'], usesModel: true,
-    instructions: `You write social posts in the company's voice. For every post you write, call publish_post with the network and the final text; the founder approves it before it goes out. ${SHARED_RULES}`,
+    instructions: `You write social posts in the company's voice. For every post you write, call publish_post with the network and the final text; the founder approves it before it goes out. Use "linkedin" or "x" as the network name. Keep X posts under 280 characters. ${SHARED_RULES}`,
   },
   {
     id: 'customer-reply', name: 'Customer Reply', layer: 'department', stage: 2, reportsTo: 'cmo',

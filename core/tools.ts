@@ -161,6 +161,25 @@ export function toolsFor(agent: RoleCard): Tool[] {
   return agent.tools.map((n) => TOOLS[n]).filter((t): t is Tool => Boolean(t));
 }
 
+/** How long to wait for n8n to publish before giving up. */
+export const WEBHOOK_TIMEOUT_MS = 30_000;
+const RECEIPT_MAX = 500;
+
+/** Reads n8n's reply `{ ok, message }`. Anything that isn't that shape returns undefined. */
+function parseReceipt(text: string): { ok?: boolean; message?: string } | undefined {
+  try {
+    const body: unknown = JSON.parse(text);
+    if (!body || typeof body !== 'object') return undefined;
+    const { ok, message } = body as Record<string, unknown>;
+    return {
+      ok: typeof ok === 'boolean' ? ok : undefined,
+      message: typeof message === 'string' && message.trim() ? message.trim().slice(0, RECEIPT_MAX) : undefined,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
 /** Production dispatcher: posts actions to an n8n webhook. Without one, actions are logged, not sent. */
 export function webhookIntegrations(url: string | undefined, secret: string | undefined, fetchImpl: typeof fetch = fetch): Integrations {
   return {
@@ -170,9 +189,12 @@ export function webhookIntegrations(url: string | undefined, secret: string | un
         method: 'POST',
         headers: { 'content-type': 'application/json', ...(secret ? { 'x-sixxab-secret': secret } : {}) },
         body: JSON.stringify({ action, payload }),
+        signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
       });
-      if (!res.ok) throw new Error(`Automation webhook ${res.status}`);
-      return `Dispatched "${action}"`;
+      const receipt = parseReceipt(await res.text().catch(() => ''));
+      if (!res.ok) throw new Error(`Automation webhook ${res.status}${receipt?.message ? `: ${receipt.message}` : ''}`);
+      if (receipt?.ok === false) throw new Error(`Not sent: ${receipt.message ?? `n8n could not complete "${action}"`}`);
+      return receipt?.message ?? `Dispatched "${action}"`;
     },
   };
 }
