@@ -9,7 +9,27 @@ const env = (k: string): string | undefined => {
   return v && v.trim() ? v.trim() : undefined;
 };
 
-export const json = (body: unknown, status = 200): Response =>
+/**
+ * Accepts the Supabase project URL in the forms people paste: the full URL, the host without https://,
+ * or just the project ref. Returns https://<ref>.supabase.co (no trailing slash), or undefined if unusable.
+ */
+export function normalizeSupabaseUrl(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  let v = raw.trim().replace(/\/+$/, '');
+  if (/^[a-z0-9]{15,40}$/i.test(v)) v = `https://${v.toLowerCase()}.supabase.co`;
+  else if (!/^https?:\/\//i.test(v)) v = `https://${v}`;
+  try {
+    const u = new URL(v);
+    if (u.protocol !== 'https:' && u.hostname !== 'localhost') return undefined;
+    return `${u.protocol}//${u.host}`;
+  } catch {
+    return undefined;
+  }
+}
+
+const supabaseUrl = () => normalizeSupabaseUrl(env('SUPABASE_URL'));
+
+export const json =(body: unknown, status = 200): Response =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
 
 export class HttpError extends Error {
@@ -20,7 +40,7 @@ export class HttpError extends Error {
 
 export function publicConfig() {
   return {
-    supabaseUrl: env('SUPABASE_URL') ?? null,
+    supabaseUrl: supabaseUrl() ?? null,
     supabaseAnonKey: env('SUPABASE_ANON_KEY') ?? null,
     bookingUrl: env('BOOKING_URL') ?? null,
     contactEmail: env('CONTACT_EMAIL') ?? 'sunil.kattikar@gmail.com',
@@ -28,7 +48,7 @@ export function publicConfig() {
 }
 
 export function store(): SupabaseStore {
-  const url = env('SUPABASE_URL');
+  const url = supabaseUrl();
   const key = env('SUPABASE_SERVICE_ROLE_KEY');
   if (!url || !key) throw new HttpError(503, 'The platform database is not configured yet');
   return new SupabaseStore(url, key);
@@ -46,7 +66,7 @@ export function deps(s: SupabaseStore): RuntimeDeps {
 
 /** Resolves the signed-in user and their org from the Bearer token, or throws 401. */
 export async function requireUser(request: Request): Promise<{ userId: string; orgId: string; label: string; store: SupabaseStore }> {
-  const url = env('SUPABASE_URL');
+  const url = supabaseUrl();
   const anon = env('SUPABASE_ANON_KEY');
   if (!url || !anon) throw new HttpError(503, 'Sign-in is not configured yet');
   const token = (request.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '');

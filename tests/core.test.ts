@@ -231,3 +231,14 @@ test('Supabase store sends new secret keys only in apikey, legacy JWTs also as B
   assert.equal(seen[0].authorization, undefined);
   assert.equal(seen[1].authorization, 'Bearer eyJhbGciOi.eyJyb2xlIjoi.c2ln');
 });
+
+test('Supabase URL is accepted as a full URL, a bare host, or just the project ref', async () => {
+  const { normalizeSupabaseUrl } = await import('../server/context.js');
+  const want = 'https://pctqqqtdrgiudhyiyrmw.supabase.co';
+  assert.equal(normalizeSupabaseUrl('pctqqqtdrgiudhyiyrmw'), want);
+  assert.equal(normalizeSupabaseUrl(' https://pctqqqtdrgiudhyiyrmw.supabase.co/ '), want);
+  assert.equal(normalizeSupabaseUrl('pctqqqtdrgiudhyiyrmw.supabase.co'), want);
+  assert.equal(normalizeSupabaseUrl('https://pctqqqtdrgiudhyiyrmw.supabase.co/rest/v1'), want);
+  assert.equal(normalizeSupabaseUrl('http://evil.example.com'), undefined);
+  assert.equal(normalizeSupabaseUrl(undefined), undefined);
+});

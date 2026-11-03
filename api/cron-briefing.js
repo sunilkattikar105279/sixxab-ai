@@ -228,6 +228,20 @@ var env = (k) => {
   const v = process.env[k];
   return v && v.trim() ? v.trim() : void 0;
 };
+function normalizeSupabaseUrl(raw) {
+  if (!raw) return void 0;
+  let v = raw.trim().replace(/\/+$/, "");
+  if (/^[a-z0-9]{15,40}$/i.test(v)) v = `https://${v.toLowerCase()}.supabase.co`;
+  else if (!/^https?:\/\//i.test(v)) v = `https://${v}`;
+  try {
+    const u = new URL(v);
+    if (u.protocol !== "https:" && u.hostname !== "localhost") return void 0;
+    return `${u.protocol}//${u.host}`;
+  } catch {
+    return void 0;
+  }
+}
+var supabaseUrl = () => normalizeSupabaseUrl(env("SUPABASE_URL"));
 var json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
 var HttpError = class extends Error {
   constructor(status, message) {
@@ -237,7 +251,7 @@ var HttpError = class extends Error {
   status;
 };
 function store() {
-  const url = env("SUPABASE_URL");
+  const url = supabaseUrl();
   const key = env("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !key) throw new HttpError(503, "The platform database is not configured yet");
   return new SupabaseStore(url, key);

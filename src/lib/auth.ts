@@ -69,7 +69,12 @@ async function authCall<T>(path: string, body: unknown, token?: string): Promise
     body: JSON.stringify(body),
   });
   const text = await res.text();
-  const data = text ? JSON.parse(text) : {};
+  let data: Record<string, string> = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error('Sign-in is temporarily unavailable. Please try again shortly or book a call.');
+  }
   if (!res.ok) throw new Error(friendly(res.status, data));
   return data as T;
 }
