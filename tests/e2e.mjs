@@ -103,10 +103,10 @@ await check('email sign-in: wrong code is refused, right code opens the workspac
   const page = await ctx.newPage();
   await page.goto(BASE + '/login');
   await page.screenshot({ path: `${SHOTS}/login-email.png` });
-  await page.getByLabel('Work email').fill('not-an-email');
+  await page.getByLabel('Email', { exact: true }).fill('not-an-email');
   await page.getByRole('button', { name: 'Send code' }).click();
   await page.getByText('Enter a valid email address.').waitFor();
-  await page.getByLabel('Work email').fill('Founder@Acme.com');
+  await page.getByLabel('Email', { exact: true }).fill('Founder@Acme.com');
   await page.getByRole('button', { name: 'Send code' }).click();
   await page.getByLabel('6-digit code').waitFor();
   assert.equal(state.otp[0].email, 'founder@acme.com');

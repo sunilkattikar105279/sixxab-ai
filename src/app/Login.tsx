@@ -108,8 +108,8 @@ export default function Login() {
           <form onSubmit={send} className="form" noValidate>
             {method === 'email' ? (
               <label className="field">
-                <span>Work email</span>
-                <input type="email" inputMode="email" autoComplete="email" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                <span>Email</span>
+                <input type="email" inputMode="email" autoComplete="email" placeholder="you@gmail.com or you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
               </label>
             ) : (
               <div className="field">
