@@ -70,6 +70,93 @@ function useLoad<T>(path: string) {
   return { data, error, reload };
 }
 
+interface ProfileField { key: string; label: string }
+const HINTS: Record<string, string> = {
+  name: 'e.g. SIXXAB AI',
+  offer: 'e.g. AI agents that start, scale and run a company, with a founder approving what matters',
+  customers: 'e.g. Solo founders and small businesses; healthcare clinics',
+  markets: 'e.g. United States and India',
+  voice: 'e.g. Confident, plain-spoken, practical; no hype',
+  goals: 'e.g. 10 paying Founder-plan customers and 3 certified consultants',
+  budget: 'e.g. $1,000 per month',
+  links: 'e.g. https://sixxab.ai, linkedin.com/in/…',
+};
+
+function CompanyProfileCard() {
+  const { data, error, reload } = useLoad<{ profile: Record<string, string> | null; fields: ProfileField[] }>('/api/profile');
+  const [editing, setEditing] = useState(false);
+  const [vals, setVals] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!data) return;
+    setVals(data.profile ?? {});
+    if (!data.profile) setEditing(true);
+  }, [data]);
+
+  if (error) return <p className="error">{error}</p>;
+  if (!data) return null;
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setMsg(null);
+    try {
+      await api('/api/profile', { method: 'POST', body: JSON.stringify(vals) });
+      setEditing(false);
+      reload();
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : 'Could not save.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!editing && data.profile) {
+    return (
+      <section className="panel glass-card">
+        <div className="row-between">
+          <h2>About your company</h2>
+          <button type="button" className="btn-ghost" onClick={() => setEditing(true)}>Edit</button>
+        </div>
+        <p className="muted small">Every agent reads this before it works.</p>
+        <dl className="profile-list">
+          {data.fields.filter((f) => data.profile?.[f.key]).map((f) => (
+            <div key={f.key}><dt>{f.label}</dt><dd>{data.profile![f.key]}</dd></div>
+          ))}
+        </dl>
+      </section>
+    );
+  }
+
+  return (
+    <section className="panel glass-card">
+      <h2>{data.profile ? 'Edit your company profile' : 'First, tell your agents about your company'}</h2>
+      <p className="muted small">Every agent reads this before it works. Two minutes here makes every plan and post specific to you.</p>
+      <form onSubmit={save} className="form">
+        <div className="grid2">
+          {data.fields.map((f) => (
+            <label key={f.key} className="field">
+              <span>{f.label}{f.key === 'name' || f.key === 'offer' ? ' *' : ''}</span>
+              {f.key === 'offer' || f.key === 'customers' || f.key === 'goals' ? (
+                <textarea rows={2} placeholder={HINTS[f.key]} value={vals[f.key] ?? ''} maxLength={1000} onChange={(e) => setVals({ ...vals, [f.key]: e.target.value })} />
+              ) : (
+                <input placeholder={HINTS[f.key]} value={vals[f.key] ?? ''} maxLength={1000} onChange={(e) => setVals({ ...vals, [f.key]: e.target.value })} />
+              )}
+            </label>
+          ))}
+        </div>
+        <div className="row-end">
+          {data.profile && <button type="button" className="btn-ghost" onClick={() => { setVals(data.profile ?? {}); setEditing(false); }}>Cancel</button>}
+          <button type="submit" className="btn-primary" disabled={busy || !vals.name?.trim() || !vals.offer?.trim()}>{busy ? <Spinner label="Saving…" /> : 'Save profile'}</button>
+        </div>
+        {msg && <p className="error" role="alert">{msg}</p>}
+      </form>
+    </section>
+  );
+}
+
 function Today({ onPending, goApprovals }: { onPending: (n: number) => void; goApprovals: () => void }) {
   const brief = useLoad<{ briefing: Briefing }>('/api/briefing');
   const [goal, setGoal] = useState('');
@@ -101,6 +188,7 @@ function Today({ onPending, goApprovals }: { onPending: (n: number) => void; goA
   const b = brief.data?.briefing;
   return (
     <div className="stack">
+      <CompanyProfileCard />
       <section className="panel glass-card">
         <h2>What should your company get done?</h2>
         <form onSubmit={submit} className="goal-form">
@@ -303,7 +391,11 @@ function Activity() {
         {data.events.map((e) => (
           <li key={e.id}>
             <span className="muted small">{new Date(e.at).toLocaleString()}</span>
-            <span><strong>{e.actor}</strong> {e.action.replace('.', ' ')}{typeof e.detail.summary === 'string' ? `: ${e.detail.summary}` : ''}</span>
+            <span>
+              <strong>{e.actor}</strong> {e.action.replace('.', ' ')}
+              {typeof e.detail.summary === 'string' ? `: ${e.detail.summary}` : typeof e.detail.tool === 'string' ? `: ${e.detail.tool}` : ''}
+              {typeof e.detail.error === 'string' && <span className="error-inline"> ({e.detail.error})</span>}
+            </span>
           </li>
         ))}
       </ul>

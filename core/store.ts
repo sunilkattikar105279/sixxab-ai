@@ -23,6 +23,7 @@ export interface Store {
 
   remember(m: Memory): Promise<void>;
   recall(orgId: string, query: string, limit?: number): Promise<Memory[]>;
+  latestMemoryWithPrefix(orgId: string, prefix: string): Promise<Memory | null>;
 
   saveBriefing(b: Briefing): Promise<void>;
 }
@@ -115,6 +116,10 @@ export class MemoryStore implements Store {
       .sort((a, b) => b.score - a.score)
       .slice(0, limit)
       .map((x) => x.m);
+  }
+  async latestMemoryWithPrefix(orgId: string, prefix: string) {
+    const hits = this.memories.filter((m) => m.orgId === orgId && m.text.startsWith(prefix)).sort((a, b) => (a.at < b.at ? 1 : -1));
+    return hits[0] ? { ...hits[0] } : null;
   }
   async saveBriefing(b: Briefing) {
     this.briefings.push({ ...b });

@@ -263,3 +263,40 @@ test('a signed-in user with no workspace gets one created with default autonomy 
   assert.equal(types.find((t) => t.key === 'spend_money')!.level, 1);
   assert.ok(calls[3].path.startsWith('audit_log'));
 });
+
+// ---------- company profile, recall, tool robustness (launch feedback) ----------
+
+test('the company profile is in every agent prompt, even when the goal shares no words with it', async () => {
+  const { saveCompanyProfile, loadCompanyProfile } = await import('../core/profile.js');
+  const { store, model, deps } = setup([[{ type: 'text', text: 'ok' }]]);
+  await saveCompanyProfile(store, ORG, { name: 'SIXXAB AI', offer: 'AI agents that run your company', customers: 'Solo founders and SMBs in the US and India' }, 'founder');
+  const p = await loadCompanyProfile(store, ORG);
+  assert.equal(p?.name, 'SIXXAB AI');
+  const task = await createTask(store, ORG, 'social-poster', 'Draft a LinkedIn post');
+  await runTask(deps, task.id);
+  assert.match(model.calls[0].system, /AI agents that run your company/);
+  assert.ok(store.auditLog.some((e) => e.action === 'profile.updated'));
+});
+
+test('saving the profile again replaces it rather than stacking old versions', async () => {
+  const { saveCompanyProfile, loadCompanyProfile } = await import('../core/profile.js');
+  const { store } = setup([]);
+  await saveCompanyProfile(store, ORG, { name: 'Old' }, 'founder');
+  await new Promise((r) => setTimeout(r, 5));
+  await saveCompanyProfile(store, ORG, { name: 'New', voice: 'Warm, direct' }, 'founder');
+  assert.equal((await loadCompanyProfile(store, ORG))?.name, 'New');
+});
+
+test('memory search matches any word, not all of them', async () => {
+  const { toOrQuery } = await import('../core/supabase-store.js');
+  assert.equal(toOrQuery('company niche, budget & audience!'), 'company or niche or budget or audience');
+  assert.equal(toOrQuery('  '), '');
+});
+
+test('tools accept numbers where text is expected and explain what was missing', async () => {
+  const { TOOLS } = await import('../core/tools.js');
+  const { store } = setup([]);
+  const ctx = { store, orgId: ORG, task: {} as never, agent: { id: 'cmo' } as never, integrations: new RecordingIntegrations() };
+  assert.equal(await TOOLS.write_note.execute({ title: 2026, body: 'Plan' }, ctx), 'Saved note "2026"');
+  await assert.rejects(() => TOOLS.write_note.execute({ title: 'Plan' }, ctx), /body/);
+});

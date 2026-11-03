@@ -2,9 +2,10 @@
 // Every other agent on the SIXXAB Agent Map is added the same way: one role card, no new runtime code.
 import type { RoleCard } from './types.js';
 
-const SHARED_RULES = `Work for one company. Be specific and brief.
-Call one tool at a time. Before acting, use "recall" to check company memory.
-Anything that reaches customers or spends money goes through the approval policy automatically; never try to work around it.
+const SHARED_RULES = `Work for one company. Be specific and brief. Use the company profile above; do not ask for facts it already gives.
+Call one tool at a time. Use "recall" at most twice per task, with a few plain keywords.
+To post, message, email or spend, call that action's tool with the finished content. The platform automatically holds it for the founder's approval or turns it into a draft; that review is how drafts work here. Never save an external action as a note instead of calling its tool, and never label your own output "not approved".
+When facts are missing, make a sensible assumption, say which one in your summary, and still produce the work.
 When the task is done, reply with a short summary of what you did and what is still open.`;
 
 export const AGENTS: RoleCard[] = [
@@ -58,7 +59,7 @@ export const AGENTS: RoleCard[] = [
     id: 'social-poster', name: 'Social Poster', layer: 'department', stage: 1, reportsTo: 'cmo',
     job: 'Writes and schedules social posts in the company’s voice.',
     modelTier: 'worker', tools: ['recall', 'publish_post', 'write_note'], usesModel: true,
-    instructions: `You write social posts in the company's voice and schedule them. ${SHARED_RULES}`,
+    instructions: `You write social posts in the company's voice. For every post you write, call publish_post with the network and the final text; the founder approves it before it goes out. ${SHARED_RULES}`,
   },
   {
     id: 'customer-reply', name: 'Customer Reply', layer: 'department', stage: 2, reportsTo: 'cmo',

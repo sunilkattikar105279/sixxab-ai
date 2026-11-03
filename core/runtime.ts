@@ -4,6 +4,7 @@ import { effectiveGate } from './policy.js';
 import { newId, nowIso, type Store } from './store.js';
 import { toolsFor, TOOLS, type Integrations } from './tools.js';
 import { recordDecision } from './learning.js';
+import { PROFILE_PREFIX, profileForPrompt } from './profile.js';
 import type {
   Approval, ChatMessage, ModelClient, PromotionProposal, RoleCard, Task, TaskType, TextBlock,
   ToolResultBlock, ToolUseBlock,
@@ -33,9 +34,10 @@ function textOf(content: ChatMessage['content']): string {
 }
 
 async function systemPrompt(store: Store, agent: RoleCard, task: Task): Promise<string> {
-  const memories = await store.recall(task.orgId, task.goal, 5);
-  const memo = memories.length ? `\n\nRelevant company memory:\n${memories.map((m) => `- ${m.text}`).join('\n')}` : '';
-  return `${agent.instructions}\n\nYour role: ${agent.name}. ${agent.job}${memo}`;
+  const [profile, memories] = await Promise.all([profileForPrompt(store, task.orgId), store.recall(task.orgId, task.goal, 5)]);
+  const relevant = memories.filter((m) => !m.text.startsWith(PROFILE_PREFIX));
+  const memo = relevant.length ? `\n\nRelevant company memory:\n${relevant.map((m) => `- ${m.text.slice(0, 1500)}`).join('\n')}` : '';
+  return `${agent.instructions}\n\nYour role: ${agent.name}. ${agent.job}${profile}${memo}`;
 }
 
 export async function createTask(store: Store, orgId: string, agentId: string, goal: string, parentTaskId: string | null = null): Promise<Task> {

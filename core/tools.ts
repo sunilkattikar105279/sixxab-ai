@@ -25,10 +25,11 @@ export interface Tool {
   execute(input: Record<string, unknown>, ctx: ToolContext): Promise<string>;
 }
 
-const str = (v: unknown, max = 4000): string => {
-  if (typeof v !== 'string') throw new Error('Expected a string');
-  const t = v.trim();
-  if (!t) throw new Error('Empty value');
+/** Reads a required text field, accepting numbers, and names the field when it is missing. */
+const field = (input: Record<string, unknown>, name: string, max = 4000): string => {
+  const v = input[name];
+  const t = typeof v === 'string' ? v.trim() : typeof v === 'number' || typeof v === 'boolean' ? String(v) : '';
+  if (!t) throw new Error(`Missing "${name}". Call the tool again with a non-empty "${name}".`);
   return t.slice(0, max);
 };
 
@@ -42,8 +43,8 @@ export const TOOLS: Record<string, Tool> = {
     },
     summarize: (i) => `Save note: ${String(i.title ?? '')}`,
     async execute(i, ctx) {
-      const title = str(i.title, 200);
-      const body = str(i.body, 20000);
+      const title = field(i, 'title', 200);
+      const body = field(i, 'body', 20000);
       await ctx.store.remember({ id: newId(), orgId: ctx.orgId, kind: 'note', text: `${title}\n\n${body}`, agentId: ctx.agent.id, at: nowIso() });
       return `Saved note "${title}"`;
     },
@@ -64,7 +65,7 @@ export const TOOLS: Record<string, Tool> = {
       const kind = (['fact', 'decision', 'outcome'] as const).includes(i.kind as Memory['kind'] as 'fact')
         ? (i.kind as Memory['kind'])
         : 'fact';
-      await ctx.store.remember({ id: newId(), orgId: ctx.orgId, kind, text: str(i.text, 2000), agentId: ctx.agent.id, at: nowIso() });
+      await ctx.store.remember({ id: newId(), orgId: ctx.orgId, kind, text: field(i, 'text', 2000), agentId: ctx.agent.id, at: nowIso() });
       return 'Remembered';
     },
   },
@@ -76,7 +77,7 @@ export const TOOLS: Record<string, Tool> = {
     },
     summarize: (i) => `Recall: ${String(i.query ?? '')}`,
     async execute(i, ctx) {
-      const hits = await ctx.store.recall(ctx.orgId, str(i.query, 500), 5);
+      const hits = await ctx.store.recall(ctx.orgId, field(i, 'query', 500), 5);
       return hits.length ? hits.map((m) => `- (${m.kind}) ${m.text}`).join('\n') : 'Nothing relevant in memory yet.';
     },
   },
@@ -92,7 +93,7 @@ export const TOOLS: Record<string, Tool> = {
       },
     },
     summarize: (i) => `Send ${String(i.channel)} to ${String(i.to)}: "${String(i.text ?? '').slice(0, 80)}"`,
-    execute: (i, ctx) => ctx.integrations.dispatch('send_message', { channel: str(i.channel, 20), to: str(i.to, 200), text: str(i.text) }),
+    execute: (i, ctx) => ctx.integrations.dispatch('send_message', { channel: field(i, 'channel', 20), to: field(i, 'to', 200), text: field(i, 'text') }),
   },
   publish_post: {
     taskType: 'publish_post',
@@ -106,7 +107,7 @@ export const TOOLS: Record<string, Tool> = {
       },
     },
     summarize: (i) => `Post on ${String(i.network)}: "${String(i.text ?? '').slice(0, 80)}"`,
-    execute: (i, ctx) => ctx.integrations.dispatch('publish_post', { network: str(i.network, 40), text: str(i.text, 3000), when: i.when ?? 'now' }),
+    execute: (i, ctx) => ctx.integrations.dispatch('publish_post', { network: field(i, 'network', 40), text: field(i, 'text', 3000), when: i.when ?? 'now' }),
   },
   send_email_campaign: {
     taskType: 'send_email_campaign',
@@ -120,7 +121,7 @@ export const TOOLS: Record<string, Tool> = {
       },
     },
     summarize: (i) => `Email campaign to ${String(i.list)}: "${String(i.subject ?? '')}"`,
-    execute: (i, ctx) => ctx.integrations.dispatch('send_email_campaign', { list: str(i.list, 200), subject: str(i.subject, 300), body: str(i.body, 50000) }),
+    execute: (i, ctx) => ctx.integrations.dispatch('send_email_campaign', { list: field(i, 'list', 200), subject: field(i, 'subject', 300), body: field(i, 'body', 50000) }),
   },
   spend_money: {
     taskType: 'spend_money',
@@ -137,7 +138,7 @@ export const TOOLS: Record<string, Tool> = {
     execute: (i, ctx) => {
       const amount = Number(i.amountMinor);
       if (!Number.isInteger(amount) || amount <= 0) throw new Error('amountMinor must be a positive integer');
-      return ctx.integrations.dispatch('spend_money', { amountMinor: amount, currency: str(i.currency, 3), purpose: str(i.purpose, 300), payee: str(i.payee, 200) });
+      return ctx.integrations.dispatch('spend_money', { amountMinor: amount, currency: field(i, 'currency', 3), purpose: field(i, 'purpose', 300), payee: field(i, 'payee', 200) });
     },
   },
 };

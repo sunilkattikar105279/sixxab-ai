@@ -11,6 +11,10 @@ var DEFAULT_TASK_TYPES = [
 ];
 
 // core/supabase-store.ts
+function toOrQuery(query) {
+  const words = query.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 2 && w !== "and" && w !== "the" && w !== "for").slice(0, 12);
+  return [...new Set(words)].join(" or ");
+}
 var isLegacyJwt = (key) => key.startsWith("eyJ") && key.split(".").length === 3;
 var snake = (s) => s.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
 var camel = (s) => s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
@@ -99,8 +103,15 @@ var SupabaseStore = class {
     await this.req("memories", { method: "POST", body: JSON.stringify(toRow(m)), headers: { prefer: "return=minimal" } });
   }
   async recall(orgId, query, limit = 5) {
-    const rows = await this.req("rpc/recall_memories", { method: "POST", body: JSON.stringify({ p_org: orgId, p_query: query, p_limit: limit }) });
+    const q = toOrQuery(query);
+    if (!q) return [];
+    const rows = await this.req("rpc/recall_memories", { method: "POST", body: JSON.stringify({ p_org: orgId, p_query: q, p_limit: limit }) });
     return rows.map((r) => fromRow(r));
+  }
+  async latestMemoryWithPrefix(orgId, prefix) {
+    const like = encodeURIComponent(`${prefix}*`);
+    const rows = await this.req(`memories?org_id=eq.${orgId}&text=like.${like}&order=at.desc&limit=1`);
+    return rows[0] ? fromRow(rows[0]) : null;
   }
   async saveBriefing(b) {
     await this.req("briefings?on_conflict=org_id,date", {

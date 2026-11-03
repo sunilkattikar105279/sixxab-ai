@@ -16,7 +16,7 @@ export const GET = handle(async (request) => {
 });
 
 export const POST = handle(async (request) => {
-  const { orgId, userId, store } = await requireUser(request);
+  const { orgId, label, store } = await requireUser(request);
   const body = await readJson<{ goal?: string; agentId?: string }>(request);
   const goal = (body.goal ?? '').trim();
   if (goal.length < 3) throw new HttpError(400, 'Describe the goal in a few words');
@@ -26,7 +26,7 @@ export const POST = handle(async (request) => {
   const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
   const used = (await store.listAudit(orgId, since)).filter((e) => e.action === 'goal.submitted').length;
   if (used >= limit) throw new HttpError(429, `Daily limit of ${limit} goals reached. It resets within 24 hours.`);
-  await store.audit({ id: crypto.randomUUID(), orgId, at: new Date().toISOString(), actor: userId, action: 'goal.submitted', taskId: null, detail: { goal, agentId: body.agentId ?? null } });
+  await store.audit({ id: crypto.randomUUID(), orgId, at: new Date().toISOString(), actor: label, action: 'goal.submitted', taskId: null, detail: { goal, agentId: body.agentId ?? null } });
 
   if (body.agentId) {
     const agent = getAgent(body.agentId);

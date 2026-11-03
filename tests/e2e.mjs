@@ -93,6 +93,11 @@ async function mockServices(ctx, state) {
     if (r.request().method() === 'POST') return r.fulfill({ json: { parent: {}, steps: [{ agentId: 'strategy-coach', goal: 'Write launch plan', status: 'done', output: 'Plan saved.' }, { agentId: 'social-poster', goal: 'Announce', status: 'awaiting_approval', output: null }] } });
     return r.fulfill({ json: { agents: [{ id: 'cmo', name: 'CMO agent', layer: 'cxo', job: 'Owns marketing' }], taskTypes: [{ key: 'publish_post', label: 'Publish a social post', level: 2, maxLevel: 3 }], tasks: [] } });
   });
+  await ctx.route('**/api/profile', async (r) => {
+    const fields = [{ key: 'name', label: 'Company name' }, { key: 'offer', label: 'What we sell' }, { key: 'customers', label: 'Who we sell to' }];
+    if (r.request().method() === 'POST') { state.profile = r.request().postDataJSON(); return r.fulfill({ json: { profile: state.profile } }); }
+    return r.fulfill({ json: { profile: state.profile ?? null, fields } });
+  });
   await ctx.route('**/api/activity', (r) => r.fulfill({ json: { events: [{ id: 'e1', at: new Date().toISOString(), actor: 'social-poster', action: 'approval.requested', detail: { summary: 'Post on linkedin' } }] } }));
 }
 
@@ -147,6 +152,12 @@ await check('workspace: run a goal, edit and approve, see agents and activity', 
   await ctx.addInitScript(() => localStorage.setItem('sixxab.session', JSON.stringify({ accessToken: 'at', refreshToken: 'rt', expiresAt: Math.floor(Date.now() / 1000) + 3600, user: { id: 'u1', email: 'founder@acme.com' } })));
   const page = await ctx.newPage();
   await page.goto(BASE + '/app');
+  await page.getByText('First, tell your agents about your company').waitFor();
+  await page.getByLabel(/Company name/).fill('SIXXAB AI');
+  await page.getByLabel(/What we sell/).fill('AI agents that run your company');
+  await page.getByRole('button', { name: 'Save profile' }).click();
+  await page.getByText('About your company').waitFor();
+  assert.equal(state.profile.name, 'SIXXAB AI');
   await page.getByLabel('Goal').fill('Plan our launch week');
   await page.getByRole('button', { name: 'Hand it to the agents' }).click();
   await page.getByText('Plan saved.').waitFor();
