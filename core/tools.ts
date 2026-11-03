@@ -3,6 +3,20 @@
 import type { Memory, RoleCard, Task, ToolSpec } from './types.js';
 import { newId, nowIso, type Store } from './store.js';
 
+/** Formats minor units (cents, paise) as money for people: 5000 USD → $50.00. */
+export function formatMoney(amountMinor: number, currency: string): string {
+  if (!Number.isFinite(amountMinor)) return `? ${currency}`;
+  const cur = currency.toUpperCase();
+  try {
+    return new Intl.NumberFormat(cur === 'INR' ? 'en-IN' : 'en-US', { style: 'currency', currency: cur }).format(amountMinor / 100);
+  } catch {
+    return `${(amountMinor / 100).toFixed(2)} ${cur}`;
+  }
+}
+
+/** Result prefix when an action was only recorded because no automation is connected. */
+export const NOT_SENT_PREFIX = 'Recorded only';
+
 export interface Integrations {
   /** Hands an action to the automation layer (n8n webhook in production). Returns a short receipt. */
   dispatch(action: string, payload: Record<string, unknown>): Promise<string>;
@@ -134,7 +148,7 @@ export const TOOLS: Record<string, Tool> = {
         required: ['amountMinor', 'currency', 'purpose', 'payee'],
       },
     },
-    summarize: (i) => `Spend ${String(i.amountMinor)} ${String(i.currency)} on ${String(i.purpose)} (${String(i.payee)})`,
+    summarize: (i) => `Spend ${formatMoney(Number(i.amountMinor), String(i.currency ?? 'USD'))} on ${String(i.purpose)} (${String(i.payee)})`,
     execute: (i, ctx) => {
       const amount = Number(i.amountMinor);
       if (!Number.isInteger(amount) || amount <= 0) throw new Error('amountMinor must be a positive integer');
@@ -151,7 +165,7 @@ export function toolsFor(agent: RoleCard): Tool[] {
 export function webhookIntegrations(url: string | undefined, secret: string | undefined, fetchImpl: typeof fetch = fetch): Integrations {
   return {
     async dispatch(action, payload) {
-      if (!url) return `Recorded "${action}" (no automation webhook configured yet, nothing was sent)`;
+      if (!url) return `${NOT_SENT_PREFIX} "${action}": automations are not connected yet, so it was not sent.`;
       const res = await fetchImpl(url, {
         method: 'POST',
         headers: { 'content-type': 'application/json', ...(secret ? { 'x-sixxab-secret': secret } : {}) },

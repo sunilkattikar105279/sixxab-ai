@@ -2,7 +2,7 @@
 import { getAgent } from './agents.js';
 import { effectiveGate } from './policy.js';
 import { newId, nowIso, type Store } from './store.js';
-import { toolForTaskType, toolsFor, TOOLS, type Integrations, type Tool } from './tools.js';
+import { NOT_SENT_PREFIX, toolForTaskType, toolsFor, TOOLS, type Integrations, type Tool } from './tools.js';
 import { recordDecision } from './learning.js';
 import { PROFILE_PREFIX, profileForPrompt } from './profile.js';
 import type {
@@ -128,7 +128,8 @@ async function executeTool(deps: RuntimeDeps, task: Task, agent: RoleCard, use: 
   const input = inputOverride ?? use.input;
   try {
     const out = await tool.execute(input, { store: deps.store, orgId: task.orgId, task, agent, integrations: deps.integrations });
-    await audit(deps.store, task.orgId, agent.id, 'tool.executed', task.id, { tool: use.name, summary: tool.summarize(input), result: out });
+    const action = out.startsWith(NOT_SENT_PREFIX) ? 'tool.recorded' : 'tool.executed';
+    await audit(deps.store, task.orgId, agent.id, action, task.id, { tool: use.name, summary: tool.summarize(input), result: out });
     return { type: 'tool_result', tool_use_id: use.id, content: out };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

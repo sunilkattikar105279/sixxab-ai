@@ -340,3 +340,33 @@ test('approvals created by the earlier blocking design still resume their task',
   assert.equal(res.task.status, 'done');
   assert.equal(integrations.sent.length, 1);
 });
+
+// ---------- third live run: money labels, honest activity, no invented offers ----------
+
+test('spend summaries show real money, not minor units', async () => {
+  const { TOOLS } = await import('../core/tools.js');
+  assert.equal(TOOLS.spend_money.summarize({ amountMinor: 5000, currency: 'USD', purpose: 'X Ads', payee: 'X' }), 'Spend $50.00 on X Ads (X)');
+  assert.equal(TOOLS.spend_money.summarize({ amountMinor: 1250050, currency: 'INR', purpose: 'Meta', payee: 'Meta' }), 'Spend ₹12,500.50 on Meta (Meta)');
+});
+
+test('without automations an approved post is recorded as not sent, and the log says so', async () => {
+  const { webhookIntegrations } = await import('../core/tools.js');
+  const { store, deps } = setup([
+    [{ type: 'tool_use', id: 'p1', name: 'publish_post', input: { network: 'linkedin', text: 'Hello' } }],
+    [{ type: 'text', text: 'Queued.' }],
+  ]);
+  const d = { ...deps, integrations: webhookIntegrations(undefined, undefined) };
+  const task = await createTask(store, ORG, 'social-poster', 'Post');
+  const run = await runTask(d, task.id);
+  await decide(d, run.approvals![0].id, { approved: true, by: 'founder' });
+  const ev = store.auditLog.find((e) => e.action === 'tool.recorded');
+  assert.ok(ev, 'logged as recorded, not executed');
+  assert.match(String(ev!.detail.result), /not sent/);
+});
+
+test('agents are told never to invent offers, prices or claims', async () => {
+  const { AGENTS } = await import('../core/agents.js');
+  for (const a of AGENTS.filter((x) => x.usesModel && x.id !== 'morning-briefing')) {
+    assert.match(a.instructions, /Never invent offers, prices, discounts, free trials, guarantees, customer names or statistics/);
+  }
+});

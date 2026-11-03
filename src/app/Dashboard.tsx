@@ -292,6 +292,20 @@ const BriefList = ({ title, items, empty }: { title: string; items: string[]; em
   </div>
 );
 
+/** Tells the founder plainly when approved actions are only recorded because no automation is connected. */
+function AutomationsNotice() {
+  const [off, setOff] = useState(false);
+  useEffect(() => {
+    fetch('/api/health').then((r) => r.json()).then((h: { automations?: boolean }) => setOff(h.automations === false)).catch(() => undefined);
+  }, []);
+  if (!off) return null;
+  return (
+    <p className="notice" role="status">
+      Publishing is not connected yet. Approving records each item in your activity log and teaches your agents, but nothing is posted, sent or paid until automations are switched on.
+    </p>
+  );
+}
+
 function Approvals({ onCount }: { onCount: (n: number) => void }) {
   const { data, error, reload } = useLoad<{ approvals: Approval[] }>('/api/approvals');
   useEffect(() => { if (data) onCount(data.approvals.length); }, [data, onCount]);
@@ -300,6 +314,7 @@ function Approvals({ onCount }: { onCount: (n: number) => void }) {
   if (!data.approvals.length) return <section className="panel glass-card"><h2>All clear</h2><p className="muted">Nothing needs your yes right now.</p></section>;
   return (
     <div className="stack">
+      <AutomationsNotice />
       {data.approvals.map((a) => <ApprovalCard key={a.id} a={a} onDone={reload} />)}
     </div>
   );
@@ -445,7 +460,7 @@ function Activity() {
           <li key={e.id}>
             <span className="muted small">{new Date(e.at).toLocaleString()}</span>
             <span>
-              <strong>{e.actor}</strong> {e.action.replace('.', ' ')}
+              <strong>{e.actor}</strong> {e.action === 'tool.recorded' ? 'recorded (not sent)' : e.action.replace('.', ' ')}
               {typeof e.detail.summary === 'string' ? `: ${e.detail.summary}` : typeof e.detail.tool === 'string' ? `: ${e.detail.tool}` : ''}
               {typeof e.detail.error === 'string' && <span className="error-inline"> ({e.detail.error})</span>}
             </span>

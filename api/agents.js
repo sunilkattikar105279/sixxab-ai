@@ -4,7 +4,8 @@
 var SHARED_RULES = `Work for one company. Be specific and brief. Use the company profile above; do not ask for facts it already gives.
 Call one tool at a time. Use "recall" at most twice per task, with a few plain keywords.
 To post, message, email or spend, call that action's tool with the finished content. The platform automatically holds it for the founder's approval or turns it into a draft; that review is how drafts work here. Never save an external action as a note instead of calling its tool, and never label your own output "not approved".
-When facts are missing, make a sensible assumption, say which one in your summary, and still produce the work.
+Never invent offers, prices, discounts, free trials, guarantees, customer names or statistics. Use only what the company profile or memory states; where a post needs one, write [OFFER] or [PRICE] for the founder to fill in.
+When other facts are missing, make a sensible assumption, say which one in your summary, and still produce the work.
 When the task is done, reply with a short summary of what you did and what is still open.`;
 var AGENTS = [
   // ---- Always-on platform core ----
@@ -175,6 +176,16 @@ function nowIso() {
 }
 
 // core/tools.ts
+function formatMoney(amountMinor, currency) {
+  if (!Number.isFinite(amountMinor)) return `? ${currency}`;
+  const cur = currency.toUpperCase();
+  try {
+    return new Intl.NumberFormat(cur === "INR" ? "en-IN" : "en-US", { style: "currency", currency: cur }).format(amountMinor / 100);
+  } catch {
+    return `${(amountMinor / 100).toFixed(2)} ${cur}`;
+  }
+}
+var NOT_SENT_PREFIX = "Recorded only";
 var field = (input, name, max = 4e3) => {
   const v = input[name];
   const t = typeof v === "string" ? v.trim() : typeof v === "number" || typeof v === "boolean" ? String(v) : "";
@@ -282,7 +293,7 @@ ${body}`, agentId: ctx.agent.id, at: nowIso() });
         required: ["amountMinor", "currency", "purpose", "payee"]
       }
     },
-    summarize: (i) => `Spend ${String(i.amountMinor)} ${String(i.currency)} on ${String(i.purpose)} (${String(i.payee)})`,
+    summarize: (i) => `Spend ${formatMoney(Number(i.amountMinor), String(i.currency ?? "USD"))} on ${String(i.purpose)} (${String(i.payee)})`,
     execute: (i, ctx) => {
       const amount = Number(i.amountMinor);
       if (!Number.isInteger(amount) || amount <= 0) throw new Error("amountMinor must be a positive integer");
@@ -296,7 +307,7 @@ function toolsFor(agent) {
 function webhookIntegrations(url, secret, fetchImpl = fetch) {
   return {
     async dispatch(action, payload) {
-      if (!url) return `Recorded "${action}" (no automation webhook configured yet, nothing was sent)`;
+      if (!url) return `${NOT_SENT_PREFIX} "${action}": automations are not connected yet, so it was not sent.`;
       const res = await fetchImpl(url, {
         method: "POST",
         headers: { "content-type": "application/json", ...secret ? { "x-sixxab-secret": secret } : {} },
@@ -428,7 +439,8 @@ async function executeTool(deps2, task, agent, use, inputOverride) {
   const input = inputOverride ?? use.input;
   try {
     const out = await tool.execute(input, { store: deps2.store, orgId: task.orgId, task, agent, integrations: deps2.integrations });
-    await audit(deps2.store, task.orgId, agent.id, "tool.executed", task.id, { tool: use.name, summary: tool.summarize(input), result: out });
+    const action = out.startsWith(NOT_SENT_PREFIX) ? "tool.recorded" : "tool.executed";
+    await audit(deps2.store, task.orgId, agent.id, action, task.id, { tool: use.name, summary: tool.summarize(input), result: out });
     return { type: "tool_result", tool_use_id: use.id, content: out };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

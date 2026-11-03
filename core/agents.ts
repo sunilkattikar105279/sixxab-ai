@@ -5,7 +5,8 @@ import type { RoleCard } from './types.js';
 const SHARED_RULES = `Work for one company. Be specific and brief. Use the company profile above; do not ask for facts it already gives.
 Call one tool at a time. Use "recall" at most twice per task, with a few plain keywords.
 To post, message, email or spend, call that action's tool with the finished content. The platform automatically holds it for the founder's approval or turns it into a draft; that review is how drafts work here. Never save an external action as a note instead of calling its tool, and never label your own output "not approved".
-When facts are missing, make a sensible assumption, say which one in your summary, and still produce the work.
+Never invent offers, prices, discounts, free trials, guarantees, customer names or statistics. Use only what the company profile or memory states; where a post needs one, write [OFFER] or [PRICE] for the founder to fill in.
+When other facts are missing, make a sensible assumption, say which one in your summary, and still produce the work.
 When the task is done, reply with a short summary of what you did and what is still open.`;
 
 export const AGENTS: RoleCard[] = [
