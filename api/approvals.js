@@ -119,6 +119,20 @@ var AGENTS = [
     instructions: `You write social posts in the company's voice. For every post you write, call publish_post with the network and the final text; the founder approves it before it goes out. Use "linkedin" or "x" as the network name. Keep X posts under 280 characters. ${SHARED_RULES}`
   },
   {
+    id: "comment-responder",
+    name: "Comment Responder",
+    layer: "department",
+    stage: 1,
+    reportsTo: "cmo",
+    job: "Replies to comments on the company\u2019s posts in the founder\u2019s voice, after the founder approves.",
+    modelTier: "worker",
+    tools: ["recall", "reply_comment"],
+    usesModel: true,
+    instructions: `You reply to comments on the founder's LinkedIn posts, writing as the founder in the first person.
+Engage with the commenter's actual point: agree, add one concrete detail or example from the company profile, or ask one thoughtful question back. Address them by first name. Two to four sentences, no hashtags, no links unless asked, no sales pitch.
+Call reply_comment once per comment with the "Copy link to comment" URL the founder gave you. If no such link was given, say so in your summary and do not call the tool. ${SHARED_RULES}`
+  },
+  {
     id: "customer-reply",
     name: "Customer Reply",
     layer: "department",
@@ -185,6 +199,7 @@ var DEFAULT_TASK_TYPES = [
   { key: "memory_write", label: "Save a fact to company memory", level: 3, risk: "internal", approvalsToPromote: 0, maxLevel: 3 },
   { key: "send_message", label: "Send a customer message", level: 2, risk: "external", approvalsToPromote: 20, maxLevel: 3 },
   { key: "publish_post", label: "Publish a social post", level: 2, risk: "external", approvalsToPromote: 15, maxLevel: 3 },
+  { key: "reply_comment", label: "Reply to a comment on a post", level: 2, risk: "external", approvalsToPromote: 15, maxLevel: 3 },
   { key: "send_email_campaign", label: "Send an email campaign", level: 1, risk: "external", approvalsToPromote: 10, maxLevel: 2 },
   { key: "spend_money", label: "Spend money (ads, purchases, payments)", level: 1, risk: "money", approvalsToPromote: 30, maxLevel: 2, spendCapMinor: 5e4 }
 ];
@@ -214,6 +229,17 @@ var field = (input, name, max = 4e3) => {
   if (!t) throw new Error(`Missing "${name}". Call the tool again with a non-empty "${name}".`);
   return t.slice(0, max);
 };
+function parseLinkedInComment(input) {
+  let text = input.trim();
+  try {
+    text = decodeURIComponent(text);
+  } catch {
+  }
+  const m = text.match(/urn:li:comment:\((?:urn:li:)?(activity|ugcPost|share):(\d+),(\d+)\)/);
+  if (!m) return null;
+  const threadUrn = `urn:li:${m[1]}:${m[2]}`;
+  return { threadUrn, commentUrn: `urn:li:comment:(${threadUrn},${m[3]})` };
+}
 var TOOLS = {
   write_note: {
     taskType: "internal_note",
@@ -289,6 +315,32 @@ ${body}`, agentId: ctx.agent.id, at: nowIso() });
     },
     summarize: (i) => `Post on ${String(i.network)}: "${String(i.text ?? "").slice(0, 80)}"`,
     execute: (i, ctx) => ctx.integrations.dispatch("publish_post", { network: field(i, "network", 40), text: field(i, "text", 3e3), when: i.when ?? "now" })
+  },
+  reply_comment: {
+    taskType: "reply_comment",
+    spec: {
+      name: "reply_comment",
+      description: `Reply publicly under a comment on one of the company's social posts. commentUrl is the LinkedIn "Copy link to comment" link the founder gave you.`,
+      input_schema: {
+        type: "object",
+        properties: {
+          network: { type: "string", enum: ["linkedin"] },
+          commentUrl: { type: "string", description: 'LinkedIn "Copy link to comment" URL' },
+          commenter: { type: "string", description: "Name of the person you are replying to" },
+          text: { type: "string", description: "The reply, as it will appear publicly" }
+        },
+        required: ["network", "commentUrl", "text"]
+      }
+    },
+    summarize: (i) => `Reply on ${String(i.network ?? "linkedin").toLowerCase()} to ${String(i.commenter || "a commenter")}: "${String(i.text ?? "").slice(0, 80)}"`,
+    async execute(i, ctx) {
+      const network = field(i, "network", 20).toLowerCase();
+      if (network !== "linkedin") throw new Error(`Replies on "${network}" are not supported yet; only LinkedIn.`);
+      const target = parseLinkedInComment(field(i, "commentUrl", 2e3));
+      if (!target) throw new Error('commentUrl must be the LinkedIn "Copy link to comment" link (it contains commentUrn). Ask the founder for it.');
+      const commenter = typeof i.commenter === "string" ? i.commenter.trim().slice(0, 120) : "";
+      return ctx.integrations.dispatch("reply_comment", { network, ...target, commenter, text: field(i, "text", 1250) });
+    }
   },
   send_email_campaign: {
     taskType: "send_email_campaign",
@@ -671,8 +723,17 @@ var SupabaseStore = class {
     if (!rows[0]) throw new Error(`${what} not found`);
     return fromRow(rows[0]);
   }
+  /** Reads a company's action types, first adding any newer default types it lacks (existing levels are never changed). */
   async getTaskTypes(orgId) {
-    return (await this.req(`task_types?org_id=eq.${orgId}`)).map((r) => fromRow(r));
+    const have = (await this.req(`task_types?org_id=eq.${orgId}`)).map((r) => fromRow(r));
+    const missing = DEFAULT_TASK_TYPES.filter((d) => !have.some((t) => t.key === d.key));
+    if (!missing.length) return have;
+    await this.req("task_types", {
+      method: "POST",
+      body: JSON.stringify(missing.map((t) => taskTypeRow(orgId, t))),
+      headers: { prefer: "resolution=ignore-duplicates,return=minimal" }
+    });
+    return [...have, ...missing.map((t) => ({ ...t, orgId }))];
   }
   async setTaskTypeLevel(orgId, key, level) {
     await this.req(`task_types?org_id=eq.${orgId}&key=eq.${encodeURIComponent(key)}`, { method: "PATCH", body: JSON.stringify({ level }) });
@@ -753,16 +814,7 @@ var SupabaseStore = class {
   async provisionWorkspace(userId, label) {
     const org = this.one(await this.req("orgs", { method: "POST", body: JSON.stringify({ name: label.slice(0, 200) || "My company" }) }), "Org");
     await this.req("org_members", { method: "POST", body: JSON.stringify({ org_id: org.id, user_id: userId, role: "owner" }), headers: { prefer: "return=minimal" } });
-    const types = DEFAULT_TASK_TYPES.map((t) => ({
-      org_id: org.id,
-      key: t.key,
-      label: t.label,
-      level: t.level,
-      risk: t.risk,
-      approvals_to_promote: t.approvalsToPromote,
-      max_level: t.maxLevel,
-      spend_cap_minor: t.spendCapMinor ?? null
-    }));
+    const types = DEFAULT_TASK_TYPES.map((t) => taskTypeRow(org.id, t));
     await this.req("task_types", { method: "POST", body: JSON.stringify(types), headers: { prefer: "return=minimal" } });
     await this.req("audit_log", {
       method: "POST",
@@ -781,6 +833,18 @@ async function verifyUser(url, anonKey, accessToken, fetchImpl = fetch) {
   if (!res.ok) return null;
   const u = await res.json();
   return u.id ? { id: u.id, email: u.email, phone: u.phone } : null;
+}
+function taskTypeRow(orgId, t) {
+  return {
+    org_id: orgId,
+    key: t.key,
+    label: t.label,
+    level: t.level,
+    risk: t.risk,
+    approvals_to_promote: t.approvalsToPromote,
+    max_level: t.maxLevel,
+    spend_cap_minor: t.spendCapMinor ?? null
+  };
 }
 
 // server/context.ts

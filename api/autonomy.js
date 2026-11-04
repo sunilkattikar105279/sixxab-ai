@@ -6,6 +6,7 @@ var DEFAULT_TASK_TYPES = [
   { key: "memory_write", label: "Save a fact to company memory", level: 3, risk: "internal", approvalsToPromote: 0, maxLevel: 3 },
   { key: "send_message", label: "Send a customer message", level: 2, risk: "external", approvalsToPromote: 20, maxLevel: 3 },
   { key: "publish_post", label: "Publish a social post", level: 2, risk: "external", approvalsToPromote: 15, maxLevel: 3 },
+  { key: "reply_comment", label: "Reply to a comment on a post", level: 2, risk: "external", approvalsToPromote: 15, maxLevel: 3 },
   { key: "send_email_campaign", label: "Send an email campaign", level: 1, risk: "external", approvalsToPromote: 10, maxLevel: 2 },
   { key: "spend_money", label: "Spend money (ads, purchases, payments)", level: 1, risk: "money", approvalsToPromote: 30, maxLevel: 2, spendCapMinor: 5e4 }
 ];
@@ -68,8 +69,17 @@ var SupabaseStore = class {
     if (!rows[0]) throw new Error(`${what} not found`);
     return fromRow(rows[0]);
   }
+  /** Reads a company's action types, first adding any newer default types it lacks (existing levels are never changed). */
   async getTaskTypes(orgId) {
-    return (await this.req(`task_types?org_id=eq.${orgId}`)).map((r) => fromRow(r));
+    const have = (await this.req(`task_types?org_id=eq.${orgId}`)).map((r) => fromRow(r));
+    const missing = DEFAULT_TASK_TYPES.filter((d) => !have.some((t) => t.key === d.key));
+    if (!missing.length) return have;
+    await this.req("task_types", {
+      method: "POST",
+      body: JSON.stringify(missing.map((t) => taskTypeRow(orgId, t))),
+      headers: { prefer: "resolution=ignore-duplicates,return=minimal" }
+    });
+    return [...have, ...missing.map((t) => ({ ...t, orgId }))];
   }
   async setTaskTypeLevel(orgId, key, level) {
     await this.req(`task_types?org_id=eq.${orgId}&key=eq.${encodeURIComponent(key)}`, { method: "PATCH", body: JSON.stringify({ level }) });
@@ -150,16 +160,7 @@ var SupabaseStore = class {
   async provisionWorkspace(userId, label) {
     const org = this.one(await this.req("orgs", { method: "POST", body: JSON.stringify({ name: label.slice(0, 200) || "My company" }) }), "Org");
     await this.req("org_members", { method: "POST", body: JSON.stringify({ org_id: org.id, user_id: userId, role: "owner" }), headers: { prefer: "return=minimal" } });
-    const types = DEFAULT_TASK_TYPES.map((t) => ({
-      org_id: org.id,
-      key: t.key,
-      label: t.label,
-      level: t.level,
-      risk: t.risk,
-      approvals_to_promote: t.approvalsToPromote,
-      max_level: t.maxLevel,
-      spend_cap_minor: t.spendCapMinor ?? null
-    }));
+    const types = DEFAULT_TASK_TYPES.map((t) => taskTypeRow(org.id, t));
     await this.req("task_types", { method: "POST", body: JSON.stringify(types), headers: { prefer: "return=minimal" } });
     await this.req("audit_log", {
       method: "POST",
@@ -178,6 +179,18 @@ async function verifyUser(url, anonKey, accessToken, fetchImpl = fetch) {
   if (!res.ok) return null;
   const u = await res.json();
   return u.id ? { id: u.id, email: u.email, phone: u.phone } : null;
+}
+function taskTypeRow(orgId, t) {
+  return {
+    org_id: orgId,
+    key: t.key,
+    label: t.label,
+    level: t.level,
+    risk: t.risk,
+    approvals_to_promote: t.approvalsToPromote,
+    max_level: t.maxLevel,
+    spend_cap_minor: t.spendCapMinor ?? null
+  };
 }
 
 // server/context.ts

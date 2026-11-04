@@ -13,7 +13,7 @@
       "parameters": {
         "width": 420,
         "height": 400,
-        "content": "## SIXXAB AI actions\nApproved posts and messages from sixxab.ai arrive here.\n\n1. **Webhook** → Credential: Header Auth, name `x-sixxab-secret`, value = your N8N_WEBHOOK_SECRET.\n2. **Route** → set FOUNDER_EMAIL and your Twilio numbers.\n3. Connect LinkedIn, X, Gmail and Twilio credentials on their nodes (pick your LinkedIn profile).\n4. Activate, copy the **Production URL** into Vercel as N8N_WEBHOOK_URL.\n\nSpending is never automatic: it only emails you."
+        "content": "## SIXXAB AI actions\nApproved posts and messages from sixxab.ai arrive here.\n\n1. **Webhook** → Credential: Header Auth, name `x-sixxab-secret`, value = your N8N_WEBHOOK_SECRET.\n2. **Route** → set FOUNDER_EMAIL and your Twilio numbers.\n3. Connect LinkedIn, X, Gmail and Twilio credentials on their nodes (pick your LinkedIn profile; also select it on Reply on LinkedIn and copy its id into LINKEDIN_PERSON_ID).\n4. Activate, copy the **Production URL** into Vercel as N8N_WEBHOOK_URL.\n\nSpending is never automatic: it only emails you."
       }
     },
     {
@@ -45,7 +45,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// SIXXAB AI → n8n router. Edit the settings below, then save the workflow.\nconst FOUNDER_EMAIL = 'you@example.com';      // spending requests and campaign drafts are emailed here\nconst TWILIO_SMS_FROM = '+10000000000';       // your Twilio phone number (E.164)\nconst TWILIO_WHATSAPP_FROM = '+14155238886';  // your Twilio WhatsApp sender (sandbox number shown)\nconst DEFAULT_EMAIL_SUBJECT = 'A note from our team';\n\nconst money = (minor, currency) => {\n  const cur = String(currency || 'USD').toUpperCase();\n  try {\n    return new Intl.NumberFormat(cur === 'INR' ? 'en-IN' : 'en-US', { style: 'currency', currency: cur }).format(Number(minor) / 100);\n  } catch {\n    return (Number(minor) / 100).toFixed(2) + ' ' + cur;\n  }\n};\n\nreturn $input.all().map((item) => {\n  const body = item.json.body || {};\n  const action = String(body.action || '');\n  const p = body.payload || {};\n  const network = String(p.network || '').trim().toLowerCase();\n  const channel = String(p.channel || '').trim().toLowerCase();\n  const out = { action, route: 'unsupported', label: '', reason: 'No n8n route for \"' + action + '\"', founderEmail: FOUNDER_EMAIL };\n\n  if (action === 'publish_post') {\n    out.text = String(p.text || '');\n    if (network.includes('linkedin')) Object.assign(out, { route: 'post_linkedin', label: 'LinkedIn' });\n    else if (network === 'x' || network.startsWith('x ') || network.includes('twitter')) Object.assign(out, { route: 'post_x', label: 'X' });\n    else out.reason = 'Posting to \"' + (p.network || '?') + '\" is not connected in n8n yet';\n  } else if (action === 'send_message') {\n    const text = String(p.text || '');\n    const m = text.match(/^subject:\\s*(.+)\\n+/i);\n    Object.assign(out, { to: String(p.to || '').trim(), text: m ? text.slice(m[0].length) : text, subject: m ? m[1].trim() : DEFAULT_EMAIL_SUBJECT });\n    if (channel === 'email') Object.assign(out, { route: 'message_email', label: 'Email' });\n    else if (channel === 'sms') Object.assign(out, { route: 'message_sms', label: 'SMS', from: TWILIO_SMS_FROM });\n    else if (channel === 'whatsapp') Object.assign(out, { route: 'message_whatsapp', label: 'WhatsApp', from: TWILIO_WHATSAPP_FROM });\n    else out.reason = 'Channel \"' + (p.channel || '?') + '\" is not connected in n8n yet';\n  } else if (action === 'send_email_campaign') {\n    Object.assign(out, {\n      route: 'notify_founder', label: 'Founder email',\n      notifySubject: 'Campaign ready to send: ' + (p.subject || ''),\n      notifyBody: 'You approved this campaign in SIXXAB AI. Send it to the list \"' + (p.list || '') + '\" from your email tool.\\n\\nSubject: ' + (p.subject || '') + '\\n\\n' + (p.body || ''),\n    });\n  } else if (action === 'spend_money') {\n    const amount = money(p.amountMinor, p.currency);\n    Object.assign(out, {\n      route: 'notify_founder', label: 'Founder email', amount,\n      notifySubject: 'Approved spend: ' + amount + ' on ' + (p.purpose || ''),\n      notifyBody: 'You approved this spend in SIXXAB AI. n8n never moves money: make the payment yourself if it is still needed.\\n\\nAmount: ' + amount + '\\nPayee: ' + (p.payee || '') + '\\nPurpose: ' + (p.purpose || ''),\n    });\n  }\n  return { json: out };\n});"
+        "jsCode": "// SIXXAB AI → n8n router. Edit the settings below, then save the workflow.\nconst FOUNDER_EMAIL = 'you@example.com';      // spending requests and campaign drafts are emailed here\nconst TWILIO_SMS_FROM = '+10000000000';       // your Twilio phone number (E.164)\nconst TWILIO_WHATSAPP_FROM = '+14155238886';  // your Twilio WhatsApp sender (sandbox number shown)\nconst DEFAULT_EMAIL_SUBJECT = 'A note from our team';\nconst LINKEDIN_PERSON_ID = '';                // your LinkedIn member id (the value picked under Post on LinkedIn → Person)\n// Channels with a connected account in this workflow. Set to true after connecting that node's credential.\nconst CONNECTED = { x: false, sms: false, whatsapp: false };\nconst notConnected = (name) => name + ' is not connected in n8n yet, so it was not sent';\n\nconst money = (minor, currency) => {\n  const cur = String(currency || 'USD').toUpperCase();\n  try {\n    return new Intl.NumberFormat(cur === 'INR' ? 'en-IN' : 'en-US', { style: 'currency', currency: cur }).format(Number(minor) / 100);\n  } catch {\n    return (Number(minor) / 100).toFixed(2) + ' ' + cur;\n  }\n};\n\nreturn $input.all().map((item) => {\n  const body = item.json.body || {};\n  const action = String(body.action || '');\n  const p = body.payload || {};\n  const network = String(p.network || '').trim().toLowerCase();\n  const channel = String(p.channel || '').trim().toLowerCase();\n  const out = { action, route: 'unsupported', label: '', reason: 'No n8n route for \"' + action + '\"', founderEmail: FOUNDER_EMAIL };\n\n  if (action === 'publish_post') {\n    out.text = String(p.text || '');\n    if (network.includes('linkedin')) Object.assign(out, { route: 'post_linkedin', label: 'LinkedIn' });\n    else if (network === 'x' || network.startsWith('x ') || network.includes('twitter')) { if (CONNECTED.x) Object.assign(out, { route: 'post_x', label: 'X' }); else out.reason = notConnected('X'); }\n    else out.reason = 'Posting to \"' + (p.network || '?') + '\" is not connected in n8n yet';\n  } else if (action === 'send_message') {\n    const text = String(p.text || '');\n    const m = text.match(/^subject:\\s*(.+)\\n+/i);\n    Object.assign(out, { to: String(p.to || '').trim(), text: m ? text.slice(m[0].length) : text, subject: m ? m[1].trim() : DEFAULT_EMAIL_SUBJECT });\n    if (channel === 'email') Object.assign(out, { route: 'message_email', label: 'Email' });\n    else if (channel === 'sms') { if (CONNECTED.sms) Object.assign(out, { route: 'message_sms', label: 'SMS', from: TWILIO_SMS_FROM }); else out.reason = notConnected('SMS'); }\n    else if (channel === 'whatsapp') { if (CONNECTED.whatsapp) Object.assign(out, { route: 'message_whatsapp', label: 'WhatsApp', from: TWILIO_WHATSAPP_FROM }); else out.reason = notConnected('WhatsApp'); }\n    else out.reason = 'Channel \"' + (p.channel || '?') + '\" is not connected in n8n yet';\n  } else if (action === 'reply_comment') {\n    Object.assign(out, { text: String(p.text || ''), commenter: String(p.commenter || ''), threadUrn: String(p.threadUrn || ''), commentUrn: String(p.commentUrn || '') });\n    if (String(p.network || '').toLowerCase() !== 'linkedin') out.reason = 'Replies on \"' + (p.network || '?') + '\" are not connected in n8n yet';\n    else if (!LINKEDIN_PERSON_ID) out.reason = 'Set LINKEDIN_PERSON_ID in the Route node to reply on LinkedIn';\n    else if (!/^urn:li:comment:/.test(out.commentUrn)) out.reason = 'Missing the LinkedIn comment to reply to';\n    else Object.assign(out, { route: 'reply_linkedin', label: 'LinkedIn reply', actor: 'urn:li:person:' + LINKEDIN_PERSON_ID });\n  } else if (action === 'send_email_campaign') {\n    Object.assign(out, {\n      route: 'notify_founder', label: 'Founder email',\n      notifySubject: 'Campaign ready to send: ' + (p.subject || ''),\n      notifyBody: 'You approved this campaign in SIXXAB AI. Send it to the list \"' + (p.list || '') + '\" from your email tool.\\n\\nSubject: ' + (p.subject || '') + '\\n\\n' + (p.body || ''),\n    });\n  } else if (action === 'spend_money') {\n    const amount = money(p.amountMinor, p.currency);\n    Object.assign(out, {\n      route: 'notify_founder', label: 'Founder email', amount,\n      notifySubject: 'Approved spend: ' + amount + ' on ' + (p.purpose || ''),\n      notifyBody: 'You approved this spend in SIXXAB AI. n8n never moves money: make the payment yourself if it is still needed.\\n\\nAmount: ' + amount + '\\nPayee: ' + (p.payee || '') + '\\nPurpose: ' + (p.purpose || ''),\n    });\n  }\n  return { json: out };\n});"
       }
     },
     {
@@ -203,6 +203,30 @@
               },
               "renameOutput": true,
               "outputKey": "Founder"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "1d3259f6-ca4b-4298-ae56-18f4629cb157",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "reply_linkedin",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "LinkedIn reply"
             }
           ]
         },
@@ -334,6 +358,52 @@
         }
       },
       "onError": "continueErrorOutput"
+    },
+    {
+      "id": "f4dc4829-df1f-4a12-a6ec-dd020f622eb6",
+      "name": "Reply on LinkedIn",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        560
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.linkedin.com/v2/socialActions/' + encodeURIComponent($json.commentUrn) + '/comments' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "linkedInOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Restli-Protocol-Version",
+              "value": "2.0.0"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ actor: $json.actor, object: $json.threadUrn, message: { text: $json.text }, parentComment: $json.commentUrn }) }}",
+        "options": {}
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "8d0c0e4a-94d7-421d-a80f-856f5fad0059",
+      "name": "Reply: replied on LinkedIn",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1000,
+        560
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": true, \"message\": \"Replied on LinkedIn\" + ($('Route').item.json.commenter ? \" to \" + $('Route').item.json.commenter : \"\") + \": https://www.linkedin.com/feed/update/\" + $('Route').item.json.threadUrn } }}",
+        "options": {}
+      }
     },
     {
       "id": "d02d737b-f5de-44c8-a097-8c87d55ba08a",
@@ -525,7 +595,32 @@
         ],
         [
           {
+            "node": "Reply on LinkedIn",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
             "node": "Reply: no route",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply on LinkedIn": {
+      "main": [
+        [
+          {
+            "node": "Reply: replied on LinkedIn",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply: not sent",
             "type": "main",
             "index": 0
           }

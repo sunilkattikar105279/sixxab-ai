@@ -436,3 +436,53 @@ test('autonomy progress shows clean approvals so far and when an upgrade is earn
   p = await autonomyProgress(store, ORG);
   assert.deepEqual(p.find((x) => x.taskType === 'publish_post')!.proposal, { taskType: 'publish_post', from: 2, to: 3, because: '15 approvals in a row with no edits' });
 });
+
+// ---------- Comment Responder ----------
+test('a LinkedIn "copy link to comment" URL becomes the thread and comment to reply to', async () => {
+  const { parseLinkedInComment } = await import('../core/tools.js');
+  const url = 'https://www.linkedin.com/feed/update/urn:li:activity:7523606744000000000?commentUrn=urn%3Ali%3Acomment%3A%28activity%3A7523606744000000000%2C7523609999000000000%29&dashCommentUrn=urn%3Ali%3Afsd_comment%3A%287523609999000000000%2Curn%3Ali%3Aactivity%3A7523606744000000000%29';
+  assert.deepEqual(parseLinkedInComment(url), {
+    threadUrn: 'urn:li:activity:7523606744000000000',
+    commentUrn: 'urn:li:comment:(urn:li:activity:7523606744000000000,7523609999000000000)',
+  });
+  assert.deepEqual(parseLinkedInComment('urn:li:comment:(urn:li:ugcPost:111,222)'), { threadUrn: 'urn:li:ugcPost:111', commentUrn: 'urn:li:comment:(urn:li:ugcPost:111,222)' });
+  assert.equal(parseLinkedInComment('https://www.linkedin.com/feed/update/urn:li:activity:1'), null, 'a post link without a comment is not enough');
+  assert.equal(parseLinkedInComment('nonsense'), null);
+});
+
+test('an approved comment reply is handed to automations with the thread, comment and text', async () => {
+  const { TOOLS } = await import('../core/tools.js');
+  const sent: unknown[] = [];
+  const ctx = { integrations: { dispatch: async (a: string, p: Record<string, unknown>) => { sent.push({ a, p }); return 'Replied on LinkedIn'; } } } as never;
+  const out = await TOOLS.reply_comment.execute({ network: 'LinkedIn', commentUrl: 'urn:li:comment:(activity:5,6)', commenter: 'Tauseef', text: 'Thanks, agreed.' }, ctx);
+  assert.equal(out, 'Replied on LinkedIn');
+  assert.deepEqual(sent, [{ a: 'reply_comment', p: { network: 'linkedin', threadUrn: 'urn:li:activity:5', commentUrn: 'urn:li:comment:(urn:li:activity:5,6)', commenter: 'Tauseef', text: 'Thanks, agreed.' } }]);
+  await assert.rejects(TOOLS.reply_comment.execute({ network: 'linkedin', commentUrl: 'https://x.com/a', text: 'hi' }, ctx), /copy link to comment/i);
+  assert.match(TOOLS.reply_comment.summarize({ network: 'linkedin', commenter: 'Tauseef', text: 'Thanks' }), /Reply on linkedin to Tauseef: "Thanks"/);
+});
+
+test('the Comment Responder exists, replies only through approval, and companies get the new action type', async () => {
+  const { getAgent } = await import('../core/agents.js');
+  const agent = getAgent('comment-responder')!;
+  assert.ok(agent.tools.includes('reply_comment') && !agent.tools.includes('publish_post'));
+  const t = DEFAULT_TASK_TYPES.find((x) => x.key === 'reply_comment')!;
+  assert.deepEqual([t.level, t.risk], [2, 'external']);
+});
+
+test('existing companies are given any default action types they are missing', async () => {
+  const { SupabaseStore } = await import('../core/supabase-store.js');
+  const calls: { url: string; init: RequestInit }[] = [];
+  const fakeFetch = (async (url: string, init: RequestInit = {}) => {
+    calls.push({ url, init });
+    if ((init.method ?? 'GET') === 'GET') return new Response(JSON.stringify([{ org_id: 'o1', key: 'publish_post', label: 'Publish', level: 3, risk: 'external', approvals_to_promote: 15, max_level: 3, spend_cap_minor: null }]), { status: 200 });
+    return new Response('', { status: 201 });
+  }) as unknown as typeof fetch;
+  const store = new SupabaseStore('https://x.supabase.co', 'sb_secret_test', fakeFetch);
+  const types = await store.getTaskTypes('o1');
+  assert.equal(types.find((t) => t.key === 'publish_post')!.level, 3, 'existing levels are kept');
+  assert.ok(types.find((t) => t.key === 'reply_comment'), 'missing type added');
+  const insert = calls.find((c) => c.init.method === 'POST')!;
+  assert.match(String((insert.init.headers as Record<string, string>).prefer), /ignore-duplicates/);
+  assert.ok(!JSON.parse(String(insert.init.body)).some((r: { key: string }) => r.key === 'publish_post'), 'never overwrites an existing level');
+});
+

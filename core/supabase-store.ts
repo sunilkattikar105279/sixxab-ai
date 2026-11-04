@@ -46,8 +46,17 @@ export class SupabaseStore implements Store {
     return fromRow<T>(rows[0]);
   }
 
+  /** Reads a company's action types, first adding any newer default types it lacks (existing levels are never changed). */
   async getTaskTypes(orgId: string) {
-    return (await this.req(`task_types?org_id=eq.${orgId}`)).map((r) => fromRow<TaskType & { orgId: string }>(r));
+    const have = (await this.req(`task_types?org_id=eq.${orgId}`)).map((r) => fromRow<TaskType & { orgId: string }>(r));
+    const missing = DEFAULT_TASK_TYPES.filter((d) => !have.some((t) => t.key === d.key));
+    if (!missing.length) return have;
+    await this.req('task_types', {
+      method: 'POST',
+      body: JSON.stringify(missing.map((t) => taskTypeRow(orgId, t))),
+      headers: { prefer: 'resolution=ignore-duplicates,return=minimal' },
+    });
+    return [...have, ...missing.map((t) => ({ ...t, orgId }))];
   }
   async setTaskTypeLevel(orgId: string, key: string, level: TaskType['level']) {
     await this.req(`task_types?org_id=eq.${orgId}&key=eq.${encodeURIComponent(key)}`, { method: 'PATCH', body: JSON.stringify({ level }) });
@@ -130,10 +139,7 @@ export class SupabaseStore implements Store {
   async provisionWorkspace(userId: string, label: string): Promise<string> {
     const org = this.one<{ id: string }>(await this.req('orgs', { method: 'POST', body: JSON.stringify({ name: label.slice(0, 200) || 'My company' }) }), 'Org');
     await this.req('org_members', { method: 'POST', body: JSON.stringify({ org_id: org.id, user_id: userId, role: 'owner' }), headers: { prefer: 'return=minimal' } });
-    const types = DEFAULT_TASK_TYPES.map((t) => ({
-      org_id: org.id, key: t.key, label: t.label, level: t.level, risk: t.risk,
-      approvals_to_promote: t.approvalsToPromote, max_level: t.maxLevel, spend_cap_minor: t.spendCapMinor ?? null,
-    }));
+    const types = DEFAULT_TASK_TYPES.map((t) => taskTypeRow(org.id, t));
     await this.req('task_types', { method: 'POST', body: JSON.stringify(types), headers: { prefer: 'return=minimal' } });
     await this.req('audit_log', {
       method: 'POST',
@@ -155,4 +161,11 @@ export async function verifyUser(url: string, anonKey: string, accessToken: stri
   if (!res.ok) return null;
   const u = (await res.json()) as { id?: string; email?: string; phone?: string };
   return u.id ? { id: u.id, email: u.email, phone: u.phone } : null;
+}
+
+function taskTypeRow(orgId: string, t: TaskType) {
+  return {
+    org_id: orgId, key: t.key, label: t.label, level: t.level, risk: t.risk,
+    approvals_to_promote: t.approvalsToPromote, max_level: t.maxLevel, spend_cap_minor: t.spendCapMinor ?? null,
+  };
 }

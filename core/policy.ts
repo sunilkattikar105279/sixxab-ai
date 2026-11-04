@@ -71,6 +71,7 @@ export const DEFAULT_TASK_TYPES: TaskType[] = [
   { key: 'memory_write', label: 'Save a fact to company memory', level: 3, risk: 'internal', approvalsToPromote: 0, maxLevel: 3 },
   { key: 'send_message', label: 'Send a customer message', level: 2, risk: 'external', approvalsToPromote: 20, maxLevel: 3 },
   { key: 'publish_post', label: 'Publish a social post', level: 2, risk: 'external', approvalsToPromote: 15, maxLevel: 3 },
+  { key: 'reply_comment', label: 'Reply to a comment on a post', level: 2, risk: 'external', approvalsToPromote: 15, maxLevel: 3 },
   { key: 'send_email_campaign', label: 'Send an email campaign', level: 1, risk: 'external', approvalsToPromote: 10, maxLevel: 2 },
   { key: 'spend_money', label: 'Spend money (ads, purchases, payments)', level: 1, risk: 'money', approvalsToPromote: 30, maxLevel: 2, spendCapMinor: 50_000 },
 ];

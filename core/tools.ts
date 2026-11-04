@@ -47,6 +47,23 @@ const field = (input: Record<string, unknown>, name: string, max = 4000): string
   return t.slice(0, max);
 };
 
+/**
+ * Reads a LinkedIn comment from its "Copy link to comment" URL (or a bare comment URN).
+ * Returns the post thread and the comment to reply under, or null when no comment is identified.
+ */
+export function parseLinkedInComment(input: string): { threadUrn: string; commentUrn: string } | null {
+  let text = input.trim();
+  try {
+    text = decodeURIComponent(text);
+  } catch {
+    /* not URL-encoded; use as is */
+  }
+  const m = text.match(/urn:li:comment:\((?:urn:li:)?(activity|ugcPost|share):(\d+),(\d+)\)/);
+  if (!m) return null;
+  const threadUrn = `urn:li:${m[1]}:${m[2]}`;
+  return { threadUrn, commentUrn: `urn:li:comment:(${threadUrn},${m[3]})` };
+}
+
 export const TOOLS: Record<string, Tool> = {
   write_note: {
     taskType: 'internal_note',
@@ -122,6 +139,32 @@ export const TOOLS: Record<string, Tool> = {
     },
     summarize: (i) => `Post on ${String(i.network)}: "${String(i.text ?? '').slice(0, 80)}"`,
     execute: (i, ctx) => ctx.integrations.dispatch('publish_post', { network: field(i, 'network', 40), text: field(i, 'text', 3000), when: i.when ?? 'now' }),
+  },
+  reply_comment: {
+    taskType: 'reply_comment',
+    spec: {
+      name: 'reply_comment',
+      description: 'Reply publicly under a comment on one of the company\'s social posts. commentUrl is the LinkedIn "Copy link to comment" link the founder gave you.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          network: { type: 'string', enum: ['linkedin'] },
+          commentUrl: { type: 'string', description: 'LinkedIn "Copy link to comment" URL' },
+          commenter: { type: 'string', description: 'Name of the person you are replying to' },
+          text: { type: 'string', description: 'The reply, as it will appear publicly' },
+        },
+        required: ['network', 'commentUrl', 'text'],
+      },
+    },
+    summarize: (i) => `Reply on ${String(i.network ?? 'linkedin').toLowerCase()} to ${String(i.commenter || 'a commenter')}: "${String(i.text ?? '').slice(0, 80)}"`,
+    async execute(i, ctx) {
+      const network = field(i, 'network', 20).toLowerCase();
+      if (network !== 'linkedin') throw new Error(`Replies on "${network}" are not supported yet; only LinkedIn.`);
+      const target = parseLinkedInComment(field(i, 'commentUrl', 2000));
+      if (!target) throw new Error('commentUrl must be the LinkedIn "Copy link to comment" link (it contains commentUrn). Ask the founder for it.');
+      const commenter = typeof i.commenter === 'string' ? i.commenter.trim().slice(0, 120) : '';
+      return ctx.integrations.dispatch('reply_comment', { network, ...target, commenter, text: field(i, 'text', 1250) });
+    },
   },
   send_email_campaign: {
     taskType: 'send_email_campaign',

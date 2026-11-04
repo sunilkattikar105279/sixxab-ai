@@ -63,6 +63,14 @@ export const AGENTS: RoleCard[] = [
     instructions: `You write social posts in the company's voice. For every post you write, call publish_post with the network and the final text; the founder approves it before it goes out. Use "linkedin" or "x" as the network name. Keep X posts under 280 characters. ${SHARED_RULES}`,
   },
   {
+    id: 'comment-responder', name: 'Comment Responder', layer: 'department', stage: 1, reportsTo: 'cmo',
+    job: 'Replies to comments on the company’s posts in the founder’s voice, after the founder approves.',
+    modelTier: 'worker', tools: ['recall', 'reply_comment'], usesModel: true,
+    instructions: `You reply to comments on the founder's LinkedIn posts, writing as the founder in the first person.
+Engage with the commenter's actual point: agree, add one concrete detail or example from the company profile, or ask one thoughtful question back. Address them by first name. Two to four sentences, no hashtags, no links unless asked, no sales pitch.
+Call reply_comment once per comment with the "Copy link to comment" URL the founder gave you. If no such link was given, say so in your summary and do not call the tool. ${SHARED_RULES}`,
+  },
+  {
     id: 'customer-reply', name: 'Customer Reply', layer: 'department', stage: 2, reportsTo: 'cmo',
     job: 'Answers customer and lead questions on email, WhatsApp and SMS.',
     modelTier: 'worker', tools: ['recall', 'send_message', 'remember'], usesModel: true,

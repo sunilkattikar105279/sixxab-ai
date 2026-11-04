@@ -24,6 +24,10 @@ const FOUNDER_EMAIL = 'you@example.com';      // spending requests and campaign 
 const TWILIO_SMS_FROM = '+10000000000';       // your Twilio phone number (E.164)
 const TWILIO_WHATSAPP_FROM = '+14155238886';  // your Twilio WhatsApp sender (sandbox number shown)
 const DEFAULT_EMAIL_SUBJECT = 'A note from our team';
+const LINKEDIN_PERSON_ID = '';                // your LinkedIn member id (the value picked under Post on LinkedIn → Person)
+// Channels with a connected account in this workflow. Set to true after connecting that node's credential.
+const CONNECTED = { x: false, sms: false, whatsapp: false };
+const notConnected = (name) => name + ' is not connected in n8n yet, so it was not sent';
 
 const money = (minor, currency) => {
   const cur = String(currency || 'USD').toUpperCase();
@@ -45,16 +49,22 @@ return $input.all().map((item) => {
   if (action === 'publish_post') {
     out.text = String(p.text || '');
     if (network.includes('linkedin')) Object.assign(out, { route: 'post_linkedin', label: 'LinkedIn' });
-    else if (network === 'x' || network.startsWith('x ') || network.includes('twitter')) Object.assign(out, { route: 'post_x', label: 'X' });
+    else if (network === 'x' || network.startsWith('x ') || network.includes('twitter')) { if (CONNECTED.x) Object.assign(out, { route: 'post_x', label: 'X' }); else out.reason = notConnected('X'); }
     else out.reason = 'Posting to "' + (p.network || '?') + '" is not connected in n8n yet';
   } else if (action === 'send_message') {
     const text = String(p.text || '');
     const m = text.match(/^subject:\\s*(.+)\\n+/i);
     Object.assign(out, { to: String(p.to || '').trim(), text: m ? text.slice(m[0].length) : text, subject: m ? m[1].trim() : DEFAULT_EMAIL_SUBJECT });
     if (channel === 'email') Object.assign(out, { route: 'message_email', label: 'Email' });
-    else if (channel === 'sms') Object.assign(out, { route: 'message_sms', label: 'SMS', from: TWILIO_SMS_FROM });
-    else if (channel === 'whatsapp') Object.assign(out, { route: 'message_whatsapp', label: 'WhatsApp', from: TWILIO_WHATSAPP_FROM });
+    else if (channel === 'sms') { if (CONNECTED.sms) Object.assign(out, { route: 'message_sms', label: 'SMS', from: TWILIO_SMS_FROM }); else out.reason = notConnected('SMS'); }
+    else if (channel === 'whatsapp') { if (CONNECTED.whatsapp) Object.assign(out, { route: 'message_whatsapp', label: 'WhatsApp', from: TWILIO_WHATSAPP_FROM }); else out.reason = notConnected('WhatsApp'); }
     else out.reason = 'Channel "' + (p.channel || '?') + '" is not connected in n8n yet';
+  } else if (action === 'reply_comment') {
+    Object.assign(out, { text: String(p.text || ''), commenter: String(p.commenter || ''), threadUrn: String(p.threadUrn || ''), commentUrn: String(p.commentUrn || '') });
+    if (String(p.network || '').toLowerCase() !== 'linkedin') out.reason = 'Replies on "' + (p.network || '?') + '" are not connected in n8n yet';
+    else if (!LINKEDIN_PERSON_ID) out.reason = 'Set LINKEDIN_PERSON_ID in the Route node to reply on LinkedIn';
+    else if (!/^urn:li:comment:/.test(out.commentUrn)) out.reason = 'Missing the LinkedIn comment to reply to';
+    else Object.assign(out, { route: 'reply_linkedin', label: 'LinkedIn reply', actor: 'urn:li:person:' + LINKEDIN_PERSON_ID });
   } else if (action === 'send_email_campaign') {
     Object.assign(out, {
       route: 'notify_founder', label: 'Founder email',
@@ -97,7 +107,7 @@ const nodes = [
       '',
       '1. **Webhook** → Credential: Header Auth, name `x-sixxab-secret`, value = your N8N_WEBHOOK_SECRET.',
       '2. **Route** → set FOUNDER_EMAIL and your Twilio numbers.',
-      '3. Connect LinkedIn, X, Gmail and Twilio credentials on their nodes (pick your LinkedIn profile).',
+      '3. Connect LinkedIn, X, Gmail and Twilio credentials on their nodes (pick your LinkedIn profile; also select it on Reply on LinkedIn and copy its id into LINKEDIN_PERSON_ID).',
       '4. Activate, copy the **Production URL** into Vercel as N8N_WEBHOOK_URL.',
       '',
       'Spending is never automatic: it only emails you.',
@@ -116,6 +126,7 @@ const nodes = [
         routeIs('message_sms', 'SMS'),
         routeIs('message_whatsapp', 'WhatsApp'),
         routeIs('notify_founder', 'Founder'),
+        routeIs('reply_linkedin', 'LinkedIn reply'),
       ],
     },
     options: { fallbackOutput: 'extra', renameFallbackOutput: 'Unsupported' },
@@ -136,6 +147,20 @@ const nodes = [
   sender('Email the founder', 'n8n-nodes-base.gmail', 2.1, [720, 400], {
     resource: 'message', operation: 'send', sendTo: '={{ $json.founderEmail }}', subject: '={{ $json.notifySubject }}', emailType: 'text', message: '={{ $json.notifyBody }}', options: { appendAttribution: false },
   }),
+  sender('Reply on LinkedIn', 'n8n-nodes-base.httpRequest', 4.2, [720, 560], {
+    method: 'POST',
+    url: "={{ 'https://api.linkedin.com/v2/socialActions/' + encodeURIComponent($json.commentUrn) + '/comments' }}",
+    authentication: 'predefinedCredentialType',
+    nodeCredentialType: 'linkedInOAuth2Api',
+    sendHeaders: true,
+    headerParameters: { parameters: [{ name: 'X-Restli-Protocol-Version', value: '2.0.0' }] },
+    sendBody: true,
+    contentType: 'json',
+    specifyBody: 'json',
+    jsonBody: '={{ JSON.stringify({ actor: $json.actor, object: $json.threadUrn, message: { text: $json.text }, parentComment: $json.commentUrn }) }}',
+    options: {},
+  }),
+  reply('Reply: replied on LinkedIn', [1000, 560], `{ "ok": true, "message": "Replied on LinkedIn" + (${R}.commenter ? " to " + ${R}.commenter : "") + ": https://www.linkedin.com/feed/update/" + ${R}.threadUrn }`),
   reply('Reply: posted on LinkedIn', [1000, -400], `{ "ok": true, "message": "Posted on LinkedIn" + (String($json.urn || $json.id || '').startsWith('urn:') ? ": https://www.linkedin.com/feed/update/" + ($json.urn || $json.id) : "") }`),
   reply('Reply: posted on X', [1000, -240], `{ "ok": true, "message": "Posted on X" + ($json.id ? ": https://x.com/i/web/status/" + $json.id : "") }`),
   reply('Reply: emailed', [1000, -80], `{ "ok": true, "message": "Emailed " + ${R}.to }`),
@@ -150,7 +175,8 @@ const to = (...names) => names.map((n) => [{ node: n, type: 'main', index: 0 }])
 const connections = {
   'SIXXAB webhook': { main: to('Route') },
   Route: { main: to('By channel') },
-  'By channel': { main: to('Post on LinkedIn', 'Post on X', 'Send email', 'Send SMS', 'Send WhatsApp', 'Email the founder', 'Reply: no route') },
+  'By channel': { main: to('Post on LinkedIn', 'Post on X', 'Send email', 'Send SMS', 'Send WhatsApp', 'Email the founder', 'Reply on LinkedIn', 'Reply: no route') },
+  'Reply on LinkedIn': { main: to('Reply: replied on LinkedIn', 'Reply: not sent') },
   'Post on LinkedIn': { main: to('Reply: posted on LinkedIn', 'Reply: not sent') },
   'Post on X': { main: to('Reply: posted on X', 'Reply: not sent') },
   'Send email': { main: to('Reply: emailed', 'Reply: not sent') },

@@ -43,7 +43,7 @@ test('every path from the webhook ends by answering the platform', () => {
 });
 
 test('nodes that publish or send report failures back instead of crashing the webhook', () => {
-  const senders = wf.nodes.filter((n) => /linkedIn|twitter|gmail|twilio/.test(n.type));
+  const senders = wf.nodes.filter((n) => /linkedIn|twitter|gmail|twilio|httpRequest/.test(n.type));
   assert.ok(senders.length >= 5);
   for (const n of senders) assert.equal(n.onError, 'continueErrorOutput', n.name);
 });
