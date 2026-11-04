@@ -60,7 +60,7 @@ export default function Login() {
       if (method === 'email') await sendEmailCode(email);
       else await sendSmsCode(phone!);
       setStep('code');
-      setNotice(method === 'email' ? `We sent a 6-digit code and a sign-in link to ${email.trim()}.` : `We sent a 6-digit code by SMS to ${phone}.`);
+      setNotice(method === 'email' ? `We emailed a sign-in code to ${email.trim()}. It comes from noreply@sixxab.ai; check spam if you don't see it.` : `We sent a sign-in code by SMS to ${phone}.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not send the code.');
     } finally {
@@ -132,8 +132,8 @@ export default function Login() {
           <form onSubmit={verify} className="form" noValidate>
             {notice && <p className="notice" role="status">{notice}</p>}
             <label className="field">
-              <span>6-digit code</span>
-              <input className="code-input" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={10} placeholder="123456" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} autoFocus />
+              <span>Sign-in code</span>
+              <input className="code-input" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={10} placeholder="12345678" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} autoFocus />
             </label>
             <button type="submit" className="btn-primary" disabled={busy}>
               {busy ? <Spinner label="Checking…" /> : 'Sign in'}

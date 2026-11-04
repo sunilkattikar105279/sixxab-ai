@@ -118,12 +118,12 @@ await check('email sign-in: wrong code is refused, right code opens the workspac
   await page.getByText('Enter a valid email address.').waitFor();
   await page.getByLabel('Email', { exact: true }).fill('Founder@Acme.com');
   await page.getByRole('button', { name: 'Send code' }).click();
-  await page.getByLabel('6-digit code').waitFor();
+  await page.getByLabel('Sign-in code').waitFor();
   assert.equal(state.otp[0].email, 'founder@acme.com');
-  await page.getByLabel('6-digit code').fill('000000');
+  await page.getByLabel('Sign-in code').fill('000000');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.getByText(/wrong or has expired/).waitFor();
-  await page.getByLabel('6-digit code').fill('123456');
+  await page.getByLabel('Sign-in code').fill('123456');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.waitForURL('**/app');
   await page.getByText('What should your company get done?').waitFor();
@@ -142,9 +142,9 @@ await check('mobile sign-in sends an E.164 number by SMS', async () => {
   await page.getByLabel('Mobile number').fill('086000 20434');
   await page.screenshot({ path: `${SHOTS}/login-mobile-phone.png` });
   await page.getByRole('button', { name: 'Send code' }).click();
-  await page.getByLabel('6-digit code').waitFor();
+  await page.getByLabel('Sign-in code').waitFor();
   assert.equal(state.otp[0].phone, '+918600020434');
-  await page.getByLabel('6-digit code').fill('123456');
+  await page.getByLabel('Sign-in code').fill('123456');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.waitForURL('**/app');
   await ctx.close();
