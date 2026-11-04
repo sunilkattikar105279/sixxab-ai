@@ -44,7 +44,7 @@ a:focus-visible,button:focus-visible{outline:2px solid #9fe0ff;outline-offset:3p
 </helmet>
 <div style="width: 100%; min-width: 0; background: #02060f; color: #ffffff; font-family: 'Sora', system-ui, sans-serif">
 
-<header style="position: relative; height: 100vh; min-height: 780px; max-height: 1100px; overflow: hidden; display: flex; flex-direction: column">
+<header style="position: relative; height: 88vh; min-height: 660px; max-height: 900px; overflow: hidden; display: flex; flex-direction: column">
 <div aria-hidden="true" style="position: absolute; inset: 0; background: radial-gradient(circle at 50% 47%, #ffffff 0%, #fff1d8 1.2%, rgba(255,214,150,.55) 5%, rgba(255,190,110,.16) 16%, rgba(2,6,15,0) 34%), conic-gradient(from 225deg at 50% 47%, rgba(255,196,110,.28) 0deg, rgba(2,6,15,0) 40deg, rgba(2,6,15,0) 50deg, rgba(120,170,240,.24) 90deg, rgba(2,6,15,0) 135deg, rgba(2,6,15,0) 180deg, rgba(120,170,240,.24) 225deg, rgba(2,6,15,0) 270deg, rgba(2,6,15,0) 310deg, rgba(255,196,110,.28) 360deg), radial-gradient(120% 60% at 50% 100%, #0b1a3a 0%, #03070f 70%)"></div>
 <sc-if value="{{showVideo}}" hint-placeholder-val="{{ true }}">
 <video autoplay="" muted="" loop="" playsinline="" preload="auto" aria-hidden="true" poster="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/130837c4-0244-4f37-9c61-8d801d93fd29.jpg" src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260912_104303_0c6d60b2-9353-408e-9449-585108a22fb5.mp4" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none"></video>
@@ -57,7 +57,7 @@ a:focus-visible,button:focus-visible{outline:2px solid #9fe0ff;outline-offset:3p
 <span style="font-size: 21px; letter-spacing: 4px; font-variation-settings: 'wght' 531">SIXXAB</span><span style="font-size: 21px; letter-spacing: 2px; color: #ffe2b2; font-variation-settings: 'wght' 340">AI</span>
 </a>
 <div class="navlinks l1" style="align-items: center; gap: 30px; font-size: 14px; font-variation-settings: 'wght' 506">
-<a href="#paths">Your path</a>
+<a href="#outcomes">What you get</a>
 <a href="#how">How it works</a>
 <a href="#pricing">Pricing</a>
 <a href="/investors">Investors</a>
@@ -74,181 +74,150 @@ a:focus-visible,button:focus-visible{outline:2px solid #9fe0ff;outline-offset:3p
 <sc-if value="{{menuOpen}}" hint-placeholder-val="{{ false }}">
 <div style="position: absolute; z-index: 6; top: 96px; right: 22px; width: min(300px, 82vw); padding: 14px; border-radius: 22px; display: flex; flex-direction: column; gap: 2px; background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.045)), linear-gradient(180deg, rgba(6,12,22,.72), rgba(6,12,22,.82)); backdrop-filter: blur(26px); box-shadow: 0 14px 38px rgba(2,6,14,.45)">
 <a href="/login?next=start" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px; color: #ffe2b2">Start your business</a>
-<a href="#paths" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">Your path</a>
+<a href="#outcomes" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">What you get</a>
 <a href="#how" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">How it works</a>
 <a href="#pricing" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">Pricing</a>
+<a href="mailto:sunil.kattikar@gmail.com?subject=SIXXAB%20consultant%20certification" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">Consultants</a>
 <a href="/investors" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">Investors</a>
 <a href="/login" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">Log in</a>
 <a href="#begin" style="margin-top: 8px; padding: 13px 18px; text-align: center; border: 1.6px solid rgba(196,214,232,.72); border-radius: 999px; font-size: 16px">Book a strategy call</a>
 </div>
 </sc-if>
 
-<div style="position: relative; z-index: 1; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 22px; padding: 0 24px">
-<p class="l1" style="margin: 0; font-size: 14px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">You're a founder. Or you should be.</p>
-<h1 class="h1" style="margin: 0; font-size: clamp(34px, 4.4vw, 64px); line-height: 1.12; font-weight: 400; font-variation-settings: 'wght' 424; letter-spacing: -.01em">
+<div style="position: relative; z-index: 1; flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 0 clamp(22px, 8vw, 120px)">
+<div style="width: 100%; max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px">
+<p class="l1" style="margin: 0; font-size: 14px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">Your AI business team</p>
+<h1 class="h1" style="margin: 0; font-size: clamp(34px, 4.6vw, 64px); line-height: 1.1; font-weight: 400; font-variation-settings: 'wght' 424; letter-spacing: -.01em">
 <span class="w1" style="display: block">Start it. Scale it. Run it.</span>
 <span class="w2" style="display: block">AI that runs your business.</span>
 </h1>
-<p class="l2" aria-live="polite" style="margin: 0; display: flex; justify-content: center; align-items: flex-start; gap: .32em; font-size: clamp(20px, 2vw, 28px); line-height: 1.3; font-variation-settings: 'wght' 446"><span>SIXXAB AI</span><span style="display: inline-block; height: 1.3em; overflow: hidden; text-align: left"><span style="display: flex; flex-direction: column; transform: {{tickerShift}}; transition: {{tickerEase}}"><sc-for list="{{lines}}" as="ln" hint-placeholder-count="7"><span style="display: block; height: 1.3em; white-space: nowrap; color: #ffe2b2">{{ln}}</span></sc-for></span></span></p>
-<p class="l2" style="margin: 0; max-width: 40ch; font-size: clamp(15px, 1.3vw, 18px); line-height: 1.5; color: #a2a9b8">Your first employee and your whole team, from the first idea to $10M. It never sleeps.</p>
-<div class="l3" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 12px">
-<a href="/login?next=start" style="display: inline-flex; align-items: center; gap: 10px; min-height: 52px; padding: 15px 28px; border-radius: 999px; background: #ffffff; color: #02060f; font-size: 17px; font-variation-settings: 'wght' 560">Start your business</a>
-<a href="#how" class="glass" style="display: inline-flex; align-items: center; gap: 10px; min-height: 52px; padding: 15px 26px; border-radius: 999px; font-size: 17px; color: #ffffff; font-variation-settings: 'wght' 497">See how it works</a>
+<p class="l2" aria-live="polite" style="margin: 0; display: flex; align-items: flex-start; gap: .32em; font-size: clamp(20px, 2vw, 26px); line-height: 1.3; font-variation-settings: 'wght' 446"><span>SIXXAB AI</span><span style="display: inline-block; height: 1.3em; overflow: hidden; text-align: left"><span style="display: flex; flex-direction: column; transform: {{tickerShift}}; transition: {{tickerEase}}"><sc-for list="{{lines}}" as="ln" hint-placeholder-count="7"><span style="display: block; height: 1.3em; white-space: nowrap; color: #ffe2b2">{{ln}}</span></sc-for></span></span></p>
+<p class="l2" style="margin: 0; max-width: 52ch; font-size: clamp(16px, 1.3vw, 19px); line-height: 1.6; color: #c9d2de">A full team of AI agents for marketing, sales, operations and finance. They do the work every day; you approve anything that reaches a customer or spends money.</p>
+<div class="l3" style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 6px">
+<a href="/login?next=start" style="display: inline-flex; align-items: center; min-height: 52px; padding: 15px 28px; border-radius: 999px; background: #ffffff; color: #02060f; font-size: 17px; font-variation-settings: 'wght' 560">Start your business</a>
+<a href="#begin" class="glass" style="display: inline-flex; align-items: center; min-height: 52px; padding: 15px 26px; border-radius: 999px; font-size: 17px; color: #ffffff; font-variation-settings: 'wght' 497">Book a strategy call</a>
+</div>
+<p class="l4" style="margin: 8px 0 0; font-size: 14px; color: #a2a9b8">Live with businesses in the US and India · Human approval built in · 12-month plans</p>
 </div>
 </div>
-<p class="l4" style="position: relative; z-index: 1; margin: 0; padding: 0 24px 44px; text-align: center; font-size: 16px; color: #f4f8fd; font-variation-settings: 'wght' 521">The solo founder's standing army.</p>
 </header>
 
-<section id="paths" class="sec" style="padding: 120px clamp(22px, 8vw, 120px) 100px; max-width: 1440px; margin: 0 auto; box-sizing: border-box">
-<p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">Three paths. Six stages. One platform.</p>
-<h2 class="h2" style="margin: 0 0 18px; font-size: 44px; line-height: 1.15; font-weight: 400; font-variation-settings: 'wght' 424; max-width: 24ch">Wherever your business is, SIXXAB meets it there.</h2>
-<p style="margin: 0 0 56px; max-width: 56ch; font-size: 18px; line-height: 1.55; color: #a2a9b8">Six stages from $0 to $10M. The right agents switch on at each one, and every milestone is tracked.</p>
-<div class="track" aria-hidden="true" style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; margin-bottom: 14px">
-<sc-for list="{{stages}}" as="s" hint-placeholder-count="6">
-<div style="display: flex; flex-direction: column; gap: 8px">
-<span style="height: 4px; border-radius: 4px; background: {{s.bar}}"></span>
-<span style="font-size: 13px; color: #e2ebf5; font-variation-settings: 'wght' 540">{{s.name}} <span style="color: #8d96a8; font-variation-settings: 'wght' 400">{{s.money}}</span></span>
+<section id="outcomes" class="sec" style="padding: 96px clamp(22px, 8vw, 120px); border-top: 1px solid rgba(196,214,232,.1)">
+<div style="max-width: 1120px; margin: 0 auto">
+<p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">What you get</p>
+<h2 class="h2" style="margin: 0 0 18px; font-size: 40px; line-height: 1.15; font-weight: 400; font-variation-settings: 'wght' 430; max-width: 26ch">The team you need, without the payroll.</h2>
+<div class="g3" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 36px">
+<sc-for list="{{outcomes}}" as="c" hint-placeholder-count="3">
+<div style="padding: 28px; border-radius: 22px; border: 1px solid rgba(196,214,232,.16); background: rgba(255,255,255,.03); display: flex; flex-direction: column; gap: 10px">
+<span style="font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: {{c.color}}; font-variation-settings: 'wght' 560">{{c.tag}}</span>
+<h3 style="margin: 0; font-size: 20px; line-height: 1.3; font-weight: 400; font-variation-settings: 'wght' 540">{{c.title}}</h3>
+<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #a2a9b8">{{c.body}}</p>
 </div>
 </sc-for>
 </div>
-<div class="g3" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px">
+</div>
+</section>
+
+<section id="paths" class="sec" style="padding: 96px clamp(22px, 8vw, 120px); border-top: 1px solid rgba(196,214,232,.1)">
+<div style="max-width: 1120px; margin: 0 auto">
+<p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">Your path</p>
+<h2 class="h2" style="margin: 0 0 18px; font-size: 40px; line-height: 1.15; font-weight: 400; font-variation-settings: 'wght' 430; max-width: 26ch">Wherever your business is, start there.</h2>
+<p style="margin: 0; max-width: 58ch; font-size: 18px; line-height: 1.6; color: #a2a9b8">The right agents switch on at each stage, from the first customer to $10M, and every milestone is tracked.</p>
+<div class="g3" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 36px">
 <sc-for list="{{heads}}" as="h" hint-placeholder-count="3">
-<a href="{{h.href}}" style="padding: 34px; border-radius: 24px; border: 1px solid {{h.border}}; background: {{h.bg}}; display: flex; flex-direction: column; gap: 14px; color: #ffffff">
-<span style="font-size: 40px; color: {{h.color}}; font-variation-settings: 'wght' 200">{{h.n}}</span>
-<span style="font-size: 26px; line-height: 1.2; font-variation-settings: 'wght' 480">{{h.name}}</span>
-<span style="font-size: 13px; color: {{h.color}}; font-variation-settings: 'wght' 540">{{h.stages}}</span>
+<a href="{{h.href}}" style="padding: 28px; border-radius: 22px; border: 1px solid {{h.border}}; background: rgba(255,255,255,.03); display: flex; flex-direction: column; gap: 10px; color: #ffffff">
+<span style="font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: {{h.color}}; font-variation-settings: 'wght' 560">{{h.stages}}</span>
+<span style="font-size: 20px; line-height: 1.3; font-variation-settings: 'wght' 540">{{h.name}}</span>
 <span style="font-size: 15px; line-height: 1.6; color: #a2a9b8">{{h.promise}}</span>
-<span style="margin-top: auto; padding-top: 10px; display: inline-flex; align-items: center; gap: 10px; font-size: 15px; color: #ffffff">{{h.cta}}
-<svg viewBox="0 0 16 11" width="14" height="10" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 1.6"><path d="M0 5.5 H14.6 M10.3 1.2 L14.9 5.5 L10.3 9.8"></path></svg></span>
+<span style="margin-top: auto; padding-top: 8px; display: inline-flex; align-items: center; gap: 10px; font-size: 15px">{{h.cta}} <svg viewBox="0 0 16 11" width="14" height="10" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 1.6"><path d="M0 5.5 H14.6 M10.3 1.2 L14.9 5.5 L10.3 9.8"></path></svg></span>
 </a>
 </sc-for>
 </div>
+</div>
 </section>
 
-<section id="how" class="sec" style="padding: 110px clamp(22px, 8vw, 120px); background: radial-gradient(60% 50% at 50% 0%, rgba(40,70,140,.22), rgba(2,6,15,0) 70%)">
-<div style="max-width: 1240px; margin: 0 auto">
+<section id="how" class="sec" style="padding: 96px clamp(22px, 8vw, 120px); border-top: 1px solid rgba(196,214,232,.1)">
+<div style="max-width: 1120px; margin: 0 auto">
 <p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">How it works</p>
-<h2 class="h2" style="margin: 0 0 18px; font-size: 44px; line-height: 1.15; font-weight: 400; font-variation-settings: 'wght' 424; max-width: 24ch">Agents do the work. You make the calls.</h2>
-<p style="margin: 0 0 48px; max-width: 56ch; font-size: 18px; line-height: 1.55; color: #a2a9b8">One founder agent sets the plan, executive agents turn it into work, and nothing reaches a customer or spends money without your yes.</p>
-<div class="g4" style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 28px">
-<sc-for list="{{layers}}" as="l" hint-placeholder-count="4">
-<div style="padding: 24px; border-radius: 20px; border: 1px solid {{l.border}}; background: rgba(255,255,255,.03); display: flex; flex-direction: column; gap: 6px">
-<span style="font-size: 40px; line-height: 1; color: {{l.color}}; font-variation-settings: 'wght' 260">{{l.count}}</span>
-<span style="font-size: 16px; font-variation-settings: 'wght' 520">{{l.name}}</span>
-</div>
-</sc-for>
-</div>
-<div class="split" style="display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 20px">
-<div style="padding: 34px; border-radius: 26px; border: 1px solid rgba(255,226,178,.25); background: rgba(255,226,178,.03); display: flex; flex-direction: column; gap: 18px">
-<span style="font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 560">The loop</span>
-<h3 style="margin: 0; font-size: 26px; line-height: 1.25; font-weight: 400; font-variation-settings: 'wght' 480">Humans in the loop. Learning in every loop.</h3>
-<ol class="g3" style="list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px">
-<sc-for list="{{loopSteps}}" as="ls" hint-placeholder-count="6">
-<li style="padding: 16px; border-radius: 16px; border: 1px solid {{ls.border}}; background: {{ls.bg}}; display: flex; flex-direction: column; gap: 6px">
-<span style="font-size: 12px; color: {{ls.color}}; font-variation-settings: 'wght' 560">{{ls.n}} · {{ls.who}}</span>
-<span style="font-size: 16px; font-variation-settings: 'wght' 540">{{ls.k}}</span>
+<h2 class="h2" style="margin: 0 0 18px; font-size: 40px; line-height: 1.15; font-weight: 400; font-variation-settings: 'wght' 430; max-width: 26ch">Agents do the work. You make the calls.</h2>
+<ol class="g4" style="list-style: none; margin: 36px 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px">
+<sc-for list="{{steps}}" as="st" hint-placeholder-count="4">
+<li style="padding: 28px; border-radius: 22px; border: 1px solid rgba(196,214,232,.16); background: rgba(255,255,255,.03); display: flex; flex-direction: column; gap: 10px">
+<span style="font-size: 32px; line-height: 1; color: #ffe2b2; font-variation-settings: 'wght' 260">{{st.n}}</span>
+<h3 style="margin: 0; font-size: 18px; line-height: 1.3; font-weight: 400; font-variation-settings: 'wght' 540">{{st.k}}</h3>
+<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #a2a9b8">{{st.v}}</p>
 </li>
 </sc-for>
 </ol>
+<p style="margin: 24px 0 0; font-size: 15px; line-height: 1.6; color: #8d96a8">Autonomy is earned: each kind of task runs on its own only after you have approved enough of its work.</p>
 </div>
-<div style="padding: 34px; border-radius: 26px; border: 1px solid rgba(150,196,244,.3); background: rgba(150,196,244,.035); display: flex; flex-direction: column; gap: 18px">
-<span style="font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: #96c4f4; font-variation-settings: 'wght' 560">Autonomy is earned</span>
-<h3 style="margin: 0; font-size: 26px; line-height: 1.25; font-weight: 400; font-variation-settings: 'wght' 480">Each task earns its freedom.</h3>
-<ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px">
-<sc-for list="{{autonomy}}" as="au" hint-placeholder-count="3">
-<li style="padding: 16px 18px; border-radius: 16px; border: 1px solid {{au.border}}; background: {{au.bg}}; display: flex; gap: 14px; align-items: center">
-<span style="flex: none; width: 38px; height: 38px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; color: #02060f; background: {{au.color}}; font-variation-settings: 'wght' 640">L{{au.n}}</span>
-<span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 16px; font-variation-settings: 'wght' 540">{{au.k}}</span><span style="font-size: 14px; line-height: 1.45; color: #a2a9b8">{{au.v}}</span></span>
-</li>
+</section>
+
+<section id="proof" class="sec" style="padding: 96px clamp(22px, 8vw, 120px); border-top: 1px solid rgba(196,214,232,.1)">
+<div class="split" style="max-width: 1120px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 40px; align-items: start">
+<div>
+<p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">Built for real businesses</p>
+<h2 class="h2" style="margin: 0 0 18px; font-size: 40px; line-height: 1.15; font-weight: 400; font-variation-settings: 'wght' 430; max-width: 26ch">Running today, with you in control.</h2>
+<ul style="list-style: none; margin: 28px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px">
+<sc-for list="{{proof}}" as="pf" hint-placeholder-count="5">
+<li style="display: flex; gap: 12px; align-items: baseline; font-size: 16px; line-height: 1.5; color: #e2ebf5"><svg viewBox="0 0 14 11" width="12" height="10" aria-hidden="true" style="flex: none; fill: none; stroke: #ffe2b2; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><path d="M1 5.5 L5 9.5 L13 1.5"></path></svg>{{pf}}</li>
 </sc-for>
-</ol>
+</ul>
 </div>
+<div style="padding: 28px; border-radius: 22px; border: 1px solid rgba(196,214,232,.16); background: rgba(255,255,255,.03); display: flex; flex-direction: column; gap: 10px">
+<span style="font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: #96c4f4; font-variation-settings: 'wght' 560">Also from SIXXAB</span>
+<h3 style="margin: 0; font-size: 20px; line-height: 1.3; font-weight: 400; font-variation-settings: 'wght' 540">AI marketing agency and consultant certification</h3>
+<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #a2a9b8">Hand your marketing to 50 agents you approve, or become a certified SIXXAB consultant and deliver the platform to clients in your country.</p>
+<a href="mailto:sunil.kattikar@gmail.com?subject=SIXXAB%20consultant%20certification" style="margin-top: 6px; font-size: 15px; color: #96c4f4">Ask about certification</a>
 </div>
 </div>
 </section>
 
-<section id="more" class="sec" style="padding: 100px clamp(22px, 8vw, 120px)">
-<div style="max-width: 1200px; margin: 0 auto">
-<p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">More ways to work with SIXXAB</p>
-<div class="g3" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px">
-<sc-for list="{{more}}" as="mo" hint-placeholder-count="3">
-<a href="{{mo.href}}" style="padding: 28px; border-radius: 22px; border: 1px solid {{mo.border}}; background: rgba(255,255,255,.03); display: flex; flex-direction: column; gap: 10px; color: #ffffff">
-<span style="font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: {{mo.color}}; font-variation-settings: 'wght' 560">{{mo.tag}}</span>
-<span style="font-size: 21px; line-height: 1.25; font-variation-settings: 'wght' 500">{{mo.title}}</span>
-<span style="font-size: 15px; line-height: 1.55; color: #a2a9b8">{{mo.body}}</span>
-</a>
-</sc-for>
-</div>
-</div>
-</section>
-<section id="pricing" class="sec" style="padding: 110px clamp(22px, 8vw, 120px)">
-<div style="max-width: 1200px; margin: 0 auto; text-align: center">
+<section id="pricing" class="sec" style="padding: 96px clamp(22px, 8vw, 120px); border-top: 1px solid rgba(196,214,232,.1)">
+<div style="max-width: 1120px; margin: 0 auto">
 <p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">Pricing</p>
-<h2 class="h2" style="margin: 0 0 18px; font-size: 44px; line-height: 1.15; font-weight: 400; font-variation-settings: 'wght' 424">One plan for each path.</h2>
-<p style="margin: 0 auto 52px; max-width: 50ch; font-size: 18px; line-height: 1.55; color: #a2a9b8">A whole AI-run business for less than a small team. Every plan is a 12-month contract.</p>
-<div class="g3" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; text-align: left">
+<h2 class="h2" style="margin: 0 0 18px; font-size: 40px; line-height: 1.15; font-weight: 400; font-variation-settings: 'wght' 430; max-width: 26ch">One plan for each stage.</h2>
+<p style="margin: 0; max-width: 58ch; font-size: 18px; line-height: 1.6; color: #a2a9b8">A whole AI-run business for less than one senior hire. Every plan is a 12-month contract.</p>
+<div class="g3" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 36px">
 <sc-for list="{{plans}}" as="p" hint-placeholder-count="3">
-<div style="padding: 36px; border-radius: 26px; border: 1px solid {{p.border}}; background: {{p.bg}}; display: flex; flex-direction: column; gap: 16px">
-<span style="font-size: 13px; color: {{p.color}}; font-variation-settings: 'wght' 560">Path {{p.n}} · {{p.who}}</span>
-<h3 style="margin: 0; font-size: 26px; font-weight: 400; font-variation-settings: 'wght' 520">{{p.name}}</h3>
-<div style="display: flex; flex-direction: column; gap: 2px">
-<span style="font-size: 13px; color: #8d96a8">Starting at</span>
-<span style="font-size: 44px; line-height: 1.1; font-variation-settings: 'wght' 340">{{p.price}}<span style="font-size: 15px; color: #a2a9b8"> / month</span></span>
-<span style="font-size: 13px; color: #a2a9b8">USD · 12-month contract</span>
-</div>
-<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #c9d2de">{{p.body}}</p>
-<ul style="list-style: none; margin: 0; padding: 16px 0 0; border-top: 1px solid rgba(196,214,232,.12); display: flex; flex-direction: column; gap: 10px">
-<sc-for list="{{p.features}}" as="ft" hint-placeholder-count="5">
-<li style="display: flex; gap: 10px; align-items: baseline; font-size: 14px; line-height: 1.5; color: #e2ebf5"><svg viewBox="0 0 14 11" width="12" height="10" aria-hidden="true" style="flex: none; fill: none; stroke: {{p.color}}; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><path d="M1 5.5 L5 9.5 L13 1.5"></path></svg>{{ft}}</li>
+<div style="padding: 30px; border-radius: 22px; border: 1px solid {{p.border}}; background: {{p.bg}}; display: flex; flex-direction: column; gap: 14px">
+<span style="font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: {{p.color}}; font-variation-settings: 'wght' 560">{{p.who}}</span>
+<h3 style="margin: 0; font-size: 22px; font-weight: 400; font-variation-settings: 'wght' 520">{{p.name}}</h3>
+<span style="font-size: 36px; line-height: 1.1; font-variation-settings: 'wght' 360">{{p.price}}<span style="font-size: 15px; color: #a2a9b8"> / month, from</span></span>
+<ul style="list-style: none; margin: 0; padding: 14px 0 0; border-top: 1px solid rgba(196,214,232,.12); display: flex; flex-direction: column; gap: 10px">
+<sc-for list="{{p.features}}" as="ft" hint-placeholder-count="3">
+<li style="display: flex; gap: 10px; align-items: baseline; font-size: 14px; line-height: 1.5; color: #e2ebf5"><svg viewBox="0 0 14 11" width="12" height="10" aria-hidden="true" style="flex: none; fill: none; stroke: #ffe2b2; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><path d="M1 5.5 L5 9.5 L13 1.5"></path></svg>{{ft}}</li>
 </sc-for>
 </ul>
-<a href="#begin" style="margin-top: auto; padding: 15px 24px; text-align: center; border-radius: 999px; border: 1.6px solid {{p.btn}}; background: {{p.btnBg}}; color: {{p.btnInk}}; font-size: 16px; font-variation-settings: 'wght' 540">{{p.cta}}</a>
+<a href="{{p.href}}" style="margin-top: auto; padding: 14px 22px; text-align: center; border-radius: 999px; border: 1.6px solid {{p.btn}}; background: {{p.btnBg}}; color: {{p.btnInk}}; font-size: 15px; font-variation-settings: 'wght' 540">{{p.cta}}</a>
 </div>
 </sc-for>
-</div>
-<p style="margin: 32px auto 0; max-width: 64ch; font-size: 14px; line-height: 1.6; color: #8d96a8">Prices are starting points; your quote depends on scope, number of business units and markets. Human-in-the-loop approvals, the learning loop and the daily briefing come with every plan.</p>
-</div>
-</section>
-
-<section id="begin" class="sec" style="padding: 130px 24px 120px; text-align: center; background: radial-gradient(60% 70% at 50% 100%, rgba(255,200,120,.16), rgba(2,6,15,0) 70%)">
-<p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">Strategy call</p>
-<h2 class="h2" style="margin: 0 auto 20px; max-width: 18ch; font-size: 52px; line-height: 1.1; font-weight: 400; font-variation-settings: 'wght' 424">Stop waiting for a co-founder. Hire one that never sleeps.</h2>
-<p style="margin: 0 auto 48px; max-width: 46ch; font-size: 18px; line-height: 1.55; color: #a2a9b8">Book a strategy call with Sunil Kattikar, founder of SIXXAB AI. Tell us where your business is today, and leave with the path to start, scale or run it.</p>
-<div class="split" style="max-width: 980px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 20px; text-align: left">
-<div class="glass" style="padding: 34px; border-radius: 26px; display: flex; flex-direction: column; gap: 18px">
-<div style="display: flex; align-items: center; gap: 14px">
-<svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true" style="fill: none; stroke: #ffe2b2; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><rect x="3" y="5" width="18" height="16" rx="3"></rect><path d="M3 10 H21 M8 3 V7 M16 3 V7 M8 14 H10 M14 14 H16 M8 17.5 H10"></path></svg>
-<h3 style="margin: 0; font-size: 24px; font-weight: 400; font-variation-settings: 'wght' 500">Book your strategy call</h3>
-</div>
-<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #c9d2de">Pick a time that suits you on Google Calendar. You'll get a calendar invite with the video link straight away.</p>
-<ul style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px">
-<li style="display: flex; gap: 10px; align-items: baseline; font-size: 15px; color: #e2ebf5"><svg viewBox="0 0 14 11" width="12" height="10" aria-hidden="true" style="flex: none; fill: none; stroke: #ffe2b2; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><path d="M1 5.5 L5 9.5 L13 1.5"></path></svg>Where you are on the SIXXAB path today</li>
-<li style="display: flex; gap: 10px; align-items: baseline; font-size: 15px; color: #e2ebf5"><svg viewBox="0 0 14 11" width="12" height="10" aria-hidden="true" style="flex: none; fill: none; stroke: #ffe2b2; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><path d="M1 5.5 L5 9.5 L13 1.5"></path></svg>Which path and plan fit your business</li>
-<li style="display: flex; gap: 10px; align-items: baseline; font-size: 15px; color: #e2ebf5"><svg viewBox="0 0 14 11" width="12" height="10" aria-hidden="true" style="flex: none; fill: none; stroke: #ffe2b2; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><path d="M1 5.5 L5 9.5 L13 1.5"></path></svg>Your first 90 days with AI agents</li>
-<li style="display: flex; gap: 10px; align-items: baseline; font-size: 15px; color: #e2ebf5"><svg viewBox="0 0 14 11" width="12" height="10" aria-hidden="true" style="flex: none; fill: none; stroke: #ffe2b2; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><path d="M1 5.5 L5 9.5 L13 1.5"></path></svg>Consultants: which certification tier suits you</li>
-</ul>
-<a href="{{bookHref}}" target="_blank" rel="noopener" style="margin-top: 6px; display: inline-flex; align-items: center; justify-content: center; gap: 12px; min-height: 52px; padding: 16px 28px; border-radius: 999px; background: #ffffff; color: #02060f; font-size: 17px; font-variation-settings: 'wght' 560">Choose a time on Google Calendar
-<svg viewBox="0 0 16 11" width="16" height="11" aria-hidden="true" style="fill: none; stroke: #02060f; stroke-width: 1.6"><path d="M0 5.5 H14.6 M10.3 1.2 L14.9 5.5 L10.3 9.8"></path></svg></a>
-</div>
-<div style="padding: 34px; border-radius: 26px; border: 1px solid rgba(196,214,232,.2); background: rgba(255,255,255,.03); display: flex; flex-direction: column; gap: 18px">
-<div style="display: flex; align-items: center; gap: 14px">
-<svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true" style="fill: none; stroke: #96c4f4; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><rect x="3" y="5" width="18" height="14" rx="3"></rect><path d="M4 7 L12 13 L20 7"></path></svg>
-<h3 style="margin: 0; font-size: 24px; font-weight: 400; font-variation-settings: 'wght' 500">Prefer email?</h3>
-</div>
-<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #c9d2de">Send a few lines about your business, your stage and what you want to fix. Sunil replies personally.</p>
-<a href="mailto:sunil.kattikar@gmail.com" style="font-size: 18px; color: #96c4f4; word-break: break-all; font-variation-settings: 'wght' 520">sunil.kattikar@gmail.com</a>
-<a href="mailto:sunil.kattikar@gmail.com?subject=SIXXAB%20AI%20strategy%20call&amp;body=Business%3A%0AStage%20(Startup%2C%20Medium%2C%20Large)%3A%0AWhat%20I%20want%20to%20fix%3A%0A" style="margin-top: auto; display: inline-flex; align-items: center; justify-content: center; gap: 12px; min-height: 52px; padding: 16px 28px; border-radius: 999px; border: 1.6px solid rgba(196,214,232,.72); color: #ffffff; font-size: 17px; font-variation-settings: 'wght' 540">Email Sunil</a>
 </div>
 </div>
 </section>
 
-<footer style="padding: 40px clamp(22px, 8vw, 120px); border-top: 1px solid rgba(196,214,232,.12); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; font-size: 14px; color: #a2a9b8">
+<section id="begin" class="sec" style="padding: 96px clamp(22px, 8vw, 120px); border-top: 1px solid rgba(196,214,232,.1)">
+<div style="max-width: 1120px; margin: 0 auto">
+<div style="padding: clamp(28px, 4vw, 48px); border-radius: 28px; border: 1px solid rgba(255,226,178,.3); background: linear-gradient(180deg, rgba(255,226,178,.08), rgba(255,226,178,.015)); display: flex; flex-direction: column; gap: 18px">
+<p style="margin: 0; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">Strategy call</p>
+<h2 class="h2" style="margin: 0; font-size: 40px; line-height: 1.15; font-weight: 400; font-variation-settings: 'wght' 430; max-width: 22ch">Hire the co-founder that never sleeps.</h2>
+<p style="margin: 0; max-width: 56ch; font-size: 17px; line-height: 1.6; color: #c9d2de">Book 30 minutes with Sunil Kattikar, founder of SIXXAB AI. Leave with where your business stands, the plan that fits, and your first 90 days with AI agents.</p>
+<div style="display: flex; flex-wrap: wrap; gap: 12px">
+<a href="{{bookHref}}" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 10px; min-height: 52px; padding: 15px 28px; border-radius: 999px; background: #ffffff; color: #02060f; font-size: 17px; font-variation-settings: 'wght' 560">Choose a time</a>
+<a href="mailto:sunil.kattikar@gmail.com?subject=SIXXAB%20AI%20strategy%20call&amp;body=Business%3A%0AStage%3A%0AWhat%20I%20want%20to%20fix%3A%0A" style="display: inline-flex; align-items: center; min-height: 52px; padding: 15px 26px; border-radius: 999px; border: 1.6px solid rgba(196,214,232,.6); color: #ffffff; font-size: 17px; font-variation-settings: 'wght' 540">Email Sunil</a>
+<a href="/login?next=start" style="display: inline-flex; align-items: center; min-height: 52px; padding: 15px 10px; font-size: 17px; color: #ffe2b2; font-variation-settings: 'wght' 540">Or start your business now</a>
+</div>
+</div>
+</div>
+</section>
+
+<footer style="padding: 36px clamp(22px, 8vw, 120px); border-top: 1px solid rgba(196,214,232,.12); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; font-size: 14px; color: #8d96a8">
 <span>© 2026 SIXXAB AI · sixxab.ai</span>
 <span style="display: flex; flex-wrap: wrap; gap: 24px"><a href="/investors">Investors</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="mailto:sunil.kattikar@gmail.com">Contact</a></span>
 </footer>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"veilStrength":{"editor":"range","default":0.35,"min":0,"max":0.8,"step":0.05},"showVideo":{"editor":"boolean","default":true},"bookingUrl":{"editor":"text","default":""},"$preview":{"width":1440,"height":8400}}'>
+<script type="text/x-dc" data-dc-script data-props='{"veilStrength":{"editor":"range","default":0.35,"min":0,"max":0.8,"step":0.05},"showVideo":{"editor":"boolean","default":true},"bookingUrl":{"editor":"text","default":""},"$preview":{"width":1440,"height":5200}}'>
 class Component extends DCLogic {
   constructor(props) {
     super(props);
@@ -277,53 +246,39 @@ class Component extends DCLogic {
       bookHref: (this.props.bookingUrl || '').trim() || 'mailto:sunil.kattikar@gmail.com?subject=Book%20a%20SIXXAB%20AI%20strategy%20call',
       menuOpen: this.state.menuOpen,
       toggleMenu: () => this.setState({ menuOpen: !this.state.menuOpen }),
-      loopSteps: [
-        { n: '01', who: 'Agents', k: 'Plan', v: 'Agents break the goal into tasks against the business plan.', color: '#ffe2b2', border: 'rgba(196,214,232,.14)', bg: 'rgba(2,6,15,.4)' },
-        { n: '02', who: 'Agents', k: 'Act', v: 'They draft, build, publish, sell and serve within guardrails.', color: '#ffe2b2', border: 'rgba(196,214,232,.14)', bg: 'rgba(2,6,15,.4)' },
-        { n: '03', who: 'Human', k: 'Review & approve', v: 'Spend, customer messages and big calls wait for your yes.', color: '#ffffff', border: 'rgba(255,255,255,.45)', bg: 'rgba(255,255,255,.07)' },
-        { n: '04', who: 'Platform', k: 'Measure', v: 'Results, costs and customer replies are tracked automatically.', color: '#96c4f4', border: 'rgba(196,214,232,.14)', bg: 'rgba(2,6,15,.4)' },
-        { n: '05', who: 'Platform', k: 'Learn', v: 'Your edits, approvals and outcomes go into shared memory.', color: '#96c4f4', border: 'rgba(196,214,232,.14)', bg: 'rgba(2,6,15,.4)' },
-        { n: '06', who: 'Platform', k: 'Improve', v: 'Agents and playbooks are updated before the next run.', color: '#96c4f4', border: 'rgba(196,214,232,.14)', bg: 'rgba(2,6,15,.4)' }
+      outcomes: [
+        { tag: 'More customers', title: 'Marketing and sales that never stop', body: 'Agents write your posts, emails and replies, follow up on leads and track what works. You approve before anything goes out.', color: gold },
+        { tag: 'More time', title: 'Operations and admin handled', body: 'A daily briefing, planned tasks and back-office work done for you, so you spend your day on customers and decisions.', color: mid },
+        { tag: 'Clear growth', title: 'One plan from idea to $10M', body: 'A step-by-step roadmap with revenue milestones, costs and results you can see at a glance.', color: blue }
       ],
-      autonomy: [
-        { n: 1, k: 'Assist', v: 'Agents draft and recommend. People do the work and decide.', color: '#ffe2b2', border: 'rgba(255,226,178,.3)', bg: 'rgba(255,226,178,.04)' },
-        { n: 2, k: 'Approve', v: 'Agents do the work. People approve before anything goes out.', color: '#cfe3fa', border: 'rgba(207,227,250,.3)', bg: 'rgba(207,227,250,.04)' },
-        { n: 3, k: 'Autonomous', v: 'Agents run within your limits. People handle exceptions and review the daily briefing.', color: '#96c4f4', border: 'rgba(150,196,244,.4)', bg: 'rgba(150,196,244,.07)' }
+      steps: [
+        { n: '01', k: 'Tell us about your business', v: 'A guided profile: your offer, customers, numbers and goals.' },
+        { n: '02', k: 'Agents plan and do the work', v: 'Your founder agent sets the plan; executive agents carry it out.' },
+        { n: '03', k: 'You approve what goes out', v: 'Customer messages and spending wait for your yes.' },
+        { n: '04', k: 'Results improve every week', v: 'Outcomes are measured and the agents learn from your edits.' }
+      ],
+      proof: [
+        'Pilots live with an orthopaedic hospital and a pathology lab',
+        'Approved LinkedIn posts, comment replies and emails go out for real',
+        'Approval rules enforced in the database, not left to the AI',
+        'Every action recorded, with the AI cost of each task',
+        'LinkedIn and Gmail today; WhatsApp, Google Business Profile and Instagram next'
       ],
       lines: ['plans your roadmap.', 'ships your code.', 'runs your ads.', 'replies to customers.', 'closes your deals.', 'posts your tweets.', 'plans your roadmap.'],
       tickerShift: 'translateY(' + (-1.3 * this.state.tick) + 'em)',
       tickerEase: this.state.snap ? 'none' : 'transform .65s cubic-bezier(.16,1,.3,1)',
-      stages: [
-        { name: 'Startup', money: '$0', bar: gold },
-        { name: 'Struggle', money: '$10K', bar: gold },
-        { name: 'Scale', money: '$50K', bar: mid },
-        { name: 'Success', money: '$100K', bar: mid },
-        { name: 'Significance', money: '$1M', bar: blue },
-        { name: 'SIXXAB', money: '$10M', bar: blue }
-      ],
       heads: [
-        { n: '01', href: '/login?next=start', cta: 'Start my business', name: 'Start the business', stages: 'Startup → Struggle · $0 to $10K', promise: 'From an idea to a validated offer and your first paying customers.', color: gold, border: 'rgba(255,226,178,.35)', bg: 'linear-gradient(180deg, rgba(255,226,178,.08), rgba(255,226,178,.015))' },
-        { n: '02', href: '/login?next=scale', cta: 'Scale my business', name: 'Scale the business', stages: 'Scale → Success · $10K to $100K', promise: 'Repeatable growth with a built-in AI marketing agency, sales and support.', color: mid, border: 'rgba(207,227,250,.3)', bg: 'linear-gradient(180deg, rgba(207,227,250,.07), rgba(207,227,250,.015))' },
-        { n: '03', href: '/login?next=run', cta: 'Run my business', name: 'Run the business', stages: 'Significance → SIXXAB · $100K to $10M', promise: 'All 18 CXO agents on one plan, running the business while you lead.', color: blue, border: 'rgba(150,196,244,.35)', bg: 'linear-gradient(180deg, rgba(150,196,244,.08), rgba(150,196,244,.015))' }
-      ],
-      more: [
-        { tag: 'Done for you', title: 'AI marketing agency', body: '50 marketing agents run content, social, ads, SEO and email. You approve the plan and the spend.', href: '#begin', color: gold, border: 'rgba(255,226,178,.3)' },
-        { tag: 'Any industry, any market', title: 'Startups in a Box', body: 'Agents, playbooks and integrations packaged for one industry and one market, live in days.', href: '#begin', color: mid, border: 'rgba(207,227,250,.3)' },
-        { tag: 'For consultants', title: 'SIXXAB certification', body: 'Deliver SIXXAB to clients in your country, with the platform, the playbooks and recurring revenue.', href: 'mailto:sunil.kattikar@gmail.com?subject=SIXXAB%20consultant%20certification', color: blue, border: 'rgba(150,196,244,.35)' }
-      ],
-      layers: [
-        { count: '1', name: 'Founder Orchestrator', body: 'Sets one goal and one plan, and aligns every agent to it.', color: gold, border: 'rgba(255,226,178,.35)' },
-        { count: '18', name: 'CXO agents', body: 'Strategy, product, marketing, revenue, finance, operations, technology and more.', color: '#e8ecf0', border: 'rgba(196,214,232,.25)' },
-        { count: '50', name: 'Marketing agents', body: 'Your built-in AI marketing agency.', color: mid, border: 'rgba(207,227,250,.25)' },
-        { count: '∞', name: 'Learning loop', body: 'Act, measure, learn, improve. Every agent, every day.', color: blue, border: 'rgba(150,196,244,.3)' }
+        { n: '01', href: '/login?next=start', cta: 'Start my business', name: 'Start the business', stages: 'New and small · $0 to $10K a month', promise: 'From an idea to a validated offer and your first paying customers.', color: gold, border: 'rgba(255,226,178,.35)', bg: 'linear-gradient(180deg, rgba(255,226,178,.08), rgba(255,226,178,.015))' },
+        { n: '02', href: '/login?next=scale', cta: 'Scale my business', name: 'Scale the business', stages: 'Growing · $10K to $100K a month', promise: 'Repeatable growth with a built-in AI marketing agency, sales and support.', color: mid, border: 'rgba(207,227,250,.3)', bg: 'linear-gradient(180deg, rgba(207,227,250,.07), rgba(207,227,250,.015))' },
+        { n: '03', href: '/login?next=run', cta: 'Run my business', name: 'Run the business', stages: 'Established · $100K a month to $10M a year', promise: 'All 18 executive agents on one plan, running the business while you lead.', color: blue, border: 'rgba(150,196,244,.35)', bg: 'linear-gradient(180deg, rgba(150,196,244,.08), rgba(150,196,244,.015))' }
       ],
       plans: [
-        { n: '01', who: 'Startups & small businesses', name: 'Founder', price: '$5,000', body: 'Restart, scale and run your business with AI agents.', cta: 'Start my path', color: gold, border: 'rgba(255,226,178,.3)', bg: 'rgba(255,255,255,.03)', btn: 'rgba(196,214,232,.72)', btnBg: 'transparent', btnInk: '#ffffff',
-          features: ['Founder agents: Niche Selector, Strategy Coach, Roadmap', 'Founder Orchestrator with core CXO agents', 'Built-in AI marketing agency', 'Sales, support and back-office agents', 'Daily briefing and approvals'] },
-        { n: '02', who: 'Medium businesses', name: 'Growth', price: '$20,000', body: 'Transition and scale your business to SIXXAB level.', cta: 'Plan my transition', color: mid, border: 'rgba(207,227,250,.45)', bg: 'linear-gradient(180deg, rgba(207,227,250,.09), rgba(207,227,250,.02))', btn: '#ffffff', btnBg: '#ffffff', btnInk: '#02060f',
-          features: ['Everything in Founder', 'All 18 CXO agents and department agents', 'Your existing systems connected', 'Done-for-you marketing agency option', 'Startups in a Box for new markets and products'] },
-        { n: '03', who: 'Large businesses', name: 'Enterprise', price: '$50,000', body: 'Optimize and transform into an AI-driven business.', cta: 'Talk to us', color: blue, border: 'rgba(150,196,244,.45)', bg: 'linear-gradient(180deg, rgba(150,196,244,.10), rgba(150,196,244,.02))', btn: 'rgba(196,214,232,.72)', btnBg: 'transparent', btnInk: '#ffffff',
-          features: ['AI value map and governance framework', 'Pilot to enterprise-wide rollout', 'CXO agents for each business unit', 'Single sign-on, audit trail, regional data options', 'AI center of excellence and talent training'] }
+        { who: 'Startups & small businesses', name: 'Founder', price: '$5,000', href: '/login?next=start', cta: 'Start my business', color: gold, border: 'rgba(255,226,178,.3)', bg: 'rgba(255,255,255,.03)', btn: 'rgba(196,214,232,.6)', btnBg: 'transparent', btnInk: '#ffffff',
+          features: ['Founder agents: niche, strategy and roadmap', 'Built-in AI marketing agency', 'Daily briefing and approvals'] },
+        { who: 'Medium businesses', name: 'Growth', price: '$20,000', href: '#begin', cta: 'Plan my growth', color: mid, border: 'rgba(207,227,250,.45)', bg: 'linear-gradient(180deg, rgba(207,227,250,.08), rgba(207,227,250,.02))', btn: '#ffffff', btnBg: '#ffffff', btnInk: '#02060f',
+          features: ['Everything in Founder', 'All 18 executive and department agents', 'Your existing systems connected'] },
+        { who: 'Large businesses', name: 'Enterprise', price: '$50,000', href: '#begin', cta: 'Talk to us', color: blue, border: 'rgba(150,196,244,.4)', bg: 'rgba(255,255,255,.03)', btn: 'rgba(196,214,232,.6)', btnBg: 'transparent', btnInk: '#ffffff',
+          features: ['AI governance and value map', 'Agents for each business unit', 'Single sign-on, audit trail, data residency'] }
       ]
     };
   }
