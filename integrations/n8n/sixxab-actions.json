@@ -370,7 +370,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "={{ 'https://api.linkedin.com/v2/socialActions/' + encodeURIComponent($json.commentUrn) + '/comments' }}",
+        "url": "={{ 'https://api.linkedin.com/v2/socialActions/' + encodeURIComponent($json.commentUrn).replace(/\\(/g, '%28').replace(/\\)/g, '%29') + '/comments' }}",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "linkedInOAuth2Api",
         "sendHeaders": true,

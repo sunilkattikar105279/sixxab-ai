@@ -67,3 +67,10 @@ test('no secrets or credential ids are baked into the file', () => {
   for (const n of wf.nodes) assert.equal(n.credentials, undefined, `${n.name} carries credentials`);
   assert.ok(!/sk-|sb_secret_|AC[0-9a-f]{32}/.test(JSON.stringify(wf)));
 });
+
+test('LinkedIn reply URL encodes the comment URN fully, including parentheses', () => {
+  const node = wf.nodes.find((n) => n.name === 'Reply on LinkedIn')!;
+  const expr = String(node.parameters.url).replace(/^=\{\{\s*|\s*\}\}$/g, '');
+  const url = new Function('$json', `return ${expr};`)({ commentUrn: 'urn:li:comment:(urn:li:activity:1,2)' });
+  assert.equal(url, 'https://api.linkedin.com/v2/socialActions/urn%3Ali%3Acomment%3A%28urn%3Ali%3Aactivity%3A1%2C2%29/comments');
+});

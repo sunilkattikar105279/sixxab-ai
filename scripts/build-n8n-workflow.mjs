@@ -149,7 +149,7 @@ const nodes = [
   }),
   sender('Reply on LinkedIn', 'n8n-nodes-base.httpRequest', 4.2, [720, 560], {
     method: 'POST',
-    url: "={{ 'https://api.linkedin.com/v2/socialActions/' + encodeURIComponent($json.commentUrn) + '/comments' }}",
+    url: "={{ 'https://api.linkedin.com/v2/socialActions/' + encodeURIComponent($json.commentUrn).replace(/\\(/g, '%28').replace(/\\)/g, '%29') + '/comments' }}",
     authentication: 'predefinedCredentialType',
     nodeCredentialType: 'linkedInOAuth2Api',
     sendHeaders: true,
