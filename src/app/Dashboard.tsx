@@ -447,6 +447,26 @@ function Agents() {
   );
 }
 
+/** Tools whose result is a delivery receipt from the automation layer (n8n). */
+const EXTERNAL_TOOLS = new Set(['publish_post', 'send_message', 'send_email_campaign', 'spend_money']);
+
+/** Shows what actually happened ("Posted on LinkedIn: https://…"), with https links clickable. */
+function Receipt({ text }: { text: string }) {
+  const parts = text.split(/(https:\/\/[^\s]+)/g);
+  return (
+    <span className="receipt">
+      {' → '}
+      {parts.map((p, i) =>
+        p.startsWith('https://') ? (
+          <a key={i} href={p} target="_blank" rel="noopener noreferrer">{p}</a>
+        ) : (
+          <span key={i}>{p}</span>
+        ),
+      )}
+    </span>
+  );
+}
+
 function Activity() {
   const { data, error } = useLoad<{ events: AuditEvent[] }>('/api/activity');
   if (error) return <p className="error">{error}</p>;
@@ -463,6 +483,9 @@ function Activity() {
               <strong>{e.actor}</strong> {e.action === 'tool.recorded' ? 'recorded (not sent)' : e.action.replace('.', ' ')}
               {typeof e.detail.summary === 'string' ? `: ${e.detail.summary}` : typeof e.detail.tool === 'string' ? `: ${e.detail.tool}` : ''}
               {typeof e.detail.error === 'string' && <span className="error-inline"> ({e.detail.error})</span>}
+              {e.action === 'tool.executed' && EXTERNAL_TOOLS.has(String(e.detail.tool)) && typeof e.detail.result === 'string' && (
+                <Receipt text={e.detail.result} />
+              )}
             </span>
           </li>
         ))}

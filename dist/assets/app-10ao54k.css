@@ -110,3 +110,5 @@ th { color: var(--sub); font-weight: 500; font-size: 12px; text-transform: upper
 .profile-list dd { margin: 2px 0 0; font-size: 14px; line-height: 1.5; }
 @media (max-width: 760px) { .profile-list { grid-template-columns: minmax(0, 1fr); } }
 .error-inline { color: var(--bad); }
+.receipt { color: var(--good, #2bb673); word-break: break-word; }
+.receipt a { color: inherit; text-decoration: underline; }

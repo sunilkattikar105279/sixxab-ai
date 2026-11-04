@@ -103,7 +103,7 @@ async function mockServices(ctx, state) {
     if (r.request().method() === 'POST') { state.profile = r.request().postDataJSON(); return r.fulfill({ json: { profile: state.profile } }); }
     return r.fulfill({ json: { profile: state.profile ?? null, fields } });
   });
-  await ctx.route('**/api/activity', (r) => r.fulfill({ json: { events: [{ id: 'e1', at: new Date().toISOString(), actor: 'social-poster', action: 'approval.requested', detail: { summary: 'Post on linkedin' } }] } }));
+  await ctx.route('**/api/activity', (r) => r.fulfill({ json: { events: [{ id: 'e1', at: new Date().toISOString(), actor: 'social-poster', action: 'approval.requested', detail: { summary: 'Post on linkedin' } }, { id: 'e2', at: new Date().toISOString(), actor: 'social-poster', action: 'tool.executed', detail: { tool: 'publish_post', summary: 'Post on linkedin', result: 'Posted on LinkedIn: https://www.linkedin.com/feed/update/urn:li:share:1' } }] } }));
 }
 
 await check('email sign-in: wrong code is refused, right code opens the workspace', async () => {
@@ -180,6 +180,9 @@ await check('workspace: run a goal, edit and approve, see agents and activity', 
   await page.screenshot({ path: `${SHOTS}/app-agents.png` });
   await page.getByRole('button', { name: 'Activity' }).click();
   await page.getByText(/approval requested/).waitFor();
+  const receipt = page.getByRole('link', { name: 'https://www.linkedin.com/feed/update/urn:li:share:1' });
+  await receipt.waitFor();
+  if ((await receipt.getAttribute('rel')) !== 'noopener noreferrer') throw new Error('receipt link must open safely in a new tab');
   await ctx.close();
 });
 
