@@ -2,9 +2,9 @@
 // dependencies, revenue by month and milestones. State is derived from append-only audit
 // events, so every step, revenue entry and celebration is also in the audit trail.
 //
-// Gates (owner's decision, Nov 4 2026): Struggle, Scale and Success open at a $10K, $50K and
-// $100K month; Significance and SIXXAB at $1M and $10M in the last 12 months. Each gate also
-// needs the one before it. Rupees convert at INR_PER_USD (default 85).
+// Gates (owner's decision, Nov 4 2026): every stage opens on a monthly revenue level, the best
+// of the last 3 recorded months: Struggle $10K, Scale $50K, Success $100K, Significance $1M and
+// SIXXAB $10M a month. Each gate also needs the one before it. Rupees convert at INR_PER_USD (default 85).
 import { newId, nowIso, type Store } from './store.js';
 import { loadBusinessProfile, type BusinessProfile } from './profile.js';
 import { STEPS, type Head, type StepDef } from './journey-steps.js';
@@ -21,13 +21,13 @@ export const STAGES: Stage[] = [
   { key: 'startup', name: 'Startup', head: 'Start', level: '$0', opensAt: 'Day one', summary: 'From idea or restart to your first $10K month', live: true },
   { key: 'struggle', name: 'Struggle', head: 'Start', level: '$10K', opensAt: 'a $10K month', summary: '$10K months, building to $50K', live: true },
   { key: 'scale', name: 'Scale', head: 'Scale', level: '$50K', opensAt: 'a $50K month', summary: '$50K months, building to $100K', live: true },
-  { key: 'success', name: 'Success', head: 'Scale', level: '$100K', opensAt: 'a $100K month', summary: '$100K months, building to $1M a year', live: true },
-  { key: 'significance', name: 'Significance', head: 'Run', level: '$1M', opensAt: '$1M in 12 months', summary: '$1M a year, building to $10M', live: true },
-  { key: 'sixxab', name: 'SIXXAB', head: 'Run', level: '$10M', opensAt: '$10M in 12 months', summary: '$10M a year, running on agents', live: true },
+  { key: 'success', name: 'Success', head: 'Scale', level: '$100K', opensAt: 'a $100K month', summary: '$100K months, building to $1M a month', live: true },
+  { key: 'significance', name: 'Significance', head: 'Run', level: '$1M', opensAt: 'a $1M month', summary: '$1M months, building to $10M a month', live: true },
+  { key: 'sixxab', name: 'SIXXAB', head: 'Run', level: '$10M', opensAt: 'a $10M month', summary: '$10M months, running on agents', live: true },
 ];
 const GATES: Record<string, Gate> = {
   struggle: { monthUsd: 10_000 }, scale: { monthUsd: 50_000 }, success: { monthUsd: 100_000 },
-  significance: { yearUsd: 1_000_000 }, sixxab: { yearUsd: 10_000_000 },
+  significance: { monthUsd: 1_000_000 }, sixxab: { monthUsd: 10_000_000 },
 };
 
 export interface MilestoneDef { key: string; title: string }
@@ -44,8 +44,8 @@ export const MILESTONES: MilestoneDef[] = [
   { key: 'month_50k', title: 'First $50K month' },
   { key: 'month_100k', title: 'First $100K month' },
   { key: 'annual_plan', title: 'Annual plan approved' },
-  { key: 'year_1m', title: '$1M in 12 months' },
-  { key: 'year_10m', title: '$10M in 12 months' },
+  { key: 'month_1m', title: 'First $1M month' },
+  { key: 'month_10m', title: 'First $10M month' },
   { key: 'autonomy_earned', title: 'An agent earned autonomy' },
 ];
 
@@ -106,7 +106,7 @@ export function computeJourney(profile: BusinessProfile | null, events: AuditEve
 
   // Walk revenue in order: the month total so far, plus when each revenue milestone was first crossed.
   const byMonth = new Map<string, number>();
-  const crossed: Record<string, string | null> = { first_customer: null, month_10k: null, month_50k: null, month_100k: null, year_1m: null, year_10m: null };
+  const crossed: Record<string, string | null> = { first_customer: null, month_10k: null, month_50k: null, month_100k: null, month_1m: null, month_10m: null };
   for (const e of events) {
     if (e.action !== 'revenue.recorded') continue;
     byMonth.set(String(e.detail.month), Number(e.detail.amount));
@@ -116,8 +116,8 @@ export function computeJourney(profile: BusinessProfile | null, events: AuditEve
     mark('month_10k', snap.bestRecentMonthUsd >= 10_000);
     mark('month_50k', snap.bestRecentMonthUsd >= 50_000);
     mark('month_100k', snap.bestRecentMonthUsd >= 100_000);
-    mark('year_1m', snap.last12Usd >= 1_000_000);
-    mark('year_10m', snap.last12Usd >= 10_000_000);
+    mark('month_1m', snap.bestRecentMonthUsd >= 1_000_000);
+    mark('month_10m', snap.bestRecentMonthUsd >= 10_000_000);
   }
   const months = [...byMonth.entries()].sort(([a], [b]) => (a < b ? -1 : 1)).map(([month, amount]) => ({ month, amount, currency }));
   const { bestRecentMonthUsd, last12Usd } = revenueSnapshot(byMonth, toUsd);

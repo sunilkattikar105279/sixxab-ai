@@ -33,7 +33,7 @@ export class Component extends DCLogic {
       heads: [
         { n: '01', href: '/login?next=start', cta: 'Start my business', name: 'Start the business', stages: 'New and small · $0 to $10K a month', promise: 'From an idea to a validated offer and your first paying customers.', color: gold, border: 'rgba(255,226,178,.35)', bg: 'linear-gradient(180deg, rgba(255,226,178,.08), rgba(255,226,178,.015))' },
         { n: '02', href: '/login?next=scale', cta: 'Scale my business', name: 'Scale the business', stages: 'Growing · $10K to $100K a month', promise: 'Repeatable growth with a built-in AI marketing agency, sales and support.', color: mid, border: 'rgba(207,227,250,.3)', bg: 'linear-gradient(180deg, rgba(207,227,250,.07), rgba(207,227,250,.015))' },
-        { n: '03', href: '/login?next=run', cta: 'Run my business', name: 'Run the business', stages: 'Established · $100K a month to $10M a year', promise: 'All 18 executive agents on one plan, running the business while you lead.', color: blue, border: 'rgba(150,196,244,.35)', bg: 'linear-gradient(180deg, rgba(150,196,244,.08), rgba(150,196,244,.015))' }
+        { n: '03', href: '/login?next=run', cta: 'Run my business', name: 'Run the business', stages: 'Established · $100K to $10M a month', promise: 'All 18 executive agents on one plan, running the business while you lead.', color: blue, border: 'rgba(150,196,244,.35)', bg: 'linear-gradient(180deg, rgba(150,196,244,.08), rgba(150,196,244,.015))' }
       ],
       plans: [
         { who: 'Startups & small businesses', name: 'Founder', price: '$5,000', href: '/login?next=start', cta: 'Start my business', color: gold, border: 'rgba(255,226,178,.3)', bg: 'rgba(255,255,255,.03)', btn: 'rgba(196,214,232,.6)', btnBg: 'transparent', btnInk: '#ffffff',

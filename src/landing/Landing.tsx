@@ -45,7 +45,7 @@ export default function Landing(props) {
 <div style={{"width": "100%", "maxWidth": "1120px", "margin": "0 auto", "display": "flex", "flexDirection": "column", "gap": "22px"}}>
 <p style={{"margin": "0", "fontSize": "14px", "letterSpacing": "3px", "textTransform": "uppercase", "color": "#ffe2b2", "fontVariationSettings": "'wght' 534"}}>Start it · Scale it · Run it</p>
 <h1 className="h1" style={{"margin": "0", "fontSize": "clamp(32px, 3.9vw, 56px)", "lineHeight": "1.12", "fontWeight": "400", "fontVariationSettings": "'wght' 424", "letterSpacing": "-.01em"}}>The AI team that runs your business.</h1>
-<p style={{"margin": "0", "maxWidth": "54ch", "fontSize": "clamp(17px, 1.45vw, 21px)", "lineHeight": "1.55", "color": "#e2ebf5"}}>Marketing, sales, operations and finance agents plan the work and do it every day, from your first customer to $10M.</p>
+<p style={{"margin": "0", "maxWidth": "54ch", "fontSize": "clamp(17px, 1.45vw, 21px)", "lineHeight": "1.55", "color": "#e2ebf5"}}>Marketing, sales, operations and finance agents plan the work and do it every day, from your first customer to a $10M month.</p>
 <p style={{"margin": "0", "maxWidth": "54ch", "fontSize": "clamp(15px, 1.2vw, 17px)", "lineHeight": "1.6", "color": "#a2a9b8"}}>You stay in charge: nothing reaches a customer or spends money without your approval.</p>
 <div style={{"display": "flex", "flexWrap": "wrap", "gap": "12px", "marginTop": "6px"}}>
 <a href="/login?next=start" style={{"display": "inline-flex", "alignItems": "center", "justifyContent": "center", "minHeight": "44px", "padding": "10px 22px", "boxSizing": "border-box", "borderRadius": "999px", "fontSize": "15px", "fontVariationSettings": "'wght' 540", "border": "1.6px solid #ffffff", "background": "#ffffff", "color": "#02060f"}}>Start your business</a>
@@ -74,7 +74,7 @@ export default function Landing(props) {
 <div style={{"maxWidth": "1120px", "margin": "0 auto"}}>
 <p style={{"margin": "0 0 16px", "fontSize": "13px", "letterSpacing": "3px", "textTransform": "uppercase", "color": "#ffe2b2", "fontVariationSettings": "'wght' 534"}}>Your path</p>
 <h2 className="h2" style={{"margin": "0 0 18px", "fontSize": "40px", "lineHeight": "1.15", "fontWeight": "400", "fontVariationSettings": "'wght' 430", "maxWidth": "26ch"}}>Wherever your business is, start there.</h2>
-<p style={{"margin": "0", "maxWidth": "58ch", "fontSize": "18px", "lineHeight": "1.6", "color": "#a2a9b8"}}>The right agents switch on at each stage, from the first customer to $10M, and every milestone is tracked.</p>
+<p style={{"margin": "0", "maxWidth": "58ch", "fontSize": "18px", "lineHeight": "1.6", "color": "#a2a9b8"}}>The right agents switch on at each stage, from the first customer to a $10M month, and every milestone is tracked.</p>
 <div className="g3" style={{"display": "grid", "gridTemplateColumns": "repeat(3, minmax(0, 1fr))", "gap": "16px", "marginTop": "36px"}}>
 {(v.heads || []).map((h, $index) => (<React.Fragment key={$index}>
 <a href={h.href} style={{"padding": "28px", "borderRadius": "22px", "border": `1px solid ${h.border}`, "background": "rgba(255,255,255,.03)", "display": "flex", "flexDirection": "column", "gap": "10px", "color": "#ffffff"}}>

@@ -83,7 +83,7 @@ a:focus-visible,button:focus-visible{outline:2px solid #9fe0ff;outline-offset:3p
 <div style="width: 100%; max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px">
 <p style="margin: 0; font-size: 14px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">Start it · Scale it · Run it</p>
 <h1 class="h1" style="margin: 0; font-size: clamp(32px, 3.9vw, 56px); line-height: 1.12; font-weight: 400; font-variation-settings: 'wght' 424; letter-spacing: -.01em">The AI team that runs your business.</h1>
-<p style="margin: 0; max-width: 54ch; font-size: clamp(17px, 1.45vw, 21px); line-height: 1.55; color: #e2ebf5">Marketing, sales, operations and finance agents plan the work and do it every day, from your first customer to $10M.</p>
+<p style="margin: 0; max-width: 54ch; font-size: clamp(17px, 1.45vw, 21px); line-height: 1.55; color: #e2ebf5">Marketing, sales, operations and finance agents plan the work and do it every day, from your first customer to a $10M month.</p>
 <p style="margin: 0; max-width: 54ch; font-size: clamp(15px, 1.2vw, 17px); line-height: 1.6; color: #a2a9b8">You stay in charge: nothing reaches a customer or spends money without your approval.</p>
 <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 6px">
 <a href="/login?next=start" style="display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 22px; box-sizing: border-box; border-radius: 999px; font-size: 15px; font-variation-settings: 'wght' 540; border: 1.6px solid #ffffff; background: #ffffff; color: #02060f">Start your business</a>
@@ -114,7 +114,7 @@ a:focus-visible,button:focus-visible{outline:2px solid #9fe0ff;outline-offset:3p
 <div style="max-width: 1120px; margin: 0 auto">
 <p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">Your path</p>
 <h2 class="h2" style="margin: 0 0 18px; font-size: 40px; line-height: 1.15; font-weight: 400; font-variation-settings: 'wght' 430; max-width: 26ch">Wherever your business is, start there.</h2>
-<p style="margin: 0; max-width: 58ch; font-size: 18px; line-height: 1.6; color: #a2a9b8">The right agents switch on at each stage, from the first customer to $10M, and every milestone is tracked.</p>
+<p style="margin: 0; max-width: 58ch; font-size: 18px; line-height: 1.6; color: #a2a9b8">The right agents switch on at each stage, from the first customer to a $10M month, and every milestone is tracked.</p>
 <div class="g3" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 36px">
 <sc-for list="{{heads}}" as="h" hint-placeholder-count="3">
 <a href="{{h.href}}" style="padding: 28px; border-radius: 22px; border: 1px solid {{h.border}}; background: rgba(255,255,255,.03); display: flex; flex-direction: column; gap: 10px; color: #ffffff">
@@ -242,7 +242,7 @@ class Component extends DCLogic {
       heads: [
         { n: '01', href: '/login?next=start', cta: 'Start my business', name: 'Start the business', stages: 'New and small · $0 to $10K a month', promise: 'From an idea to a validated offer and your first paying customers.', color: gold, border: 'rgba(255,226,178,.35)', bg: 'linear-gradient(180deg, rgba(255,226,178,.08), rgba(255,226,178,.015))' },
         { n: '02', href: '/login?next=scale', cta: 'Scale my business', name: 'Scale the business', stages: 'Growing · $10K to $100K a month', promise: 'Repeatable growth with a built-in AI marketing agency, sales and support.', color: mid, border: 'rgba(207,227,250,.3)', bg: 'linear-gradient(180deg, rgba(207,227,250,.07), rgba(207,227,250,.015))' },
-        { n: '03', href: '/login?next=run', cta: 'Run my business', name: 'Run the business', stages: 'Established · $100K a month to $10M a year', promise: 'All 18 executive agents on one plan, running the business while you lead.', color: blue, border: 'rgba(150,196,244,.35)', bg: 'linear-gradient(180deg, rgba(150,196,244,.08), rgba(150,196,244,.015))' }
+        { n: '03', href: '/login?next=run', cta: 'Run my business', name: 'Run the business', stages: 'Established · $100K to $10M a month', promise: 'All 18 executive agents on one plan, running the business while you lead.', color: blue, border: 'rgba(150,196,244,.35)', bg: 'linear-gradient(180deg, rgba(150,196,244,.08), rgba(150,196,244,.015))' }
       ],
       plans: [
         { who: 'Startups & small businesses', name: 'Founder', price: '$5,000', href: '/login?next=start', cta: 'Start my business', color: gold, border: 'rgba(255,226,178,.3)', bg: 'rgba(255,255,255,.03)', btn: 'rgba(196,214,232,.6)', btnBg: 'transparent', btnInk: '#ffffff',

@@ -636,18 +636,21 @@ test('the Start-the-business stage agents exist, use only safe tools, and every 
   for (const s of STEPS) if (s.agentId) assert.ok(getAgent(s.agentId), `step ${s.id} agent ${s.agentId}`);
 });
 
-test('stages follow revenue: monthly gates to Success, annual for Significance and SIXXAB, rupees converted', async () => {
+test('stages follow revenue: every gate is a monthly level, rupees converted', async () => {
   const { computeJourney } = await import('../core/journey.js');
   const ev = (month: string, amount: number, at = `${month}-28T00:00:00Z`) => ({ id: month + amount, orgId: ORG, at, actor: 'o', action: 'revenue.recorded', taskId: null, detail: { month, amount } });
   const usd = { name: 'X', offer: 'Y', currency: 'USD' };
   assert.equal(computeJourney(usd, [ev('2026-09', 9999)]).stage.key, 'startup');
   assert.equal(computeJourney(usd, [ev('2026-09', 10000)]).stage.key, 'struggle');
   assert.equal(computeJourney(usd, [ev('2026-09', 60000)]).stage.key, 'scale');
-  assert.equal(computeJourney(usd, [ev('2026-09', 120000)]).stage.key, 'success', 'a $100K month alone is not $1M a year');
+  assert.equal(computeJourney(usd, [ev('2026-09', 120000)]).stage.key, 'success');
   const year = Array.from({ length: 12 }, (_, i) => ev(`2026-${String(i + 1).padStart(2, '0')}`, 100000));
-  assert.equal(computeJourney(usd, year).stage.key, 'significance', '$1.2M in 12 months');
-  const big = Array.from({ length: 12 }, (_, i) => ev(`2026-${String(i + 1).padStart(2, '0')}`, 900000));
-  assert.equal(computeJourney(usd, big).stage.key, 'sixxab', '$10.8M in 12 months');
+  assert.equal(computeJourney(usd, year).stage.key, 'success', '$1.2M over 12 months is not a $1M month');
+  assert.equal(computeJourney(usd, [ev('2026-09', 1_000_000)]).stage.key, 'significance', 'a $1M month');
+  const j1m = computeJourney(usd, [ev('2026-09', 1_000_000)]);
+  assert.ok(j1m.milestones.find((m) => m.key === 'month_1m')?.reachedAt);
+  assert.equal(computeJourney(usd, [ev('2026-09', 9_900_000)]).stage.key, 'significance');
+  assert.equal(computeJourney(usd, [ev('2026-09', 10_000_000)]).stage.key, 'sixxab', 'a $10M month');
   const inr = { name: 'Clinic', offer: 'Care', currency: 'INR' };
   assert.equal(computeJourney(inr, [ev('2026-10', 450000)]).stage.key, 'startup', '₹4.5L ≈ $5.3K at 85');
   assert.equal(computeJourney(inr, [ev('2026-10', 900000)]).stage.key, 'struggle', '₹9L ≈ $10.6K at 85');

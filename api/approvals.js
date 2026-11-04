@@ -1054,16 +1054,16 @@ var STAGES = [
   { key: "startup", name: "Startup", head: "Start", level: "$0", opensAt: "Day one", summary: "From idea or restart to your first $10K month", live: true },
   { key: "struggle", name: "Struggle", head: "Start", level: "$10K", opensAt: "a $10K month", summary: "$10K months, building to $50K", live: true },
   { key: "scale", name: "Scale", head: "Scale", level: "$50K", opensAt: "a $50K month", summary: "$50K months, building to $100K", live: true },
-  { key: "success", name: "Success", head: "Scale", level: "$100K", opensAt: "a $100K month", summary: "$100K months, building to $1M a year", live: true },
-  { key: "significance", name: "Significance", head: "Run", level: "$1M", opensAt: "$1M in 12 months", summary: "$1M a year, building to $10M", live: true },
-  { key: "sixxab", name: "SIXXAB", head: "Run", level: "$10M", opensAt: "$10M in 12 months", summary: "$10M a year, running on agents", live: true }
+  { key: "success", name: "Success", head: "Scale", level: "$100K", opensAt: "a $100K month", summary: "$100K months, building to $1M a month", live: true },
+  { key: "significance", name: "Significance", head: "Run", level: "$1M", opensAt: "a $1M month", summary: "$1M months, building to $10M a month", live: true },
+  { key: "sixxab", name: "SIXXAB", head: "Run", level: "$10M", opensAt: "a $10M month", summary: "$10M months, running on agents", live: true }
 ];
 var GATES = {
   struggle: { monthUsd: 1e4 },
   scale: { monthUsd: 5e4 },
   success: { monthUsd: 1e5 },
-  significance: { yearUsd: 1e6 },
-  sixxab: { yearUsd: 1e7 }
+  significance: { monthUsd: 1e6 },
+  sixxab: { monthUsd: 1e7 }
 };
 var MILESTONES = [
   { key: "profile_saved", title: "Business profile saved" },
@@ -1078,8 +1078,8 @@ var MILESTONES = [
   { key: "month_50k", title: "First $50K month" },
   { key: "month_100k", title: "First $100K month" },
   { key: "annual_plan", title: "Annual plan approved" },
-  { key: "year_1m", title: "$1M in 12 months" },
-  { key: "year_10m", title: "$10M in 12 months" },
+  { key: "month_1m", title: "First $1M month" },
+  { key: "month_10m", title: "First $10M month" },
   { key: "autonomy_earned", title: "An agent earned autonomy" }
 ];
 var EVENTS = ["profile.updated", "journey.step_done", "journey.step_reopened", "revenue.recorded", "milestone.reached", "tool.executed", "autonomy.promoted"];
@@ -1117,7 +1117,7 @@ function computeJourney(profile, events, opts = {}) {
   const inrPerUsd = opts.inrPerUsd && opts.inrPerUsd > 0 ? opts.inrPerUsd : DEFAULT_INR_PER_USD;
   const toUsd = (n) => currency === "INR" ? n / inrPerUsd : n;
   const byMonth = /* @__PURE__ */ new Map();
-  const crossed = { first_customer: null, month_10k: null, month_50k: null, month_100k: null, year_1m: null, year_10m: null };
+  const crossed = { first_customer: null, month_10k: null, month_50k: null, month_100k: null, month_1m: null, month_10m: null };
   for (const e of events) {
     if (e.action !== "revenue.recorded") continue;
     byMonth.set(String(e.detail.month), Number(e.detail.amount));
@@ -1129,8 +1129,8 @@ function computeJourney(profile, events, opts = {}) {
     mark("month_10k", snap.bestRecentMonthUsd >= 1e4);
     mark("month_50k", snap.bestRecentMonthUsd >= 5e4);
     mark("month_100k", snap.bestRecentMonthUsd >= 1e5);
-    mark("year_1m", snap.last12Usd >= 1e6);
-    mark("year_10m", snap.last12Usd >= 1e7);
+    mark("month_1m", snap.bestRecentMonthUsd >= 1e6);
+    mark("month_10m", snap.bestRecentMonthUsd >= 1e7);
   }
   const months = [...byMonth.entries()].sort(([a], [b]) => a < b ? -1 : 1).map(([month, amount]) => ({ month, amount, currency }));
   const { bestRecentMonthUsd, last12Usd } = revenueSnapshot(byMonth, toUsd);
