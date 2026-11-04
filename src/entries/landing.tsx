@@ -9,7 +9,7 @@ export function LandingApp({ initialBookingUrl = '' }: { initialBookingUrl?: str
   useEffect(() => {
     getConfig().then((c) => c.bookingUrl && setBookingUrl(c.bookingUrl));
   }, []);
-  return <Landing veilStrength={0.35} showVideo bookingUrl={bookingUrl} />;
+  return <Landing bookingUrl={bookingUrl} />;
 }
 
 if (typeof document !== 'undefined') {

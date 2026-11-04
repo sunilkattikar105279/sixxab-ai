@@ -9,7 +9,7 @@ export class Component extends DCLogic {
   renderVals() {
     const gold = '#ffe2b2', mid = '#cfe3fa', blue = '#96c4f4';
     return {
-      bookHref: (this.props.bookingUrl || '').trim() || 'mailto:sunil.kattikar@gmail.com?subject=Book%20a%20SIXXAB%20AI%20strategy%20call',
+      bookHref: (this.props.bookingUrl || '').trim() || 'https://calendar.app.google/NoUzn3rFzoXdmwSh9',
       menuOpen: this.state.menuOpen,
       toggleMenu: () => this.setState({ menuOpen: !this.state.menuOpen }),
       outcomes: [

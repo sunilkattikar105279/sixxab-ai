@@ -23,7 +23,7 @@ export default function Landing(props) {
 <div className="navlinks" style={{"alignItems": "center", "gap": "24px", "fontSize": "14px", "fontVariationSettings": "'wght' 506"}}>
 <a href="/login?next=start" style={{"color": "#ffe2b2", "fontVariationSettings": "'wght' 581"}}>Start your business</a>
 <a href="/login">Log in</a>
-<a href="#begin" style={{"padding": "12px 22px", "border": "1.6px solid rgba(196,214,232,.72)", "borderRadius": "999px", "color": "#e8ecf0", "fontVariationSettings": "'wght' 581"}}>Book a strategy call</a>
+<a href="#begin" style={{"display": "inline-flex", "alignItems": "center", "justifyContent": "center", "minHeight": "44px", "padding": "10px 22px", "boxSizing": "border-box", "borderRadius": "999px", "fontSize": "15px", "fontVariationSettings": "'wght' 540", "border": "1.6px solid rgba(255,255,255,.6)", "background": "transparent", "color": "#ffffff"}}>Book a strategy call</a>
 </div>
 <button type="button" className="burger" aria-label="Menu" aria-expanded={v.menuOpen} onClick={v.toggleMenu} style={{"width": "48px", "height": "44px", "alignItems": "center", "justifyContent": "center", "borderRadius": "999px", "border": "1.6px solid rgba(196,214,232,.72)", "background": "rgba(255,255,255,.04)", "color": "#fbfdff", "cursor": "pointer"}}>
 <svg viewBox="0 0 22 14" width="20" height="14" aria-hidden="true" style={{"fill": "none", "stroke": "currentColor", "strokeWidth": "1.5", "strokeLinecap": "round"}}><path d="M1 1 H21" /><path d="M1 7 H21" /><path d="M1 13 H21" /></svg>
@@ -48,8 +48,8 @@ export default function Landing(props) {
 <p style={{"margin": "0", "maxWidth": "54ch", "fontSize": "clamp(17px, 1.45vw, 21px)", "lineHeight": "1.55", "color": "#e2ebf5"}}>Marketing, sales, operations and finance agents plan the work and do it every day, from your first customer to $10M.</p>
 <p style={{"margin": "0", "maxWidth": "54ch", "fontSize": "clamp(15px, 1.2vw, 17px)", "lineHeight": "1.6", "color": "#a2a9b8"}}>You stay in charge: nothing reaches a customer or spends money without your approval.</p>
 <div style={{"display": "flex", "flexWrap": "wrap", "gap": "12px", "marginTop": "6px"}}>
-<a href="/login?next=start" style={{"display": "inline-flex", "alignItems": "center", "minHeight": "52px", "padding": "15px 28px", "borderRadius": "999px", "background": "#ffffff", "color": "#02060f", "fontSize": "17px", "fontVariationSettings": "'wght' 560"}}>Start your business</a>
-<a href="#begin" style={{"display": "inline-flex", "alignItems": "center", "minHeight": "52px", "padding": "15px 26px", "borderRadius": "999px", "border": "1.6px solid rgba(255,255,255,.6)", "fontSize": "17px", "color": "#ffffff", "fontVariationSettings": "'wght' 497"}}>Book a strategy call</a>
+<a href="/login?next=start" style={{"display": "inline-flex", "alignItems": "center", "justifyContent": "center", "minHeight": "44px", "padding": "10px 22px", "boxSizing": "border-box", "borderRadius": "999px", "fontSize": "15px", "fontVariationSettings": "'wght' 540", "border": "1.6px solid #ffffff", "background": "#ffffff", "color": "#02060f"}}>Start your business</a>
+<a href="#begin" style={{"display": "inline-flex", "alignItems": "center", "justifyContent": "center", "minHeight": "44px", "padding": "10px 22px", "boxSizing": "border-box", "borderRadius": "999px", "fontSize": "15px", "fontVariationSettings": "'wght' 540", "border": "1.6px solid rgba(255,255,255,.6)", "background": "transparent", "color": "#ffffff"}}>Book a strategy call</a>
 </div>
 <p style={{"margin": "8px 0 0", "fontSize": "14px", "color": "#a2a9b8"}}>Live with businesses in the US and India · Human approval built in · 12-month plans</p>
 </div>
@@ -138,7 +138,7 @@ export default function Landing(props) {
 <li style={{"display": "flex", "gap": "10px", "alignItems": "baseline", "fontSize": "14px", "lineHeight": "1.5", "color": "#e2ebf5"}}><svg viewBox="0 0 14 11" width="12" height="10" aria-hidden="true" style={{"flex": "none", "fill": "none", "stroke": "#ffe2b2", "strokeWidth": "1.8", "strokeLinecap": "round", "strokeLinejoin": "round"}}><path d="M1 5.5 L5 9.5 L13 1.5" /></svg>{ft}</li>
 </React.Fragment>))}
 </ul>
-<a href={p.href} style={{"marginTop": "auto", "padding": "14px 22px", "textAlign": "center", "borderRadius": "999px", "border": `1.6px solid ${p.btn}`, "background": p.btnBg, "color": p.btnInk, "fontSize": "15px", "fontVariationSettings": "'wght' 540"}}>{p.cta}</a>
+<a href={p.href} style={{"marginTop": "auto", "display": "flex", "alignItems": "center", "justifyContent": "center", "minHeight": "44px", "padding": "10px 22px", "boxSizing": "border-box", "borderRadius": "999px", "fontSize": "15px", "fontVariationSettings": "'wght' 540", "border": `1.6px solid ${p.btn}`, "background": p.btnBg, "color": p.btnInk}}>{p.cta}</a>
 </div>
 </React.Fragment>))}
 </div>
@@ -146,14 +146,14 @@ export default function Landing(props) {
 </section>
 <section id="begin" className="sec" style={{"padding": "96px clamp(22px, 8vw, 120px)", "borderTop": "1px solid rgba(196,214,232,.1)"}}>
 <div style={{"maxWidth": "1120px", "margin": "0 auto"}}>
-<div style={{"padding": "clamp(28px, 4vw, 48px)", "borderRadius": "28px", "border": "1px solid rgba(255,226,178,.3)", "background": "linear-gradient(180deg, rgba(255,226,178,.08), rgba(255,226,178,.015))", "display": "flex", "flexDirection": "column", "gap": "18px"}}>
-<p style={{"margin": "0", "fontSize": "13px", "letterSpacing": "3px", "textTransform": "uppercase", "color": "#ffe2b2", "fontVariationSettings": "'wght' 534"}}>Strategy call</p>
-<h2 className="h2" style={{"margin": "0", "fontSize": "40px", "lineHeight": "1.15", "fontWeight": "400", "fontVariationSettings": "'wght' 430", "maxWidth": "22ch"}}>Hire the co-founder that never sleeps.</h2>
-<p style={{"margin": "0", "maxWidth": "56ch", "fontSize": "17px", "lineHeight": "1.6", "color": "#c9d2de"}}>Book 30 minutes with Sunil Kattikar, founder of SIXXAB AI. Leave with where your business stands, the plan that fits, and your first 90 days with AI agents.</p>
+<div style={{"padding": "28px", "borderRadius": "22px", "border": "1px solid rgba(196,214,232,.16)", "background": "rgba(255,255,255,.03)", "display": "flex", "flexDirection": "column", "gap": "14px"}}>
+<p style={{"margin": "0", "fontSize": "12px", "letterSpacing": "1.5px", "textTransform": "uppercase", "color": "#ffe2b2", "fontVariationSettings": "'wght' 560"}}>Strategy call</p>
+<h2 className="h2" style={{"margin": "0", "fontSize": "28px", "lineHeight": "1.25", "fontWeight": "400", "fontVariationSettings": "'wght' 480"}}>Hire the co-founder that never sleeps.</h2>
+<p style={{"margin": "0", "maxWidth": "60ch", "fontSize": "15px", "lineHeight": "1.6", "color": "#a2a9b8"}}>Book 30 minutes with Sunil Kattikar, founder of SIXXAB AI. Leave with where your business stands, the plan that fits, and your first 90 days with AI agents.</p>
 <div style={{"display": "flex", "flexWrap": "wrap", "gap": "12px"}}>
-<a href={v.bookHref} target="_blank" rel="noopener" style={{"display": "inline-flex", "alignItems": "center", "gap": "10px", "minHeight": "52px", "padding": "15px 28px", "borderRadius": "999px", "background": "#ffffff", "color": "#02060f", "fontSize": "17px", "fontVariationSettings": "'wght' 560"}}>Choose a time</a>
-<a href="mailto:sunil.kattikar@gmail.com?subject=SIXXAB%20AI%20strategy%20call&body=Business%3A%0AStage%3A%0AWhat%20I%20want%20to%20fix%3A%0A" style={{"display": "inline-flex", "alignItems": "center", "minHeight": "52px", "padding": "15px 26px", "borderRadius": "999px", "border": "1.6px solid rgba(196,214,232,.6)", "color": "#ffffff", "fontSize": "17px", "fontVariationSettings": "'wght' 540"}}>Email Sunil</a>
-<a href="/login?next=start" style={{"display": "inline-flex", "alignItems": "center", "minHeight": "52px", "padding": "15px 10px", "fontSize": "17px", "color": "#ffe2b2", "fontVariationSettings": "'wght' 540"}}>Or start your business now</a>
+<a href={v.bookHref} target="_blank" rel="noopener" style={{"display": "inline-flex", "alignItems": "center", "justifyContent": "center", "minHeight": "44px", "padding": "10px 22px", "boxSizing": "border-box", "borderRadius": "999px", "fontSize": "15px", "fontVariationSettings": "'wght' 540", "border": "1.6px solid #ffffff", "background": "#ffffff", "color": "#02060f"}}>Choose a time</a>
+<a href="mailto:sunil.kattikar@gmail.com?subject=SIXXAB%20AI%20strategy%20call&body=Business%3A%0AStage%3A%0AWhat%20I%20want%20to%20fix%3A%0A" style={{"display": "inline-flex", "alignItems": "center", "justifyContent": "center", "minHeight": "44px", "padding": "10px 22px", "boxSizing": "border-box", "borderRadius": "999px", "fontSize": "15px", "fontVariationSettings": "'wght' 540", "border": "1.6px solid rgba(255,255,255,.6)", "background": "transparent", "color": "#ffffff"}}>Email Sunil</a>
+<a href="/login?next=start" style={{"display": "inline-flex", "alignItems": "center", "justifyContent": "center", "minHeight": "44px", "padding": "10px 22px", "boxSizing": "border-box", "borderRadius": "999px", "fontSize": "15px", "fontVariationSettings": "'wght' 540", "border": "1.6px solid rgba(255,255,255,.6)", "background": "transparent", "color": "#ffffff"}}>Start your business</a>
 </div>
 </div>
 </div>

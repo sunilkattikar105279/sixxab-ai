@@ -60,7 +60,7 @@ a:focus-visible,button:focus-visible{outline:2px solid #9fe0ff;outline-offset:3p
 <div class="navlinks" style="align-items: center; gap: 24px; font-size: 14px; font-variation-settings: 'wght' 506">
 <a href="/login?next=start" style="color: #ffe2b2; font-variation-settings: 'wght' 581">Start your business</a>
 <a href="/login">Log in</a>
-<a href="#begin" style="padding: 12px 22px; border: 1.6px solid rgba(196,214,232,.72); border-radius: 999px; color: #e8ecf0; font-variation-settings: 'wght' 581">Book a strategy call</a>
+<a href="#begin" style="display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 22px; box-sizing: border-box; border-radius: 999px; font-size: 15px; font-variation-settings: 'wght' 540; border: 1.6px solid rgba(255,255,255,.6); background: transparent; color: #ffffff">Book a strategy call</a>
 </div>
 <button type="button" class="burger" aria-label="Menu" aria-expanded="{{menuOpen}}" onClick="{{toggleMenu}}" style="width: 48px; height: 44px; align-items: center; justify-content: center; border-radius: 999px; border: 1.6px solid rgba(196,214,232,.72); background: rgba(255,255,255,.04); color: #fbfdff; cursor: pointer">
 <svg viewBox="0 0 22 14" width="20" height="14" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round"><path d="M1 1 H21"></path><path d="M1 7 H21"></path><path d="M1 13 H21"></path></svg>
@@ -86,8 +86,8 @@ a:focus-visible,button:focus-visible{outline:2px solid #9fe0ff;outline-offset:3p
 <p style="margin: 0; max-width: 54ch; font-size: clamp(17px, 1.45vw, 21px); line-height: 1.55; color: #e2ebf5">Marketing, sales, operations and finance agents plan the work and do it every day, from your first customer to $10M.</p>
 <p style="margin: 0; max-width: 54ch; font-size: clamp(15px, 1.2vw, 17px); line-height: 1.6; color: #a2a9b8">You stay in charge: nothing reaches a customer or spends money without your approval.</p>
 <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 6px">
-<a href="/login?next=start" style="display: inline-flex; align-items: center; min-height: 52px; padding: 15px 28px; border-radius: 999px; background: #ffffff; color: #02060f; font-size: 17px; font-variation-settings: 'wght' 560">Start your business</a>
-<a href="#begin" style="display: inline-flex; align-items: center; min-height: 52px; padding: 15px 26px; border-radius: 999px; border: 1.6px solid rgba(255,255,255,.6); font-size: 17px; color: #ffffff; font-variation-settings: 'wght' 497">Book a strategy call</a>
+<a href="/login?next=start" style="display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 22px; box-sizing: border-box; border-radius: 999px; font-size: 15px; font-variation-settings: 'wght' 540; border: 1.6px solid #ffffff; background: #ffffff; color: #02060f">Start your business</a>
+<a href="#begin" style="display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 22px; box-sizing: border-box; border-radius: 999px; font-size: 15px; font-variation-settings: 'wght' 540; border: 1.6px solid rgba(255,255,255,.6); background: transparent; color: #ffffff">Book a strategy call</a>
 </div>
 <p style="margin: 8px 0 0; font-size: 14px; color: #a2a9b8">Live with businesses in the US and India · Human approval built in · 12-month plans</p>
 </div>
@@ -181,7 +181,7 @@ a:focus-visible,button:focus-visible{outline:2px solid #9fe0ff;outline-offset:3p
 <li style="display: flex; gap: 10px; align-items: baseline; font-size: 14px; line-height: 1.5; color: #e2ebf5"><svg viewBox="0 0 14 11" width="12" height="10" aria-hidden="true" style="flex: none; fill: none; stroke: #ffe2b2; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><path d="M1 5.5 L5 9.5 L13 1.5"></path></svg>{{ft}}</li>
 </sc-for>
 </ul>
-<a href="{{p.href}}" style="margin-top: auto; padding: 14px 22px; text-align: center; border-radius: 999px; border: 1.6px solid {{p.btn}}; background: {{p.btnBg}}; color: {{p.btnInk}}; font-size: 15px; font-variation-settings: 'wght' 540">{{p.cta}}</a>
+<a href="{{p.href}}" style="margin-top: auto; display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 22px; box-sizing: border-box; border-radius: 999px; font-size: 15px; font-variation-settings: 'wght' 540; border: 1.6px solid {{p.btn}}; background: {{p.btnBg}}; color: {{p.btnInk}}">{{p.cta}}</a>
 </div>
 </sc-for>
 </div>
@@ -190,14 +190,14 @@ a:focus-visible,button:focus-visible{outline:2px solid #9fe0ff;outline-offset:3p
 
 <section id="begin" class="sec" style="padding: 96px clamp(22px, 8vw, 120px); border-top: 1px solid rgba(196,214,232,.1)">
 <div style="max-width: 1120px; margin: 0 auto">
-<div style="padding: clamp(28px, 4vw, 48px); border-radius: 28px; border: 1px solid rgba(255,226,178,.3); background: linear-gradient(180deg, rgba(255,226,178,.08), rgba(255,226,178,.015)); display: flex; flex-direction: column; gap: 18px">
-<p style="margin: 0; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">Strategy call</p>
-<h2 class="h2" style="margin: 0; font-size: 40px; line-height: 1.15; font-weight: 400; font-variation-settings: 'wght' 430; max-width: 22ch">Hire the co-founder that never sleeps.</h2>
-<p style="margin: 0; max-width: 56ch; font-size: 17px; line-height: 1.6; color: #c9d2de">Book 30 minutes with Sunil Kattikar, founder of SIXXAB AI. Leave with where your business stands, the plan that fits, and your first 90 days with AI agents.</p>
+<div style="padding: 28px; border-radius: 22px; border: 1px solid rgba(196,214,232,.16); background: rgba(255,255,255,.03); display: flex; flex-direction: column; gap: 14px">
+<p style="margin: 0; font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 560">Strategy call</p>
+<h2 class="h2" style="margin: 0; font-size: 28px; line-height: 1.25; font-weight: 400; font-variation-settings: 'wght' 480">Hire the co-founder that never sleeps.</h2>
+<p style="margin: 0; max-width: 60ch; font-size: 15px; line-height: 1.6; color: #a2a9b8">Book 30 minutes with Sunil Kattikar, founder of SIXXAB AI. Leave with where your business stands, the plan that fits, and your first 90 days with AI agents.</p>
 <div style="display: flex; flex-wrap: wrap; gap: 12px">
-<a href="{{bookHref}}" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 10px; min-height: 52px; padding: 15px 28px; border-radius: 999px; background: #ffffff; color: #02060f; font-size: 17px; font-variation-settings: 'wght' 560">Choose a time</a>
-<a href="mailto:sunil.kattikar@gmail.com?subject=SIXXAB%20AI%20strategy%20call&amp;body=Business%3A%0AStage%3A%0AWhat%20I%20want%20to%20fix%3A%0A" style="display: inline-flex; align-items: center; min-height: 52px; padding: 15px 26px; border-radius: 999px; border: 1.6px solid rgba(196,214,232,.6); color: #ffffff; font-size: 17px; font-variation-settings: 'wght' 540">Email Sunil</a>
-<a href="/login?next=start" style="display: inline-flex; align-items: center; min-height: 52px; padding: 15px 10px; font-size: 17px; color: #ffe2b2; font-variation-settings: 'wght' 540">Or start your business now</a>
+<a href="{{bookHref}}" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 22px; box-sizing: border-box; border-radius: 999px; font-size: 15px; font-variation-settings: 'wght' 540; border: 1.6px solid #ffffff; background: #ffffff; color: #02060f">Choose a time</a>
+<a href="mailto:sunil.kattikar@gmail.com?subject=SIXXAB%20AI%20strategy%20call&amp;body=Business%3A%0AStage%3A%0AWhat%20I%20want%20to%20fix%3A%0A" style="display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 22px; box-sizing: border-box; border-radius: 999px; font-size: 15px; font-variation-settings: 'wght' 540; border: 1.6px solid rgba(255,255,255,.6); background: transparent; color: #ffffff">Email Sunil</a>
+<a href="/login?next=start" style="display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 22px; box-sizing: border-box; border-radius: 999px; font-size: 15px; font-variation-settings: 'wght' 540; border: 1.6px solid rgba(255,255,255,.6); background: transparent; color: #ffffff">Start your business</a>
 </div>
 </div>
 </div>
@@ -218,7 +218,7 @@ class Component extends DCLogic {
   renderVals() {
     const gold = '#ffe2b2', mid = '#cfe3fa', blue = '#96c4f4';
     return {
-      bookHref: (this.props.bookingUrl || '').trim() || 'mailto:sunil.kattikar@gmail.com?subject=Book%20a%20SIXXAB%20AI%20strategy%20call',
+      bookHref: (this.props.bookingUrl || '').trim() || 'https://calendar.app.google/NoUzn3rFzoXdmwSh9',
       menuOpen: this.state.menuOpen,
       toggleMenu: () => this.setState({ menuOpen: !this.state.menuOpen }),
       outcomes: [
