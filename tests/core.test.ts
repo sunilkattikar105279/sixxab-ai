@@ -706,3 +706,35 @@ test('owner feedback on a result is recorded and taught to that agent in its nex
   await assert.rejects(rateTask(store, ORG, t1.id, { rating: 'meh' as 'up', reason: '' }, 'sunil'), /rating/);
   await assert.rejects(rateTask(store, 'other-org', t1.id, { rating: 'up' }, 'sunil'), /not found/i);
 });
+
+// ---------- per-business automation routing ----------
+
+test('each business is routed to its own n8n workflow; an unassigned business is never sent to someone else’s', async () => {
+  const { setAutomationPath, automationPath, webhookFor } = await import('../core/automation.js');
+  const store = new MemoryStore({ orgId: ORG, taskTypes: DEFAULT_TASK_TYPES });
+  assert.equal(await automationPath(store, ORG), null);
+  assert.equal(webhookFor('https://sixxab-ai.app.n8n.cloud/webhook/sixxab-actions', null), undefined, 'no path, no webhook');
+  await setAutomationPath(store, ORG, 'ortho-tasgaon', 'sunil');
+  assert.equal(await automationPath(store, ORG), 'ortho-tasgaon');
+  assert.equal(webhookFor('https://sixxab-ai.app.n8n.cloud/webhook/sixxab-actions', 'ortho-tasgaon'), 'https://sixxab-ai.app.n8n.cloud/webhook/ortho-tasgaon', 'same n8n host, the business’s own path');
+  await assert.rejects(setAutomationPath(store, ORG, '../evil', 'sunil'), /path/);
+  await assert.rejects(setAutomationPath(store, ORG, 'https://evil.example/x', 'sunil'), /path/);
+  await setAutomationPath(store, ORG, null, 'sunil');
+  assert.equal(await automationPath(store, ORG), null, 'can be disconnected');
+});
+
+test('the webhook tells n8n which business an action belongs to', async () => {
+  const { webhookIntegrations } = await import('../core/tools.js');
+  let body: Record<string, unknown> = {};
+  const fakeFetch = (async (_u: string, init: RequestInit) => { body = JSON.parse(String(init.body)); return new Response('{"ok":true,"message":"done"}'); }) as unknown as typeof fetch;
+  await webhookIntegrations('https://n8n.example/webhook/a', 's', fakeFetch, { orgId: 'o1', name: 'More Laboratory' }).dispatch('publish_post', { text: 'hi' });
+  assert.deepEqual(body.business, { orgId: 'o1', name: 'More Laboratory' });
+});
+
+test('only listed admins can assign workflows', async () => {
+  const { isAdmin } = await import('../core/automation.js');
+  assert.equal(isAdmin('Sunil.Kattikar@gmail.com', 'sunil.kattikar@gmail.com, other@x.com'), true);
+  assert.equal(isAdmin('dr@clinic.in', 'sunil.kattikar@gmail.com'), false);
+  assert.equal(isAdmin('anyone@x.com', ''), false);
+  assert.equal(isAdmin(undefined, 'a@b.c'), false);
+});

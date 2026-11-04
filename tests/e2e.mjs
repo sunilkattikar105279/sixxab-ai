@@ -103,6 +103,11 @@ async function mockServices(ctx, state) {
     }
     return r.fulfill({ json: { agents: [{ id: 'cmo', name: 'CMO agent', layer: 'cxo', job: 'Owns marketing' }], taskTypes: [{ key: 'publish_post', label: 'Publish a social post', level: 2, maxLevel: 3 }], progress: [{ taskType: 'publish_post', level: 2, maxLevel: 3, streak: 12, needed: 15, proposal: null }], cost: { last30Days: { costUsd: 0.42, tasks: 6, avgPerTaskUsd: 0.07, inputTokens: 120000, outputTokens: 18000 }, byAgent: [{ agentId: 'social-poster', costUsd: 0.3, tasks: 4 }] }, tasks: state.leftover ?? [] } });
   });
+  await ctx.route('**/api/admin', async (r) => {
+    if (!state.admin) return r.fulfill({ status: 403, json: { error: 'Admins only' } });
+    if (r.request().method() === 'POST') { (state.adminPosts = state.adminPosts ?? []).push(r.request().postDataJSON()); return r.fulfill({ json: { ok: true } }); }
+    return r.fulfill({ json: { orgs: state.admin } });
+  });
   await ctx.route('**/api/feedback', async (r) => { (state.feedback = state.feedback ?? []).push(r.request().postDataJSON()); return r.fulfill({ json: { ok: true } }); });
   await ctx.route('**/api/journey', async (r) => {
     const onboarded = Boolean(state.profile);
@@ -240,6 +245,7 @@ await check('workspace: run a goal, edit and approve, see agents and activity', 
   await page.getByText('12 of 15 approvals with no edits').waitFor();
   await page.getByRole('heading', { name: 'Cost' }).waitFor();
   await page.getByText('$0.420').waitFor();
+  assert.equal(await page.getByText('Businesses and workflows').count(), 0, 'admin panel hidden for non-admins');
   await page.getByText('L2 Approve').waitFor();
   await page.screenshot({ path: `${SHOTS}/app-agents.png` });
   await page.getByRole('button', { name: 'Activity' }).click();
@@ -280,8 +286,25 @@ await check('signed-out visitor is sent from /app to /login', async () => {
   await ctx.close();
 });
 
+await check('admin assigns each business its own n8n workflow', async () => {
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const state = { otp: [], decisions: [], pending: [], profile: { name: 'SIXXAB AI', offer: 'Agents' }, admin: [{ orgId: 'org-ortho-1234', name: 'Radhakrishna Ortho', path: null }] };
+  await mockServices(ctx, state);
+  await ctx.addInitScript(() => localStorage.setItem('sixxab.session', JSON.stringify({ accessToken: 'at', refreshToken: 'rt', expiresAt: Math.floor(Date.now() / 1000) + 3600, user: { id: 'u1', email: 'sunil.kattikar@gmail.com' } })));
+  const page = await ctx.newPage();
+  await page.goto(BASE + '/app');
+  await page.getByRole('button', { name: 'Agents', exact: true }).click();
+  await page.getByText('Businesses and workflows').waitFor();
+  await page.getByLabel('Workflow path for Radhakrishna Ortho').fill('ortho-tasgaon');
+  await page.getByRole('button', { name: 'Save' }).click();
+  await page.getByText('Saved').waitFor();
+  assert.deepEqual(state.adminPosts[0], { orgId: 'org-ortho-1234', path: 'ortho-tasgaon' });
+  await ctx.close();
+});
+
 await browser.close();
 for (const r of results) console.log(r.join('  '));
 const failed = results.filter((r) => r[0] === 'FAIL').length;
 console.log(`${results.length - failed}/${results.length} passed`);
 process.exit(failed ? 1 : 0);
+

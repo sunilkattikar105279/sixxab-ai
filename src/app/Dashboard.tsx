@@ -5,6 +5,7 @@ import { Brand, Spinner } from './ui';
 import { BusinessProfile } from './BusinessProfile';
 import { Journey } from './Journey';
 import { Rate } from './Rate';
+import { AdminPanel } from './AdminPanel';
 import { useLoad } from './useLoad';
 
 type Tab = 'journey' | 'today' | 'approvals' | 'agents' | 'activity';
@@ -371,6 +372,7 @@ function Agents() {
         {msg && <p className="error">{msg}</p>}
       </section>
       <CostPanel cost={data.cost} />
+      <AdminPanel />
       <section className="panel glass-card">
         <h2>Your agents</h2>
         <div className="grid2">

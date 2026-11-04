@@ -5,7 +5,7 @@ import { planGoal, settleParent } from '../../core/orchestrator.js';
 import { createTask, runTask } from '../../core/runtime.js';
 import { autonomyProgress } from '../../core/learning.js';
 import { costSummary } from '../../core/cost.js';
-import { deps, handle, HttpError, json, readJson, requireUser } from '../context.js';
+import { depsFor, handle, HttpError, json, readJson, requireUser } from '../context.js';
 
 export const GET = handle(async (request) => {
   const { orgId, store } = await requireUser(request);
@@ -29,7 +29,7 @@ export const GET = handle(async (request) => {
 export const POST = handle(async (request) => {
   const { orgId, label, store } = await requireUser(request);
   const body = await readJson<{ goal?: string; agentId?: string; taskId?: string }>(request);
-  const d = deps(store);
+  const d = await depsFor(store, orgId, label);
 
   if (body.taskId) {
     const task = await store.getTask(body.taskId);

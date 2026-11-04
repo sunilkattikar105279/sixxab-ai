@@ -230,14 +230,14 @@ function parseReceipt(text: string): { ok?: boolean; message?: string } | undefi
 }
 
 /** Production dispatcher: posts actions to an n8n webhook. Without one, actions are logged, not sent. */
-export function webhookIntegrations(url: string | undefined, secret: string | undefined, fetchImpl: typeof fetch = fetch): Integrations {
+export function webhookIntegrations(url: string | undefined, secret: string | undefined, fetchImpl: typeof fetch = fetch, business?: { orgId: string; name?: string }): Integrations {
   return {
     async dispatch(action, payload) {
-      if (!url) return `${NOT_SENT_PREFIX} "${action}": automations are not connected yet, so it was not sent.`;
+      if (!url) return `${NOT_SENT_PREFIX} "${action}": automations are not connected for this business yet, so it was not sent.`;
       const res = await fetchImpl(url, {
         method: 'POST',
         headers: { 'content-type': 'application/json', ...(secret ? { 'x-sixxab-secret': secret } : {}) },
-        body: JSON.stringify({ action, payload }),
+        body: JSON.stringify(business ? { action, payload, business } : { action, payload }),
         signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
       });
       const receipt = parseReceipt(await res.text().catch(() => ''));

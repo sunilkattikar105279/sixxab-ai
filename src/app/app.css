@@ -167,3 +167,4 @@ th { color: var(--sub); font-weight: 500; font-size: 12px; text-transform: upper
 .cost-tiles div { display: flex; flex-direction: column; gap: 4px; padding: 12px; border-radius: 14px; border: 1px solid var(--line); }
 .cost-tiles strong { font-size: 18px; font-weight: 500; }
 @media (max-width: 640px) { .cost-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.path-input { width: 100%; min-height: 36px; padding: 6px 12px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,0.04); color: #fff; font: inherit; font-size: 13px; }

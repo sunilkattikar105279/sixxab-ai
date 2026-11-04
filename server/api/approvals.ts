@@ -1,7 +1,7 @@
 // GET  /api/approvals            → pending approvals and drafts for the signed-in user's company
 // POST /api/approvals  { approvalId, approved, edited?, reason? } → decide, learn, resume the agent
 import { decide } from '../../core/runtime.js';
-import { deps, handle, HttpError, json, readJson, requireUser } from '../context.js';
+import { depsFor, handle, HttpError, json, readJson, requireUser } from '../context.js';
 
 export const GET = handle(async (request) => {
   const { orgId, store } = await requireUser(request);
@@ -19,6 +19,6 @@ export const POST = handle(async (request) => {
     throw new HttpError(400, 'edited must be an object');
   }
   const reason = typeof body.reason === 'string' ? body.reason.slice(0, 1000) : null;
-  const res = await decide(deps(store), approval.id, { approved: body.approved, edited: body.edited ?? null, reason, by: label });
+  const res = await decide(await depsFor(store, orgId, label), approval.id, { approved: body.approved, edited: body.edited ?? null, reason, by: label });
   return json({ task: { ...res.task, transcript: undefined }, nextApproval: res.approval ?? null, promotion: res.proposal });
 });

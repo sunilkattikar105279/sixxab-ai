@@ -568,14 +568,14 @@ function parseReceipt(text) {
     return void 0;
   }
 }
-function webhookIntegrations(url, secret, fetchImpl = fetch) {
+function webhookIntegrations(url, secret, fetchImpl = fetch, business) {
   return {
     async dispatch(action, payload) {
-      if (!url) return `${NOT_SENT_PREFIX} "${action}": automations are not connected yet, so it was not sent.`;
+      if (!url) return `${NOT_SENT_PREFIX} "${action}": automations are not connected for this business yet, so it was not sent.`;
       const res = await fetchImpl(url, {
         method: "POST",
         headers: { "content-type": "application/json", ...secret ? { "x-sixxab-secret": secret } : {} },
-        body: JSON.stringify({ action, payload }),
+        body: JSON.stringify(business ? { action, payload, business } : { action, payload }),
         signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS)
       });
       const receipt = parseReceipt(await res.text().catch(() => ""));
@@ -1236,7 +1236,7 @@ function missingFields(tool, input) {
     return v === void 0 || v === null || typeof v === "string" && !v.trim();
   });
 }
-async function processToolUses(deps2, task, agent, types, uses, prior) {
+async function processToolUses(deps, task, agent, types, uses, prior) {
   const results = [...prior];
   const approvals = [];
   for (const use of uses) {
@@ -1247,7 +1247,7 @@ async function processToolUses(deps2, task, agent, types, uses, prior) {
     }
     const missing = missingFields(tool, use.input ?? {});
     if (missing.length) {
-      await audit(deps2.store, task.orgId, agent.id, "tool.failed", task.id, { tool: use.name, error: `Missing ${missing.join(", ")}` });
+      await audit(deps.store, task.orgId, agent.id, "tool.failed", task.id, { tool: use.name, error: `Missing ${missing.join(", ")}` });
       results.push({
         type: "tool_result",
         tool_use_id: use.id,
@@ -1264,7 +1264,7 @@ async function processToolUses(deps2, task, agent, types, uses, prior) {
     const amount = typeof use.input.amountMinor === "number" ? use.input.amountMinor : void 0;
     const gate = tt ? effectiveGate(tt, amount) : "auto_execute";
     if (gate === "auto_execute") {
-      results.push(await executeTool(deps2, task, agent, use));
+      results.push(await executeTool(deps, task, agent, use));
       continue;
     }
     const approval = {
@@ -1282,9 +1282,9 @@ async function processToolUses(deps2, task, agent, types, uses, prior) {
       createdAt: nowIso(),
       decidedAt: null
     };
-    await deps2.store.createApproval(approval);
+    await deps.store.createApproval(approval);
     approvals.push(approval);
-    await audit(deps2.store, task.orgId, agent.id, gate === "await_approval" ? "approval.requested" : "draft.created", task.id, { approvalId: approval.id, summary: approval.summary });
+    await audit(deps.store, task.orgId, agent.id, gate === "await_approval" ? "approval.requested" : "draft.created", task.id, { approvalId: approval.id, summary: approval.summary });
     results.push({
       type: "tool_result",
       tool_use_id: use.id,
@@ -1293,87 +1293,87 @@ async function processToolUses(deps2, task, agent, types, uses, prior) {
   }
   return { results, approvals };
 }
-async function executeTool(deps2, task, agent, use, inputOverride) {
+async function executeTool(deps, task, agent, use, inputOverride) {
   const tool = TOOLS[use.name];
   const input = inputOverride ?? use.input;
   try {
-    const out = await tool.execute(input, { store: deps2.store, orgId: task.orgId, task, agent, integrations: deps2.integrations });
+    const out = await tool.execute(input, { store: deps.store, orgId: task.orgId, task, agent, integrations: deps.integrations });
     const action = out.startsWith(NOT_SENT_PREFIX) ? "tool.recorded" : "tool.executed";
-    await audit(deps2.store, task.orgId, agent.id, action, task.id, { tool: use.name, summary: tool.summarize(input), result: out });
+    await audit(deps.store, task.orgId, agent.id, action, task.id, { tool: use.name, summary: tool.summarize(input), result: out });
     return { type: "tool_result", tool_use_id: use.id, content: out };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    await audit(deps2.store, task.orgId, agent.id, "tool.failed", task.id, { tool: use.name, error: msg });
+    await audit(deps.store, task.orgId, agent.id, "tool.failed", task.id, { tool: use.name, error: msg });
     return { type: "tool_result", tool_use_id: use.id, content: `Failed: ${msg}`, is_error: true };
   }
 }
 var MAX_TOKENS = { router: 1024, worker: 8192, planner: 8192 };
-async function runTask(deps2, taskId) {
-  let task = await deps2.store.getTask(taskId);
+async function runTask(deps, taskId) {
+  let task = await deps.store.getTask(taskId);
   if (!task) throw new Error(`Task ${taskId} not found`);
   const agent = getAgent(task.agentId);
   if (!agent || !agent.usesModel) throw new Error(`Agent ${task.agentId} cannot run tasks`);
-  const types = new Map((await deps2.store.getTaskTypes(task.orgId)).map((t) => [t.key, t]));
+  const types = new Map((await deps.store.getTaskTypes(task.orgId)).map((t) => [t.key, t]));
   const tools = toolsFor(agent).map((t) => t.spec);
-  const maxTurns = deps2.maxTurns ?? 8;
+  const maxTurns = deps.maxTurns ?? 8;
   const queued = [];
-  task = await deps2.store.updateTask(task.id, { status: "running" });
+  task = await deps.store.updateTask(task.id, { status: "running" });
   for (let turn = 0; turn < maxTurns; turn++) {
-    const resp = await deps2.model.complete({
+    const resp = await deps.model.complete({
       tier: agent.modelTier,
-      system: await systemPrompt(deps2.store, agent, task, deps2.journey),
+      system: await systemPrompt(deps.store, agent, task, deps.journey),
       messages: task.transcript,
       tools,
       maxTokens: MAX_TOKENS[agent.modelTier]
     });
-    await recordUsage(deps2.store, task.orgId, task.id, agent.id, resp);
+    await recordUsage(deps.store, task.orgId, task.id, agent.id, resp);
     const transcript = [...task.transcript, { role: "assistant", content: resp.content }];
     const uses = resp.content.filter((b) => b.type === "tool_use");
     if (uses.length === 0) {
       if (resp.stopReason === "max_tokens") {
         const nudge = { role: "user", content: "Your reply was cut off at the length limit. Finish with a shorter summary." };
-        task = await deps2.store.updateTask(task.id, { transcript: [...transcript, nudge] });
+        task = await deps.store.updateTask(task.id, { transcript: [...transcript, nudge] });
         continue;
       }
-      task = await deps2.store.updateTask(task.id, { transcript, status: "done", output: textOf(resp.content), pending: null });
-      await audit(deps2.store, task.orgId, agent.id, "task.done", task.id, { output: task.output, queued: queued.length });
+      task = await deps.store.updateTask(task.id, { transcript, status: "done", output: textOf(resp.content), pending: null });
+      await audit(deps.store, task.orgId, agent.id, "task.done", task.id, { output: task.output, queued: queued.length });
       return { task, approvals: queued, approval: queued[0] };
     }
-    task = await deps2.store.updateTask(task.id, { transcript });
-    const step = await processToolUses(deps2, task, agent, types, uses, []);
+    task = await deps.store.updateTask(task.id, { transcript });
+    const step = await processToolUses(deps, task, agent, types, uses, []);
     queued.push(...step.approvals);
-    task = await deps2.store.updateTask(task.id, { transcript: [...transcript, { role: "user", content: step.results }] });
+    task = await deps.store.updateTask(task.id, { transcript: [...transcript, { role: "user", content: step.results }] });
   }
-  task = await deps2.store.updateTask(task.id, { status: "failed", output: `Stopped after ${maxTurns} turns without finishing.` });
-  await audit(deps2.store, task.orgId, agent.id, "task.failed", task.id, { reason: "turn limit" });
+  task = await deps.store.updateTask(task.id, { status: "failed", output: `Stopped after ${maxTurns} turns without finishing.` });
+  await audit(deps.store, task.orgId, agent.id, "task.failed", task.id, { reason: "turn limit" });
   return { task, approvals: queued, approval: queued[0] };
 }
-async function decide(deps2, approvalId, d) {
-  const approval = await deps2.store.getApproval(approvalId);
+async function decide(deps, approvalId, d) {
+  const approval = await deps.store.getApproval(approvalId);
   if (!approval) throw new Error("Approval not found");
   if (approval.status !== "pending") throw new Error("Approval already decided");
-  const task = await deps2.store.getTask(approval.taskId);
+  const task = await deps.store.getTask(approval.taskId);
   if (!task) throw new Error("Task not found");
   const agent = getAgent(task.agentId);
-  const decided = await deps2.store.updateApproval(approvalId, {
+  const decided = await deps.store.updateApproval(approvalId, {
     status: d.approved ? "approved" : "rejected",
     edited: d.edited ?? null,
     reason: d.reason ?? null,
     decidedBy: d.by,
     decidedAt: nowIso()
   });
-  await audit(deps2.store, task.orgId, d.by, d.approved ? "approval.approved" : "approval.rejected", task.id, { approvalId, summary: approval.summary, reason: d.reason ?? null, edited: Boolean(d.edited) });
-  const proposal = await recordDecision(deps2.store, decided, agent.id);
-  if (task.pending?.approvalId === approvalId) return { ...await resumeLegacy(deps2, task, agent, approval, d), proposal };
+  await audit(deps.store, task.orgId, d.by, d.approved ? "approval.approved" : "approval.rejected", task.id, { approvalId, summary: approval.summary, reason: d.reason ?? null, edited: Boolean(d.edited) });
+  const proposal = await recordDecision(deps.store, decided, agent.id);
+  if (task.pending?.approvalId === approvalId) return { ...await resumeLegacy(deps, task, agent, approval, d), proposal };
   if (d.approved && approval.kind === "approve") {
     const tool = toolForTaskType(approval.taskType);
     if (!tool) throw new Error(`No tool for ${approval.taskType}`);
     const input = { ...approval.proposed, ...d.edited ?? {} };
-    await executeTool(deps2, task, agent, { type: "tool_use", id: `approval-${approvalId}`, name: tool.spec.name, input });
+    await executeTool(deps, task, agent, { type: "tool_use", id: `approval-${approvalId}`, name: tool.spec.name, input });
   }
-  return { task: await deps2.store.getTask(task.id), proposal };
+  return { task: await deps.store.getTask(task.id), proposal };
 }
-async function resumeLegacy(deps2, task, agent, approval, d) {
+async function resumeLegacy(deps, task, agent, approval, d) {
   const p = task.pending;
   const use = { type: "tool_use", id: p.toolUseId, name: p.tool, input: p.input };
   let result;
@@ -1382,13 +1382,13 @@ async function resumeLegacy(deps2, task, agent, approval, d) {
   } else if (approval.kind === "draft") {
     result = { type: "tool_result", tool_use_id: p.toolUseId, content: "A person accepted this draft and will carry it out themselves." };
   } else {
-    result = await executeTool(deps2, task, agent, use, d.edited ?? void 0);
+    result = await executeTool(deps, task, agent, use, d.edited ?? void 0);
   }
-  const types = new Map((await deps2.store.getTaskTypes(task.orgId)).map((t) => [t.key, t]));
-  const resumed = await deps2.store.updateTask(task.id, { pending: null, status: "running" });
-  const step = await processToolUses(deps2, resumed, agent, types, p.remaining ?? [], [...p.priorResults ?? [], result]);
-  await deps2.store.updateTask(task.id, { transcript: [...resumed.transcript, { role: "user", content: step.results }] });
-  return runTask(deps2, task.id);
+  const types = new Map((await deps.store.getTaskTypes(task.orgId)).map((t) => [t.key, t]));
+  const resumed = await deps.store.updateTask(task.id, { pending: null, status: "running" });
+  const step = await processToolUses(deps, resumed, agent, types, p.remaining ?? [], [...p.priorResults ?? [], result]);
+  await deps.store.updateTask(task.id, { transcript: [...resumed.transcript, { role: "user", content: step.results }] });
+  return runTask(deps, task.id);
 }
 
 // core/model.ts
@@ -1610,6 +1610,27 @@ function taskTypeRow(orgId, t) {
   };
 }
 
+// core/automation.ts
+var PATH_RE = /^[a-z0-9][a-z0-9-]{2,59}$/;
+async function automationPath(store2, orgId) {
+  const last = (await store2.listAuditByActions(orgId, ["settings.automation"])).at(-1);
+  const p = last?.detail.path;
+  return typeof p === "string" && PATH_RE.test(p) ? p : null;
+}
+function webhookFor(baseUrl, path) {
+  if (!baseUrl || !path) return void 0;
+  return `${new URL(baseUrl).origin}/webhook/${path}`;
+}
+function defaultPath(baseUrl) {
+  if (!baseUrl) return null;
+  const last = new URL(baseUrl).pathname.split("/").filter(Boolean).at(-1) ?? "";
+  return PATH_RE.test(last) ? last : null;
+}
+function isAdmin(email, adminEmails) {
+  if (!email || !adminEmails) return false;
+  return adminEmails.split(",").map((e) => e.trim().toLowerCase()).filter(Boolean).includes(email.trim().toLowerCase());
+}
+
 // server/context.ts
 var env = (k) => {
   const v = process.env[k];
@@ -1643,13 +1664,16 @@ function store() {
   if (!url || !key) throw new HttpError(503, "The platform database is not configured yet");
   return new SupabaseStore(url, key);
 }
-function deps(s) {
+async function depsFor(s, orgId, label) {
   const apiKey = env("ANTHROPIC_API_KEY");
   if (!apiKey) throw new HttpError(503, "The AI model is not configured yet");
+  const base = env("N8N_WEBHOOK_URL");
+  const [assigned, profile] = await Promise.all([automationPath(s, orgId), loadBusinessProfile(s, orgId)]);
+  const path = assigned ?? (isAdmin(label, env("ADMIN_EMAILS")) ? defaultPath(base) : null);
   return {
     store: s,
     model: new AnthropicClient({ apiKey, models: modelsFromEnv(process.env) }),
-    integrations: webhookIntegrations(env("N8N_WEBHOOK_URL"), env("N8N_WEBHOOK_SECRET")),
+    integrations: webhookIntegrations(webhookFor(base, path), env("N8N_WEBHOOK_SECRET"), fetch, { orgId, name: profile?.name }),
     journey: journeyOptions()
   };
 }
@@ -1710,7 +1734,7 @@ var POST = handle(async (request) => {
     throw new HttpError(400, "edited must be an object");
   }
   const reason = typeof body.reason === "string" ? body.reason.slice(0, 1e3) : null;
-  const res = await decide(deps(store2), approval.id, { approved: body.approved, edited: body.edited ?? null, reason, by: label });
+  const res = await decide(await depsFor(store2, orgId, label), approval.id, { approved: body.approved, edited: body.edited ?? null, reason, by: label });
   return json({ task: { ...res.task, transcript: void 0 }, nextApproval: res.approval ?? null, promotion: res.proposal });
 });
 export {

@@ -2,6 +2,8 @@
 import { AnthropicClient, modelsFromEnv } from '../core/model.js';
 import { SupabaseStore, verifyUser } from '../core/supabase-store.js';
 import { webhookIntegrations } from '../core/tools.js';
+import { automationPath, defaultPath, isAdmin, webhookFor } from '../core/automation.js';
+import { loadBusinessProfile } from '../core/profile.js';
 import type { RuntimeDeps } from '../core/runtime.js';
 
 const env = (k: string): string | undefined => {
@@ -54,15 +56,27 @@ export function store(): SupabaseStore {
   return new SupabaseStore(url, key);
 }
 
-export function deps(s: SupabaseStore): RuntimeDeps {
+/**
+ * Runtime wiring for one business. Approved actions go to that business's own n8n workflow;
+ * an admin's own business falls back to the default path in N8N_WEBHOOK_URL. Any other business
+ * without an assigned workflow is recorded, never sent.
+ */
+export async function depsFor(s: SupabaseStore, orgId: string, label: string): Promise<RuntimeDeps> {
   const apiKey = env('ANTHROPIC_API_KEY');
   if (!apiKey) throw new HttpError(503, 'The AI model is not configured yet');
+  const base = env('N8N_WEBHOOK_URL');
+  const [assigned, profile] = await Promise.all([automationPath(s, orgId), loadBusinessProfile(s, orgId)]);
+  const path = assigned ?? (isAdmin(label, env('ADMIN_EMAILS')) ? defaultPath(base) : null);
   return {
     store: s,
     model: new AnthropicClient({ apiKey, models: modelsFromEnv(process.env) }),
-    integrations: webhookIntegrations(env('N8N_WEBHOOK_URL'), env('N8N_WEBHOOK_SECRET')),
+    integrations: webhookIntegrations(webhookFor(base, path), env('N8N_WEBHOOK_SECRET'), fetch, { orgId, name: profile?.name }),
     journey: journeyOptions(),
   };
+}
+
+export function requireAdmin(label: string): void {
+  if (!isAdmin(label, env('ADMIN_EMAILS'))) throw new HttpError(403, 'Admins only');
 }
 
 /** Journey settings from the environment: INR_PER_USD converts rupee revenue for stage gates (default 85). */
