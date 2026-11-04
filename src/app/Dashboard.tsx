@@ -378,8 +378,18 @@ function ApprovalCard({ a, onDone }: { a: Approval; onDone: () => void }) {
   );
 }
 
+interface Progress { taskType: string; level: number; maxLevel: number; streak: number; needed: number | null; proposal: { to: number; because: string } | null }
+
+/** "12 of 15 clean approvals", or a clear prompt once the next level is earned. */
+function EarnedCell({ p }: { p?: Progress }) {
+  if (!p || p.needed === null) return <span className="muted small">Highest level</span>;
+  if (p.proposal) return <span className="earned">Earned {LEVEL[p.proposal.to]}: {p.proposal.because}. Press Raise to confirm.</span>;
+  if (p.needed === 0) return <span className="muted small">—</span>;
+  return <span className="muted small">{Math.min(p.streak, p.needed)} of {p.needed} approvals with no edits</span>;
+}
+
 function Agents() {
-  const { data, error, reload } = useLoad<{ agents: AgentInfo[]; taskTypes: TaskType[]; tasks: TaskRow[] }>('/api/agents');
+  const { data, error, reload } = useLoad<{ agents: AgentInfo[]; taskTypes: TaskType[]; tasks: TaskRow[]; progress?: Progress[] }>('/api/agents');
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   if (error) return <p className="error">{error}</p>;
@@ -402,15 +412,16 @@ function Agents() {
     <div className="stack">
       <section className="panel glass-card">
         <h2>Autonomy</h2>
-        <p className="muted small">Each kind of action earns autonomy on its own. Money stays capped at L2.</p>
+        <p className="muted small">Each kind of action earns autonomy on its own: approvals with no edits count up, and any edit or rejection starts the count again. Nothing is upgraded until you press Raise. Money stays capped at L2.</p>
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Action</th><th>Level</th><th>Change</th></tr></thead>
+            <thead><tr><th>Action</th><th>Level</th><th>Earned so far</th><th>Change</th></tr></thead>
             <tbody>
               {data.taskTypes.map((t) => (
                 <tr key={t.key}>
                   <td>{t.label}</td>
                   <td><span className={`lvl lvl-${t.level}`}>{LEVEL[t.level]}</span></td>
+                  <td><EarnedCell p={data.progress?.find((x) => x.taskType === t.key)} /></td>
                   <td className="nowrap">
                     <button type="button" className="btn-mini" disabled={busy === t.key || t.level <= 1} onClick={() => setLevel(t, t.level - 1)} aria-label={`Lower ${t.label}`}>Lower</button>
                     <button type="button" className="btn-mini" disabled={busy === t.key || t.level >= t.maxLevel} onClick={() => setLevel(t, t.level + 1)} aria-label={`Raise ${t.label}`}>Raise</button>

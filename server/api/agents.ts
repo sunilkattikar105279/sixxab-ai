@@ -1,16 +1,18 @@
 // POST /api/agents  { goal, agentId? }  → runs the Founder Orchestrator (or one agent) for the signed-in user's company.
-// GET  /api/agents  → the agent roster and the company's autonomy levels.
+// GET  /api/agents  → the agent roster, the company's autonomy levels and progress toward the next level.
 import { AGENTS, getAgent } from '../../core/agents.js';
 import { planGoal, settleParent } from '../../core/orchestrator.js';
 import { createTask, runTask } from '../../core/runtime.js';
+import { autonomyProgress } from '../../core/learning.js';
 import { deps, handle, HttpError, json, readJson, requireUser } from '../context.js';
 
 export const GET = handle(async (request) => {
   const { orgId, store } = await requireUser(request);
-  const [taskTypes, tasks] = await Promise.all([store.getTaskTypes(orgId), store.listTasks(orgId)]);
+  const [taskTypes, tasks, progress] = await Promise.all([store.getTaskTypes(orgId), store.listTasks(orgId), autonomyProgress(store, orgId)]);
   return json({
     agents: AGENTS.map(({ instructions: _i, ...a }) => a),
     taskTypes,
+    progress,
     tasks: tasks.slice(0, 50).map(({ transcript: _t, ...t }) => t),
   });
 });

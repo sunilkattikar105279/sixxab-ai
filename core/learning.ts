@@ -1,5 +1,5 @@
 // Learning loop: every human decision becomes feedback, eval data and (when earned) a promotion proposal.
-import { levelAfterRejection, proposePromotion } from './policy.js';
+import { cleanStreak, levelAfterRejection, proposePromotion } from './policy.js';
 import { newId, nowIso, type Store } from './store.js';
 import type { Approval, PromotionProposal } from './types.js';
 
@@ -39,4 +39,33 @@ export async function applyPromotion(store: Store, orgId: string, p: PromotionPr
 export async function evalCases(store: Store, orgId: string) {
   const fb = await store.listFeedback(orgId);
   return fb.filter((f) => f.outcome === 'approved_with_edits').map((f) => ({ taskType: f.taskType, agentId: f.agentId, proposed: f.proposed, expected: f.final }));
+}
+
+export interface AutonomyProgress {
+  taskType: string;
+  level: number;
+  maxLevel: number;
+  /** Approvals in a row with no edits, most recent first. */
+  streak: number;
+  /** Clean approvals needed for the next level, or null when already at the highest allowed level. */
+  needed: number | null;
+  /** Set once the next level is earned; a person still has to confirm it. */
+  proposal: PromotionProposal | null;
+}
+
+/** How close each kind of action is to its next autonomy level. */
+export async function autonomyProgress(store: Store, orgId: string): Promise<AutonomyProgress[]> {
+  const [types, feedback] = await Promise.all([store.getTaskTypes(orgId), store.listFeedback(orgId)]);
+  return types.map((t) => {
+    const history = feedback.filter((f) => f.taskType === t.key);
+    const atMax = t.level >= t.maxLevel;
+    return {
+      taskType: t.key,
+      level: t.level,
+      maxLevel: t.maxLevel,
+      streak: cleanStreak(history),
+      needed: atMax ? null : t.approvalsToPromote,
+      proposal: proposePromotion(t, history),
+    };
+  });
 }

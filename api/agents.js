@@ -158,6 +158,28 @@ function effectiveGate(taskType, amountMinor) {
   if (!spend.allowed) return level === 1 ? "draft_for_human" : "await_approval";
   return gateFor(level);
 }
+function cleanStreak(history) {
+  const sorted = [...history].sort((a, b) => a.at < b.at ? 1 : -1);
+  let n = 0;
+  for (const f of sorted) {
+    if (f.outcome !== "approved") break;
+    n++;
+  }
+  return n;
+}
+function proposePromotion(taskType, history) {
+  const relevant = history.filter((f) => f.taskType === taskType.key);
+  if (taskType.level >= taskType.maxLevel) return null;
+  const streak = cleanStreak(relevant);
+  if (streak < taskType.approvalsToPromote) return null;
+  const to = taskType.level + 1;
+  return {
+    taskType: taskType.key,
+    from: taskType.level,
+    to,
+    because: `${streak} approvals in a row with no edits`
+  };
+}
 var DEFAULT_TASK_TYPES = [
   { key: "internal_note", label: "Write an internal note or plan", level: 3, risk: "internal", approvalsToPromote: 0, maxLevel: 3 },
   { key: "memory_write", label: "Save a fact to company memory", level: 3, risk: "internal", approvalsToPromote: 0, maxLevel: 3 },
@@ -335,6 +357,23 @@ function webhookIntegrations(url, secret, fetchImpl = fetch) {
       return receipt?.message ?? `Dispatched "${action}"`;
     }
   };
+}
+
+// core/learning.ts
+async function autonomyProgress(store2, orgId) {
+  const [types, feedback] = await Promise.all([store2.getTaskTypes(orgId), store2.listFeedback(orgId)]);
+  return types.map((t) => {
+    const history = feedback.filter((f) => f.taskType === t.key);
+    const atMax = t.level >= t.maxLevel;
+    return {
+      taskType: t.key,
+      level: t.level,
+      maxLevel: t.maxLevel,
+      streak: cleanStreak(history),
+      needed: atMax ? null : t.approvalsToPromote,
+      proposal: proposePromotion(t, history)
+    };
+  });
 }
 
 // core/profile.ts
@@ -845,10 +884,11 @@ function handle(fn) {
 // server/api/agents.ts
 var GET = handle(async (request) => {
   const { orgId, store: store2 } = await requireUser(request);
-  const [taskTypes, tasks] = await Promise.all([store2.getTaskTypes(orgId), store2.listTasks(orgId)]);
+  const [taskTypes, tasks, progress] = await Promise.all([store2.getTaskTypes(orgId), store2.listTasks(orgId), autonomyProgress(store2, orgId)]);
   return json({
     agents: AGENTS.map(({ instructions: _i, ...a }) => a),
     taskTypes,
+    progress,
     tasks: tasks.slice(0, 50).map(({ transcript: _t, ...t }) => t)
   });
 });

@@ -419,3 +419,20 @@ test('an approved post that n8n fails to publish shows up in the log with the re
   assert.match(String(ev!.detail.error), /X account not connected/);
   assert.ok(!store.auditLog.some((e) => e.action === 'tool.executed' && e.detail.tool === 'publish_post'));
 });
+
+test('autonomy progress shows clean approvals so far and when an upgrade is earned', async () => {
+  const { autonomyProgress } = await import('../core/learning.js');
+  const { store } = setup([]);
+  for (let i = 0; i < 14; i++) await store.addFeedback(fb('approved', `2026-11-01T00:00:${String(i).padStart(2, '0')}Z`));
+  await store.addFeedback(fb('approved_with_edits', '2026-11-02T00:00:00Z', 'send_message'));
+  let p = await autonomyProgress(store, ORG);
+  const post = p.find((x) => x.taskType === 'publish_post')!;
+  assert.deepEqual([post.streak, post.needed, post.proposal], [14, 15, null]);
+  assert.equal(p.find((x) => x.taskType === 'send_message')!.streak, 0, 'an edit resets the streak');
+  assert.equal(p.find((x) => x.taskType === 'internal_note')!.needed, null, 'already at its highest level');
+  assert.equal(p.find((x) => x.taskType === 'spend_money')!.maxLevel, 2, 'money tops out at approval');
+
+  await store.addFeedback(fb('approved', '2026-11-03T00:00:00Z'));
+  p = await autonomyProgress(store, ORG);
+  assert.deepEqual(p.find((x) => x.taskType === 'publish_post')!.proposal, { taskType: 'publish_post', from: 2, to: 3, because: '15 approvals in a row with no edits' });
+});

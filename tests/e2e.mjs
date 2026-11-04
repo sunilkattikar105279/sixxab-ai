@@ -96,7 +96,7 @@ async function mockServices(ctx, state) {
       state.ran = [...(state.ran ?? []), body.taskId];
       return r.fulfill({ json: body.taskId === 't1' ? { status: 'done', output: 'Plan saved.', queued: 0 } : { status: 'done', output: 'Post queued.', queued: 1 } });
     }
-    return r.fulfill({ json: { agents: [{ id: 'cmo', name: 'CMO agent', layer: 'cxo', job: 'Owns marketing' }], taskTypes: [{ key: 'publish_post', label: 'Publish a social post', level: 2, maxLevel: 3 }], tasks: state.leftover ?? [] } });
+    return r.fulfill({ json: { agents: [{ id: 'cmo', name: 'CMO agent', layer: 'cxo', job: 'Owns marketing' }], taskTypes: [{ key: 'publish_post', label: 'Publish a social post', level: 2, maxLevel: 3 }], progress: [{ taskType: 'publish_post', level: 2, maxLevel: 3, streak: 12, needed: 15, proposal: null }], tasks: state.leftover ?? [] } });
   });
   await ctx.route('**/api/profile', async (r) => {
     const fields = [{ key: 'name', label: 'Company name' }, { key: 'offer', label: 'What we sell' }, { key: 'customers', label: 'Who we sell to' }];
@@ -176,6 +176,7 @@ await check('workspace: run a goal, edit and approve, see agents and activity', 
   assert.equal(state.decisions[0].approved, true);
   assert.equal(state.decisions[0].edited.text, 'We are live! Book a call at sixxab.ai');
   await page.getByRole('button', { name: 'Agents' }).click();
+  await page.getByText('12 of 15 approvals with no edits').waitFor();
   await page.getByText('L2 Approve').waitFor();
   await page.screenshot({ path: `${SHOTS}/app-agents.png` });
   await page.getByRole('button', { name: 'Activity' }).click();

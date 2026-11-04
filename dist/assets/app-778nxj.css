@@ -112,3 +112,4 @@ th { color: var(--sub); font-weight: 500; font-size: 12px; text-transform: upper
 .error-inline { color: var(--bad); }
 .receipt { color: var(--good, #2bb673); word-break: break-word; }
 .receipt a { color: inherit; text-decoration: underline; }
+.earned { color: var(--good); font-weight: 600; }
