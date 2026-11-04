@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { api, getSession, sessionFromRedirect, signOut, type Session } from '../lib/auth';
 import type { Approval, AuditEvent, Briefing, RoleCard, TaskType } from '../../core/types';
 import { Brand, Spinner } from './ui';
+import { BusinessProfile } from './BusinessProfile';
+import { useLoad } from './useLoad';
 
 type Tab = 'today' | 'approvals' | 'agents' | 'activity';
 type AgentInfo = Omit<RoleCard, 'instructions'>;
@@ -59,105 +61,13 @@ export default function Dashboard() {
   );
 }
 
-function useLoad<T>(path: string) {
-  const [data, setData] = useState<T | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const reload = useCallback(() => {
-    setError(null);
-    api<T>(path).then(setData).catch((e: Error) => setError(e.message));
-  }, [path]);
-  useEffect(reload, [reload]);
-  return { data, error, reload };
-}
-
-interface ProfileField { key: string; label: string }
-const HINTS: Record<string, string> = {
-  name: 'e.g. SIXXAB AI',
-  offer: 'e.g. AI agents that start, scale and run a company, with a founder approving what matters',
-  customers: 'e.g. Solo founders and small businesses; healthcare clinics',
-  markets: 'e.g. United States and India',
-  voice: 'e.g. Confident, plain-spoken, practical; no hype',
-  goals: 'e.g. 10 paying Founder-plan customers and 3 certified consultants',
-  budget: 'e.g. $1,000 per month',
-  links: 'e.g. https://sixxab.ai, linkedin.com/in/…',
-};
-
-function CompanyProfileCard() {
-  const { data, error, reload } = useLoad<{ profile: Record<string, string> | null; fields: ProfileField[] }>('/api/profile');
-  const [editing, setEditing] = useState(false);
-  const [vals, setVals] = useState<Record<string, string>>({});
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!data) return;
-    setVals(data.profile ?? {});
-    if (!data.profile) setEditing(true);
-  }, [data]);
-
-  if (error) return <p className="error">{error}</p>;
-  if (!data) return null;
-
-  async function save(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setMsg(null);
-    try {
-      await api('/api/profile', { method: 'POST', body: JSON.stringify(vals) });
-      setEditing(false);
-      reload();
-    } catch (err) {
-      setMsg(err instanceof Error ? err.message : 'Could not save.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (!editing && data.profile) {
-    return (
-      <section className="panel glass-card">
-        <div className="row-between">
-          <h2>About your company</h2>
-          <button type="button" className="btn-ghost" onClick={() => setEditing(true)}>Edit</button>
-        </div>
-        <p className="muted small">Every agent reads this before it works.</p>
-        <dl className="profile-list">
-          {data.fields.filter((f) => data.profile?.[f.key]).map((f) => (
-            <div key={f.key}><dt>{f.label}</dt><dd>{data.profile![f.key]}</dd></div>
-          ))}
-        </dl>
-      </section>
-    );
-  }
-
-  return (
-    <section className="panel glass-card">
-      <h2>{data.profile ? 'Edit your company profile' : 'First, tell your agents about your company'}</h2>
-      <p className="muted small">Every agent reads this before it works. Two minutes here makes every plan and post specific to you.</p>
-      <form onSubmit={save} className="form">
-        <div className="grid2">
-          {data.fields.map((f) => (
-            <label key={f.key} className="field">
-              <span>{f.label}{f.key === 'name' || f.key === 'offer' ? ' *' : ''}</span>
-              {f.key === 'offer' || f.key === 'customers' || f.key === 'goals' ? (
-                <textarea rows={2} placeholder={HINTS[f.key]} value={vals[f.key] ?? ''} maxLength={1000} onChange={(e) => setVals({ ...vals, [f.key]: e.target.value })} />
-              ) : (
-                <input placeholder={HINTS[f.key]} value={vals[f.key] ?? ''} maxLength={1000} onChange={(e) => setVals({ ...vals, [f.key]: e.target.value })} />
-              )}
-            </label>
-          ))}
-        </div>
-        <div className="row-end">
-          {data.profile && <button type="button" className="btn-ghost" onClick={() => { setVals(data.profile ?? {}); setEditing(false); }}>Cancel</button>}
-          <button type="submit" className="btn-primary" disabled={busy || !vals.name?.trim() || !vals.offer?.trim()}>{busy ? <Spinner label="Saving…" /> : 'Save profile'}</button>
-        </div>
-        {msg && <p className="error" role="alert">{msg}</p>}
-      </form>
-    </section>
-  );
-}
 
 interface Step { taskId: string; agentId: string; goal: string; status: string; output?: string | null; queued?: number }
+
+/** ?journey=start|scale|run, set after signing in from the landing page. */
+function journeyFromUrl(): string | null {
+  return new URLSearchParams(location.search).get('journey');
+}
 
 function Today({ onPending, goApprovals }: { onPending: (n: number) => void; goApprovals: () => void }) {
   const brief = useLoad<{ briefing: Briefing }>('/api/briefing');
@@ -234,9 +144,9 @@ function Today({ onPending, goApprovals }: { onPending: (n: number) => void; goA
   const b = brief.data?.briefing;
   return (
     <div className="stack">
-      <CompanyProfileCard />
+      <BusinessProfile startOpen={journeyFromUrl() === 'start'} />
       <section className="panel glass-card">
-        <h2>What should your company get done?</h2>
+        <h2>What should your business get done?</h2>
         <form onSubmit={submit} className="goal-form">
           <label className="sr-only" htmlFor="goal">Goal</label>
           <textarea id="goal" rows={3} placeholder="e.g. Plan our launch week and draft three LinkedIn posts" value={goal} onChange={(e) => setGoal(e.target.value)} maxLength={4000} />

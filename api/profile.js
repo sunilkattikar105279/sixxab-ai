@@ -9,17 +9,83 @@ function nowIso() {
 }
 
 // core/profile.ts
-var PROFILE_PREFIX = "Company profile";
-var PROFILE_FIELDS = [
-  { key: "name", label: "Company name" },
-  { key: "offer", label: "What we sell" },
-  { key: "customers", label: "Who we sell to" },
-  { key: "markets", label: "Markets" },
-  { key: "voice", label: "Brand voice" },
-  { key: "goals", label: "Goals for the next 90 days" },
-  { key: "budget", label: "Monthly marketing budget" },
-  { key: "links", label: "Website and social links" }
+var INDUSTRIES = [
+  "Healthcare: hospital or clinic",
+  "Healthcare: laboratory or diagnostics",
+  "Professional services",
+  "Home services",
+  "Retail or e-commerce",
+  "Real estate",
+  "Technology or software",
+  "Education or coaching",
+  "Food and hospitality",
+  "Other"
 ];
+var BUSINESS_STAGES = [
+  "Idea, not launched yet",
+  "Launched, no paying customers yet",
+  "Paying customers",
+  "Growing steadily"
+];
+var PROFILE_SECTIONS = [
+  {
+    title: "Basics",
+    fields: [
+      { key: "name", label: "Business name", kind: "text", required: true, aliases: ["Company name"] },
+      { key: "industry", label: "Industry", kind: "choice", options: INDUSTRIES },
+      { key: "businessStage", label: "Where the business is today", kind: "choice", options: BUSINESS_STAGES },
+      { key: "location", label: "City and country", kind: "text", hint: "e.g. Tasgaon, Sangli, India" },
+      { key: "founded", label: "Year started", kind: "number" },
+      { key: "team", label: "Team size", kind: "text", hint: "e.g. 1 founder, 2 staff" }
+    ]
+  },
+  {
+    title: "Offer",
+    fields: [
+      { key: "offer", label: "What you sell", kind: "long", required: true, aliases: ["What we sell"], hint: "Your main products or services, in plain words" },
+      { key: "pricing", label: "Prices", kind: "text", hint: "e.g. Consultation \u20B9500, packages from \u20B95,000" }
+    ]
+  },
+  {
+    title: "Customers",
+    fields: [
+      { key: "customers", label: "Who you sell to", kind: "long", aliases: ["Who we sell to"], hint: "Who buys, where they are, why they choose you" },
+      { key: "sources", label: "Where customers come from today", kind: "text", hint: "e.g. referrals, Google search, walk-ins" },
+      { key: "markets", label: "Markets", kind: "text", aliases: ["Markets"], hint: "Cities, regions or countries you serve" }
+    ]
+  },
+  {
+    title: "Numbers",
+    fields: [
+      { key: "currency", label: "Currency", kind: "choice", options: ["USD", "INR"] },
+      { key: "revenueMonthly", label: "Revenue last month", kind: "number", hint: "Whole amount, e.g. 250000" },
+      { key: "revenueGoal", label: "Monthly revenue goal in 90 days", kind: "number" },
+      { key: "budget", label: "Monthly marketing budget", kind: "text", aliases: ["Monthly marketing budget"] }
+    ]
+  },
+  {
+    title: "Goals",
+    fields: [
+      { key: "goals", label: "Main goal for the next 90 days", kind: "long", aliases: ["Goals for the next 90 days"] },
+      { key: "problem", label: "Biggest thing holding you back", kind: "long" }
+    ]
+  },
+  {
+    title: "Brand and channels",
+    fields: [
+      { key: "voice", label: "Brand voice", kind: "text", aliases: ["Brand voice"], hint: "e.g. Warm, expert, simple English and Marathi" },
+      { key: "links", label: "Website", kind: "text", aliases: ["Website and social links"] },
+      { key: "whatsapp", label: "WhatsApp Business number", kind: "text" },
+      { key: "googleProfile", label: "Google Business Profile link", kind: "text" },
+      { key: "instagram", label: "Instagram", kind: "text" },
+      { key: "facebook", label: "Facebook page", kind: "text" },
+      { key: "linkedin", label: "LinkedIn", kind: "text" }
+    ]
+  }
+];
+var PROFILE_FIELDS = PROFILE_SECTIONS.flatMap((s) => s.fields);
+var PROFILE_PREFIX = "Business profile";
+var LEGACY_PREFIX = "Company profile";
 var MAX_FIELD = 1e3;
 function profileText(p) {
   const lines = PROFILE_FIELDS.map(({ key, label }) => {
@@ -33,19 +99,44 @@ function parseProfile(text) {
   for (const line of text.split("\n").slice(1)) {
     const i = line.indexOf(": ");
     if (i < 0) continue;
-    const field = PROFILE_FIELDS.find((f) => f.label === line.slice(0, i));
+    const label = line.slice(0, i);
+    const field = PROFILE_FIELDS.find((f) => f.label === label) ?? PROFILE_FIELDS.find((f) => f.aliases?.includes(label));
     if (field) out[field.key] = line.slice(i + 2);
   }
   return out;
 }
-async function saveCompanyProfile(store2, orgId, p, by) {
+function validateProfileInput(body) {
+  const out = {};
+  for (const f of PROFILE_FIELDS) {
+    const raw = body[f.key];
+    if (raw === void 0 || raw === null || raw === "") continue;
+    if (typeof raw !== "string" && typeof raw !== "number") throw new Error(`${f.label} must be text`);
+    const v = String(raw).trim().slice(0, MAX_FIELD);
+    if (!v) continue;
+    if (f.kind === "choice" && !f.options.includes(v)) throw new Error(`${f.label} (${f.key}) must be one of: ${f.options.join(", ")}`);
+    if (f.kind === "number" && !/^\d[\d,]*(\.\d+)?$/.test(v)) throw new Error(`${f.label} must be a number`);
+    out[f.key] = v;
+  }
+  for (const f of PROFILE_FIELDS.filter((x) => x.required)) if (!out[f.key]) throw new Error(`${f.label} is required`);
+  return out;
+}
+function profileCompleteness(p) {
+  const missing = PROFILE_FIELDS.filter((f) => !p[f.key]).map((f) => f.label);
+  return { percent: Math.round(100 * (PROFILE_FIELDS.length - missing.length) / PROFILE_FIELDS.length), missing };
+}
+async function saveBusinessProfile(store2, orgId, p, by) {
   const text = profileText(p);
   await store2.remember({ id: newId(), orgId, kind: "fact", text, agentId: null, at: nowIso() });
-  await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "profile.updated", taskId: null, detail: { summary: "Company profile updated" } });
+  await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "profile.updated", taskId: null, detail: { summary: "Business profile updated" } });
   return parseProfile(text);
 }
-async function loadCompanyProfile(store2, orgId) {
-  const m = await store2.latestMemoryWithPrefix(orgId, PROFILE_PREFIX);
+async function latestProfileMemory(store2, orgId) {
+  const [now, old] = await Promise.all([store2.latestMemoryWithPrefix(orgId, PROFILE_PREFIX), store2.latestMemoryWithPrefix(orgId, LEGACY_PREFIX)]);
+  if (now && old) return now.at >= old.at ? now : old;
+  return now ?? old;
+}
+async function loadBusinessProfile(store2, orgId) {
+  const m = await latestProfileMemory(store2, orgId);
   return m ? parseProfile(m.text) : null;
 }
 
@@ -297,20 +388,25 @@ function handle(fn) {
 // server/api/profile.ts
 var GET = handle(async (request) => {
   const { orgId, store: store2 } = await requireUser(request);
-  return json({ profile: await loadCompanyProfile(store2, orgId), fields: PROFILE_FIELDS });
+  const profile = await loadBusinessProfile(store2, orgId);
+  return json({
+    profile,
+    sections: PROFILE_SECTIONS,
+    fields: PROFILE_FIELDS,
+    completeness: profile ? profileCompleteness(profile) : { percent: 0, missing: PROFILE_FIELDS.map((f) => f.label) }
+  });
 });
 var POST = handle(async (request) => {
   const { orgId, label, store: store2 } = await requireUser(request);
   const body = await readJson(request);
-  const profile = {};
-  for (const { key } of PROFILE_FIELDS) {
-    const v = body[key];
-    if (v === void 0 || v === null || v === "") continue;
-    if (typeof v !== "string") throw new HttpError(400, `${key} must be text`);
-    profile[key] = v.slice(0, 1e3);
+  let input;
+  try {
+    input = validateProfileInput(body);
+  } catch (e) {
+    throw new HttpError(400, e instanceof Error ? e.message : "Invalid profile");
   }
-  if (!profile.name || !profile.offer) throw new HttpError(400, "Company name and what you sell are required");
-  return json({ profile: await saveCompanyProfile(store2, orgId, profile, label) });
+  const profile = await saveBusinessProfile(store2, orgId, input, label);
+  return json({ profile, completeness: profileCompleteness(profile) });
 });
 export {
   GET,

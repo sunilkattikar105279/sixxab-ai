@@ -504,3 +504,47 @@ test('after sign-in, ?next=start|scale|run opens that part of the workspace; any
   assert.equal(afterSignInPath(''), '/app');
   assert.equal(afterSignInPath('?next=https://evil.example'), '/app', 'never an open redirect');
 });
+
+// ---------- business onboarding profile ----------
+
+test('the business profile collects onboarding sections and reports what is still missing', async () => {
+  const { saveBusinessProfile, loadBusinessProfile, PROFILE_SECTIONS, profileCompleteness } = await import('../core/profile.js');
+  const { store } = setup([]);
+  assert.deepEqual(PROFILE_SECTIONS.map((s) => s.title), ['Basics', 'Offer', 'Customers', 'Numbers', 'Goals', 'Brand and channels']);
+  const p = { name: 'Radhakrishna Ortho', industry: 'Healthcare: hospital or clinic', businessStage: 'Paying customers', offer: 'Orthopaedic care', location: 'Tasgaon, Sangli, India', currency: 'INR', revenueMonthly: '450000' };
+  await saveBusinessProfile(store, ORG, p, 'sunil');
+  const back = await loadBusinessProfile(store, ORG);
+  assert.equal(back?.industry, 'Healthcare: hospital or clinic');
+  assert.equal(back?.revenueMonthly, '450000');
+  const c = profileCompleteness(back!);
+  assert.ok(c.percent > 0 && c.percent < 100);
+  assert.ok(c.missing.includes('Who you sell to'));
+  assert.equal(store.auditLog.at(-1)?.detail.summary, 'Business profile updated');
+});
+
+test('a profile saved under the old "Company profile" name still loads', async () => {
+  const { loadBusinessProfile } = await import('../core/profile.js');
+  const { store } = setup([]);
+  await store.remember({ id: 'm1', orgId: ORG, kind: 'fact', text: 'Company profile\nCompany name: SIXXAB AI\nWhat we sell: AI agents', agentId: null, at: '2026-11-01T00:00:00Z' });
+  const p = await loadBusinessProfile(store, ORG);
+  assert.equal(p?.name, 'SIXXAB AI');
+  assert.equal(p?.offer, 'AI agents');
+});
+
+test('healthcare businesses get the business-data-only rule in every agent prompt', async () => {
+  const { saveBusinessProfile, profileForPrompt } = await import('../core/profile.js');
+  const { store } = setup([]);
+  await saveBusinessProfile(store, ORG, { name: 'More Laboratory', industry: 'Healthcare: laboratory or diagnostics', offer: 'Pathology tests' }, 'sunil');
+  const prompt = await profileForPrompt(store, ORG);
+  assert.match(prompt, /More Laboratory/);
+  assert.match(prompt, /never ask for, store or repeat patient/i);
+  await saveBusinessProfile(store, ORG, { name: 'SIXXAB AI', industry: 'Technology or software', offer: 'AI agents' }, 'sunil');
+  assert.doesNotMatch(await profileForPrompt(store, ORG), /patient/i);
+});
+
+test('choices outside the allowed options are refused', async () => {
+  const { validateProfileInput } = await import('../core/profile.js');
+  assert.throws(() => validateProfileInput({ name: 'X', offer: 'Y', industry: 'Crypto casino' }), /industry/i);
+  assert.throws(() => validateProfileInput({ name: 'X' }), /What you sell/);
+  assert.equal(validateProfileInput({ name: ' X ', offer: 'Y', currency: 'INR' }).name, 'X');
+});

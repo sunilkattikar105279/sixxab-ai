@@ -10,7 +10,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dist = path.join(root, 'dist');
 const apiOut = path.join(root, 'api');
 const SITE = 'https://sixxab.ai';
-const TITLE = 'SIXXAB AI | AI that starts, scales and runs your company';
+const TITLE = 'SIXXAB AI | AI that starts, scales and runs your business';
 const DESC = 'Your first employee and your whole team: Founder, CXO and department AI agents that plan, build, market and sell around the clock, with you in command.';
 
 fs.rmSync(dist, { recursive: true, force: true });

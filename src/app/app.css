@@ -113,3 +113,12 @@ th { color: var(--sub); font-weight: 500; font-size: 12px; text-transform: upper
 .receipt { color: var(--good, #2bb673); word-break: break-word; }
 .receipt a { color: inherit; text-decoration: underline; }
 .earned { color: var(--good); font-weight: 600; }
+/* Business onboarding */
+.onboard-steps { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; padding: 0; margin: 14px 0 18px; }
+.onboard-step { min-height: 40px; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); background: rgba(255,255,255,0.03); color: var(--sub); font-size: 13px; cursor: pointer; }
+.onboard-step.on { color: #02060f; background: var(--gold); border-color: var(--gold); font-weight: 600; }
+.profile-section { margin-top: 18px; }
+.profile-section h3 { margin: 0 0 8px; font-size: 12px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; color: var(--gold); }
+.complete { display: flex; align-items: center; gap: 12px; margin: 10px 0 6px; }
+.complete-bar { flex: 1; max-width: 280px; height: 6px; border-radius: 999px; background: rgba(255,255,255,0.08); overflow: hidden; }
+.complete-bar span { display: block; height: 100%; background: var(--good); border-radius: 999px; }

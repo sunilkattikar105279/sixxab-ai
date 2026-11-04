@@ -1,23 +1,28 @@
-// GET  /api/profile → the company profile every agent reads
-// POST /api/profile { name, offer, customers, markets, voice, goals, budget, links } → save it
-import { loadCompanyProfile, PROFILE_FIELDS, saveCompanyProfile, type CompanyProfile } from '../../core/profile.js';
+// GET  /api/profile → the business profile every agent reads, its onboarding sections and what is missing
+// POST /api/profile { name, industry, offer, … } → save it (choices and numbers checked)
+import { loadBusinessProfile, PROFILE_FIELDS, PROFILE_SECTIONS, profileCompleteness, saveBusinessProfile, validateProfileInput } from '../../core/profile.js';
 import { handle, HttpError, json, readJson, requireUser } from '../context.js';
 
 export const GET = handle(async (request) => {
   const { orgId, store } = await requireUser(request);
-  return json({ profile: await loadCompanyProfile(store, orgId), fields: PROFILE_FIELDS });
+  const profile = await loadBusinessProfile(store, orgId);
+  return json({
+    profile,
+    sections: PROFILE_SECTIONS,
+    fields: PROFILE_FIELDS,
+    completeness: profile ? profileCompleteness(profile) : { percent: 0, missing: PROFILE_FIELDS.map((f) => f.label) },
+  });
 });
 
 export const POST = handle(async (request) => {
   const { orgId, label, store } = await requireUser(request);
   const body = await readJson<Record<string, unknown>>(request);
-  const profile: CompanyProfile = {};
-  for (const { key } of PROFILE_FIELDS) {
-    const v = body[key];
-    if (v === undefined || v === null || v === '') continue;
-    if (typeof v !== 'string') throw new HttpError(400, `${key} must be text`);
-    profile[key] = v.slice(0, 1000);
+  let input;
+  try {
+    input = validateProfileInput(body);
+  } catch (e) {
+    throw new HttpError(400, e instanceof Error ? e.message : 'Invalid profile');
   }
-  if (!profile.name || !profile.offer) throw new HttpError(400, 'Company name and what you sell are required');
-  return json({ profile: await saveCompanyProfile(store, orgId, profile, label) });
+  const profile = await saveBusinessProfile(store, orgId, input, label);
+  return json({ profile, completeness: profileCompleteness(profile) });
 });

@@ -104,9 +104,13 @@ async function mockServices(ctx, state) {
     return r.fulfill({ json: { agents: [{ id: 'cmo', name: 'CMO agent', layer: 'cxo', job: 'Owns marketing' }], taskTypes: [{ key: 'publish_post', label: 'Publish a social post', level: 2, maxLevel: 3 }], progress: [{ taskType: 'publish_post', level: 2, maxLevel: 3, streak: 12, needed: 15, proposal: null }], tasks: state.leftover ?? [] } });
   });
   await ctx.route('**/api/profile', async (r) => {
-    const fields = [{ key: 'name', label: 'Company name' }, { key: 'offer', label: 'What we sell' }, { key: 'customers', label: 'Who we sell to' }];
-    if (r.request().method() === 'POST') { state.profile = r.request().postDataJSON(); return r.fulfill({ json: { profile: state.profile } }); }
-    return r.fulfill({ json: { profile: state.profile ?? null, fields } });
+    const sections = [
+      { title: 'Basics', fields: [{ key: 'name', label: 'Business name', kind: 'text', required: true }, { key: 'industry', label: 'Industry', kind: 'choice', options: ['Healthcare: hospital or clinic', 'Technology or software'] }] },
+      { title: 'Offer', fields: [{ key: 'offer', label: 'What you sell', kind: 'long', required: true }, { key: 'revenueMonthly', label: 'Revenue last month', kind: 'number' }] },
+    ];
+    const completeness = () => ({ percent: state.profile ? 75 : 0, missing: state.profile ? ['Revenue last month'] : ['Business name'] });
+    if (r.request().method() === 'POST') { state.profile = r.request().postDataJSON(); return r.fulfill({ json: { profile: state.profile, completeness: completeness() } }); }
+    return r.fulfill({ json: { profile: state.profile ?? null, sections, completeness: completeness() } });
   });
   await ctx.route('**/api/activity', (r) => r.fulfill({ json: { events: [{ id: 'e1', at: new Date().toISOString(), actor: 'social-poster', action: 'approval.requested', detail: { summary: 'Post on linkedin' } }, { id: 'e2', at: new Date().toISOString(), actor: 'social-poster', action: 'tool.executed', detail: { tool: 'publish_post', summary: 'Post on linkedin', result: 'Posted on LinkedIn: https://www.linkedin.com/feed/update/urn:li:share:1' } }] } }));
 }
@@ -131,7 +135,7 @@ await check('email sign-in: wrong code is refused, right code opens the workspac
   await page.getByLabel('Sign-in code').fill('123456');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.waitForURL('**/app');
-  await page.getByText('What should your company get done?').waitFor();
+  await page.getByText('What should your business get done?').waitFor();
   await page.screenshot({ path: `${SHOTS}/app-today.png` });
   await ctx.close();
 });
@@ -162,12 +166,16 @@ await check('workspace: run a goal, edit and approve, see agents and activity', 
   await ctx.addInitScript(() => localStorage.setItem('sixxab.session', JSON.stringify({ accessToken: 'at', refreshToken: 'rt', expiresAt: Math.floor(Date.now() / 1000) + 3600, user: { id: 'u1', email: 'founder@acme.com' } })));
   const page = await ctx.newPage();
   await page.goto(BASE + '/app');
-  await page.getByText('First, tell your agents about your company').waitFor();
-  await page.getByLabel(/Company name/).fill('SIXXAB AI');
-  await page.getByLabel(/What we sell/).fill('AI agents that run your company');
+  await page.getByText('Start your business on SIXXAB').waitFor();
+  await page.getByLabel(/Business name/).fill('SIXXAB AI');
+  await page.getByLabel('Industry').selectOption('Technology or software');
+  await page.getByRole('button', { name: 'Next' }).click();
+  await page.getByLabel(/What you sell/).fill('AI agents that run your business');
   await page.getByRole('button', { name: 'Save profile' }).click();
-  await page.getByText('About your company').waitFor();
+  await page.getByText('About your business').waitFor();
+  await page.getByText('Profile 75% complete').waitFor();
   assert.equal(state.profile.name, 'SIXXAB AI');
+  assert.equal(state.profile.industry, 'Technology or software');
   await page.getByLabel('Goal').fill('Plan our launch week');
   await page.getByRole('button', { name: 'Hand it to the agents' }).click();
   await page.getByText('Plan saved.').waitFor();
