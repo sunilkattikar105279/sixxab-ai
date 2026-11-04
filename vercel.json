@@ -7,7 +7,7 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "rewrites": [
-    { "source": "/api/:route(me|admin|governance|billing)", "destination": "/api/platform?route=:route" },
+    { "source": "/api/:route(me|admin|governance|billing|raise)", "destination": "/api/platform?route=:route" },
     { "source": "/app/:path*", "destination": "/app/index.html" }
   ],
   "functions": {

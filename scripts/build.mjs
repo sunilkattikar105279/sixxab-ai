@@ -101,6 +101,8 @@ for (const [slug, doc] of Object.entries(legalSrc)) {
   const body = `<main class="legal"><p><a href="/">&larr; SIXXAB AI</a></p><h1>${doc.title}</h1><p class="muted">Effective ${doc.effective}</p>${doc.sections.map((s) => `<h2>${s.h}</h2>${s.p.map((x) => `<p>${x}</p>`).join('')}`).join('')}</main>`;
   fs.writeFileSync(path.join(dist, `${slug}.html`), page({ title: `${doc.title} | SIXXAB AI`, desc: doc.title, pathName: `/${slug}`, body, css: acName }));
 }
+// Investor relations page (static; describes the business only, no offering terms).
+fs.writeFileSync(path.join(dist, 'investors.html'), page({ title: 'Investors | SIXXAB AI', desc: 'SIXXAB AI investor relations: the autonomous business platform for founders.', pathName: '/investors', body: fs.readFileSync('content/investors.html', 'utf8'), css: lcName }));
 fs.writeFileSync(path.join(dist, '404.html'), page({ title: 'Not found | SIXXAB AI', body: '<main class="legal"><h1>Page not found</h1><p><a href="/">Go to the SIXXAB AI home page</a></p></main>', css: acName }));
 
 // 5. PWA: icons, manifest, service worker, OG image, robots, sitemap
@@ -138,7 +140,7 @@ self.addEventListener('fetch', (e) => {
 });
 `);
 fs.writeFileSync(path.join(dist, 'robots.txt'), `User-agent: *\nAllow: /\nDisallow: /app\nSitemap: ${SITE}/sitemap.xml\n`);
-fs.writeFileSync(path.join(dist, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${['/', '/login', '/privacy', '/terms'].map((p) => `<url><loc>${SITE}${p}</loc></url>`).join('')}</urlset>\n`);
+fs.writeFileSync(path.join(dist, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${['/', '/investors', '/login', '/privacy', '/terms'].map((p) => `<url><loc>${SITE}${p}</loc></url>`).join('')}</urlset>\n`);
 
 // 5b. Build info for the admin Governance tab: code size, tests, security config (no secrets).
 {

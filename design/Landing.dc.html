@@ -58,11 +58,9 @@ a:focus-visible,button:focus-visible{outline:2px solid #9fe0ff;outline-offset:3p
 </a>
 <div class="navlinks l1" style="align-items: center; gap: 30px; font-size: 14px; font-variation-settings: 'wght' 506">
 <a href="#paths">Your path</a>
-<a href="#platform">Platform</a>
-<a href="#agency">AI agency</a>
-<a href="#box">Startups in a Box</a>
-<a href="#consultants">Consultants</a>
+<a href="#how">How it works</a>
 <a href="#pricing">Pricing</a>
+<a href="/investors">Investors</a>
 </div>
 <div class="navlinks l1" style="align-items: center; gap: 24px; font-size: 14px; font-variation-settings: 'wght' 506">
 <a href="/login?next=start" style="color: #ffe2b2; font-variation-settings: 'wght' 581">Start your business</a>
@@ -77,14 +75,10 @@ a:focus-visible,button:focus-visible{outline:2px solid #9fe0ff;outline-offset:3p
 <div style="position: absolute; z-index: 6; top: 96px; right: 22px; width: min(300px, 82vw); padding: 14px; border-radius: 22px; display: flex; flex-direction: column; gap: 2px; background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.045)), linear-gradient(180deg, rgba(6,12,22,.72), rgba(6,12,22,.82)); backdrop-filter: blur(26px); box-shadow: 0 14px 38px rgba(2,6,14,.45)">
 <a href="/login?next=start" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px; color: #ffe2b2">Start your business</a>
 <a href="#paths" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">Your path</a>
-<a href="#start" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">Start the business</a>
-<a href="#scale" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">Scale the business</a>
-<a href="#run" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">Run the business</a>
-<a href="#agency" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">Marketing agency</a>
-<a href="#box" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">Startups in a Box</a>
-<a href="#platform" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">Platform</a>
-<a href="#consultants" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">Consultants</a>
+<a href="#how" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">How it works</a>
 <a href="#pricing" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">Pricing</a>
+<a href="/investors" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">Investors</a>
+<a href="/login" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">Log in</a>
 <a href="#begin" style="margin-top: 8px; padding: 13px 18px; text-align: center; border: 1.6px solid rgba(196,214,232,.72); border-radius: 999px; font-size: 16px">Book a strategy call</a>
 </div>
 </sc-if>
@@ -98,18 +92,17 @@ a:focus-visible,button:focus-visible{outline:2px solid #9fe0ff;outline-offset:3p
 <p class="l2" aria-live="polite" style="margin: 0; display: flex; justify-content: center; align-items: flex-start; gap: .32em; font-size: clamp(20px, 2vw, 28px); line-height: 1.3; font-variation-settings: 'wght' 446"><span>SIXXAB AI</span><span style="display: inline-block; height: 1.3em; overflow: hidden; text-align: left"><span style="display: flex; flex-direction: column; transform: {{tickerShift}}; transition: {{tickerEase}}"><sc-for list="{{lines}}" as="ln" hint-placeholder-count="7"><span style="display: block; height: 1.3em; white-space: nowrap; color: #ffe2b2">{{ln}}</span></sc-for></span></span></p>
 <p class="l2" style="margin: 0; max-width: 40ch; font-size: clamp(15px, 1.3vw, 18px); line-height: 1.5; color: #a2a9b8">Your first employee and your whole team, from the first idea to $10M. It never sleeps.</p>
 <div class="l3" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 12px">
-<a href="#start" class="glass" style="display: inline-flex; align-items: center; gap: 10px; padding: 15px 26px; border-radius: 999px; font-size: 17px; color: #ffffff; font-variation-settings: 'wght' 497"><span style="color: #ffe2b2">01</span> Start the business</a>
-<a href="#scale" class="glass" style="display: inline-flex; align-items: center; gap: 10px; padding: 15px 26px; border-radius: 999px; font-size: 17px; color: #ffffff; font-variation-settings: 'wght' 497"><span style="color: #cfe3fa">02</span> Scale the business</a>
-<a href="#run" class="glass" style="display: inline-flex; align-items: center; gap: 10px; padding: 15px 26px; border-radius: 999px; font-size: 17px; color: #ffffff; font-variation-settings: 'wght' 497"><span style="color: #96c4f4">03</span> Run the business</a>
+<a href="/login?next=start" style="display: inline-flex; align-items: center; gap: 10px; min-height: 52px; padding: 15px 28px; border-radius: 999px; background: #ffffff; color: #02060f; font-size: 17px; font-variation-settings: 'wght' 560">Start your business</a>
+<a href="#how" class="glass" style="display: inline-flex; align-items: center; gap: 10px; min-height: 52px; padding: 15px 26px; border-radius: 999px; font-size: 17px; color: #ffffff; font-variation-settings: 'wght' 497">See how it works</a>
 </div>
 </div>
 <p class="l4" style="position: relative; z-index: 1; margin: 0; padding: 0 24px 44px; text-align: center; font-size: 16px; color: #f4f8fd; font-variation-settings: 'wght' 521">The solo founder's standing army.</p>
 </header>
 
-<section class="sec" style="padding: 120px clamp(22px, 8vw, 120px) 100px; max-width: 1440px; margin: 0 auto; box-sizing: border-box">
-<p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">Three heads. Six stages. One platform.</p>
+<section id="paths" class="sec" style="padding: 120px clamp(22px, 8vw, 120px) 100px; max-width: 1440px; margin: 0 auto; box-sizing: border-box">
+<p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">Three paths. Six stages. One platform.</p>
 <h2 class="h2" style="margin: 0 0 18px; font-size: 44px; line-height: 1.15; font-weight: 400; font-variation-settings: 'wght' 424; max-width: 24ch">Wherever your business is, SIXXAB meets it there.</h2>
-<p style="margin: 0 0 56px; max-width: 60ch; font-size: 18px; line-height: 1.55; color: #a2a9b8">The SIXXAB Framework splits the journey from $0 to $10M into six stages, grouped into three jobs: start the business, scale it, then run it. The right agents switch on at each stage.</p>
+<p style="margin: 0 0 56px; max-width: 56ch; font-size: 18px; line-height: 1.55; color: #a2a9b8">Six stages from $0 to $10M. The right agents switch on at each one, and every milestone is tracked.</p>
 <div class="track" aria-hidden="true" style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; margin-bottom: 14px">
 <sc-for list="{{stages}}" as="s" hint-placeholder-count="6">
 <div style="display: flex; flex-direction: column; gap: 8px">
@@ -125,86 +118,47 @@ a:focus-visible,button:focus-visible{outline:2px solid #9fe0ff;outline-offset:3p
 <span style="font-size: 26px; line-height: 1.2; font-variation-settings: 'wght' 480">{{h.name}}</span>
 <span style="font-size: 13px; color: {{h.color}}; font-variation-settings: 'wght' 540">{{h.stages}}</span>
 <span style="font-size: 15px; line-height: 1.6; color: #a2a9b8">{{h.promise}}</span>
-<span style="margin-top: auto; padding-top: 10px; display: inline-flex; align-items: center; gap: 10px; font-size: 15px; color: #ffffff">See how
+<span style="margin-top: auto; padding-top: 10px; display: inline-flex; align-items: center; gap: 10px; font-size: 15px; color: #ffffff">{{h.cta}}
 <svg viewBox="0 0 16 11" width="14" height="10" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 1.6"><path d="M0 5.5 H14.6 M10.3 1.2 L14.9 5.5 L10.3 9.8"></path></svg></span>
 </a>
 </sc-for>
 </div>
 </section>
 
-<section id="paths" class="sec" style="padding: 110px clamp(22px, 8vw, 120px); background: radial-gradient(60% 50% at 50% 0%, rgba(40,70,140,.22), rgba(2,6,15,0) 70%)">
+<section id="how" class="sec" style="padding: 110px clamp(22px, 8vw, 120px); background: radial-gradient(60% 50% at 50% 0%, rgba(40,70,140,.22), rgba(2,6,15,0) 70%)">
 <div style="max-width: 1240px; margin: 0 auto">
-<p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">The business case · Your path</p>
-<h2 class="h2" style="margin: 0 0 18px; font-size: 44px; line-height: 1.15; font-weight: 400; font-variation-settings: 'wght' 424; max-width: 24ch">Three paths to an AI-run business, step by step.</h2>
-<p style="margin: 0 0 40px; max-width: 60ch; font-size: 18px; line-height: 1.55; color: #a2a9b8">Pick the one that sounds like you. Each path runs end to end, from the first assessment to a business that runs on agents and keeps improving.</p>
-<div role="group" aria-label="Choose your path" style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 40px">
-<sc-for list="{{journeys}}" as="j" hint-placeholder-count="3">
-<button type="button" aria-pressed="{{j.active}}" onClick="{{j.pick}}" style="display: inline-flex; align-items: center; gap: 10px; min-height: 48px; padding: 12px 22px; border-radius: 999px; border: 1.6px solid {{j.tabBorder}}; background: {{j.tabBg}}; color: {{j.tabInk}}; font-family: inherit; font-size: 15px; cursor: pointer; font-variation-settings: 'wght' 520"><span style="color: {{j.numInk}}">{{j.n}}</span>{{j.who}}</button>
+<p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">How it works</p>
+<h2 class="h2" style="margin: 0 0 18px; font-size: 44px; line-height: 1.15; font-weight: 400; font-variation-settings: 'wght' 424; max-width: 24ch">Agents do the work. You make the calls.</h2>
+<p style="margin: 0 0 48px; max-width: 56ch; font-size: 18px; line-height: 1.55; color: #a2a9b8">One founder agent sets the plan, executive agents turn it into work, and nothing reaches a customer or spends money without your yes.</p>
+<div class="g4" style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 28px">
+<sc-for list="{{layers}}" as="l" hint-placeholder-count="4">
+<div style="padding: 24px; border-radius: 20px; border: 1px solid {{l.border}}; background: rgba(255,255,255,.03); display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 40px; line-height: 1; color: {{l.color}}; font-variation-settings: 'wght' 260">{{l.count}}</span>
+<span style="font-size: 16px; font-variation-settings: 'wght' 520">{{l.name}}</span>
+</div>
 </sc-for>
 </div>
-<div style="padding: 40px; border-radius: 28px; border: 1px solid {{cur.border}}; background: linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.01)); display: flex; flex-direction: column; gap: 36px">
-<div class="split" style="display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 40px; align-items: end">
-<div style="display: flex; flex-direction: column; gap: 12px">
-<span style="font-size: 13px; letter-spacing: 2px; text-transform: uppercase; color: {{cur.color}}; font-variation-settings: 'wght' 560">Path {{cur.n}} · {{cur.who}}</span>
-<h3 style="margin: 0; font-size: 32px; line-height: 1.2; font-weight: 400; font-variation-settings: 'wght' 460">{{cur.title}}</h3>
-</div>
-<div style="display: flex; align-items: stretch; gap: 10px; font-size: 14px; line-height: 1.45">
-<div style="flex: 1; padding: 14px 16px; border-radius: 14px; background: rgba(255,255,255,.04); display: flex; flex-direction: column; gap: 4px"><span style="font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: #8d96a8">From</span><span style="color: #c9d2de">{{cur.from}}</span></div>
-<div style="flex: 1; padding: 14px 16px; border-radius: 14px; background: {{cur.toBg}}; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: {{cur.color}}">To</span><span style="color: #ffffff">{{cur.to}}</span></div>
-</div>
-</div>
-<ol class="g3" style="list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px">
-<sc-for list="{{cur.steps}}" as="st" hint-placeholder-count="6">
-<li style="padding: 24px; border-radius: 20px; border: 1px solid rgba(196,214,232,.14); background: rgba(2,6,15,.45); display: flex; flex-direction: column; gap: 10px">
-<div style="display: flex; align-items: center; gap: 12px">
-<span style="width: 34px; height: 34px; flex: none; border-radius: 50%; border: 1.4px solid {{cur.color}}; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; color: {{cur.color}}; font-variation-settings: 'wght' 560">{{st.n}}</span>
-<h4 style="margin: 0; font-size: 19px; font-weight: 400; font-variation-settings: 'wght' 540">{{st.title}}</h4>
-</div>
-<p style="margin: 0; font-size: 14px; line-height: 1.6; color: #a2a9b8">{{st.body}}</p>
-<div style="margin-top: auto; padding-top: 12px; border-top: 1px solid rgba(196,214,232,.1); display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 1.45">
-<span><span style="color: #8d96a8">Agents · </span><span style="color: #e2ebf5">{{st.agents}}</span></span>
-<span><span style="color: #8d96a8">You decide · </span><span style="color: #ffffff">{{st.you}}</span></span>
-<span><span style="color: #8d96a8">You get · </span><span style="color: {{cur.color}}">{{st.out}}</span></span>
-</div>
-</li>
-</sc-for>
-</ol>
-<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px">
-<div style="display: flex; flex-wrap: wrap; gap: 8px">
-<sc-for list="{{cur.outcomes}}" as="oc" hint-placeholder-count="4">
-<span style="display: inline-flex; align-items: center; gap: 8px; padding: 9px 15px; border-radius: 999px; background: {{cur.toBg}}; font-size: 14px; color: #ffffff"><svg viewBox="0 0 14 11" width="12" height="10" aria-hidden="true" style="fill: none; stroke: {{cur.color}}; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><path d="M1 5.5 L5 9.5 L13 1.5"></path></svg>{{oc}}</span>
-</sc-for>
-</div>
-<a href="{{cur.ctaHref}}" class="glass" style="display: inline-flex; align-items: center; gap: 12px; padding: 15px 26px; border-radius: 999px; font-size: 17px; color: #ffffff; font-variation-settings: 'wght' 497">{{cur.cta}}
-<svg viewBox="0 0 16 11" width="16" height="11" aria-hidden="true" style="fill: none; stroke: #ffffff; stroke-width: 1.6"><path d="M0 5.5 H14.6 M10.3 1.2 L14.9 5.5 L10.3 9.8"></path></svg></a>
-</div>
-</div>
-
-<div class="split" style="margin-top: 28px; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 20px">
+<div class="split" style="display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 20px">
 <div style="padding: 34px; border-radius: 26px; border: 1px solid rgba(255,226,178,.25); background: rgba(255,226,178,.03); display: flex; flex-direction: column; gap: 18px">
-<span style="font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 560">Loop engineering · every path</span>
+<span style="font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 560">The loop</span>
 <h3 style="margin: 0; font-size: 26px; line-height: 1.25; font-weight: 400; font-variation-settings: 'wght' 480">Humans in the loop. Learning in every loop.</h3>
-<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #a2a9b8">Every task runs through the same engineered loop. People approve what matters, every outcome is measured, and what the platform learns makes the next run better.</p>
 <ol class="g3" style="list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px">
 <sc-for list="{{loopSteps}}" as="ls" hint-placeholder-count="6">
 <li style="padding: 16px; border-radius: 16px; border: 1px solid {{ls.border}}; background: {{ls.bg}}; display: flex; flex-direction: column; gap: 6px">
 <span style="font-size: 12px; color: {{ls.color}}; font-variation-settings: 'wght' 560">{{ls.n}} · {{ls.who}}</span>
 <span style="font-size: 16px; font-variation-settings: 'wght' 540">{{ls.k}}</span>
-<span style="font-size: 13px; line-height: 1.5; color: #a2a9b8">{{ls.v}}</span>
 </li>
 </sc-for>
 </ol>
-<p style="margin: 0; font-size: 13px; color: #8d96a8">Step 6 feeds step 1. The loop never stops, and every agent, playbook and guardrail improves with it.</p>
 </div>
 <div style="padding: 34px; border-radius: 26px; border: 1px solid rgba(150,196,244,.3); background: rgba(150,196,244,.035); display: flex; flex-direction: column; gap: 18px">
 <span style="font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: #96c4f4; font-variation-settings: 'wght' 560">Autonomy is earned</span>
-<h3 style="margin: 0; font-size: 26px; line-height: 1.25; font-weight: 400; font-variation-settings: 'wght' 480">From assisted to autonomous operations.</h3>
-<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #a2a9b8">Each task moves up a level only after it proves itself. You set the limits, and you can step any task back down at any time.</p>
+<h3 style="margin: 0; font-size: 26px; line-height: 1.25; font-weight: 400; font-variation-settings: 'wght' 480">Each task earns its freedom.</h3>
 <ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px">
 <sc-for list="{{autonomy}}" as="au" hint-placeholder-count="3">
-<li style="padding: 18px 20px; border-radius: 16px; border: 1px solid {{au.border}}; background: {{au.bg}}; display: flex; gap: 16px; align-items: flex-start">
-<span style="flex: none; width: 40px; height: 40px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; color: #02060f; background: {{au.color}}; font-variation-settings: 'wght' 640">L{{au.n}}</span>
-<span style="display: flex; flex-direction: column; gap: 4px"><span style="font-size: 17px; font-variation-settings: 'wght' 540">{{au.k}}</span><span style="font-size: 14px; line-height: 1.5; color: #a2a9b8">{{au.v}}</span></span>
+<li style="padding: 16px 18px; border-radius: 16px; border: 1px solid {{au.border}}; background: {{au.bg}}; display: flex; gap: 14px; align-items: center">
+<span style="flex: none; width: 38px; height: 38px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; color: #02060f; background: {{au.color}}; font-variation-settings: 'wght' 640">L{{au.n}}</span>
+<span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 16px; font-variation-settings: 'wght' 540">{{au.k}}</span><span style="font-size: 14px; line-height: 1.45; color: #a2a9b8">{{au.v}}</span></span>
 </li>
 </sc-for>
 </ol>
@@ -213,205 +167,20 @@ a:focus-visible,button:focus-visible{outline:2px solid #9fe0ff;outline-offset:3p
 </div>
 </section>
 
-<sc-for list="{{details}}" as="d" hint-placeholder-count="3">
-<section id="{{d.id}}" class="sec" style="padding: 100px clamp(22px, 8vw, 120px); background: {{d.wash}}">
-<div class="split" style="max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 64px; align-items: start">
-<div style="display: flex; flex-direction: column; gap: 18px">
-<p style="margin: 0; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: {{d.color}}; font-variation-settings: 'wght' 534">{{d.n}} · {{d.stages}}</p>
-<h2 class="h2" style="margin: 0; font-size: 44px; line-height: 1.15; font-weight: 400; font-variation-settings: 'wght' 424">{{d.title}}</h2>
-<p style="margin: 0; font-size: 18px; line-height: 1.6; color: #a2a9b8">{{d.body}}</p>
-<div style="display: flex; flex-direction: column; gap: 6px; padding: 18px 20px; border-radius: 16px; border: 1px solid rgba(196,214,232,.14); background: rgba(255,255,255,.025)">
-<span style="font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: #8d96a8">Agents on duty</span>
-<span style="font-size: 15px; line-height: 1.5; color: #e2ebf5">{{d.agents}}</span>
-</div>
-<a href="{{d.ctaHref}}" class="glass" style="align-self: flex-start; display: inline-flex; align-items: center; gap: 12px; padding: 15px 26px; border-radius: 999px; font-size: 17px; color: #ffffff; font-variation-settings: 'wght' 497">{{d.cta}}
-<svg viewBox="0 0 16 11" width="16" height="11" aria-hidden="true" style="fill: none; stroke: #ffffff; stroke-width: 1.6"><path d="M0 5.5 H14.6 M10.3 1.2 L14.9 5.5 L10.3 9.8"></path></svg></a>
-</div>
-<div class="g2" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px">
-<sc-for list="{{d.items}}" as="it" hint-placeholder-count="4">
-<article style="padding: 26px; border-radius: 20px; border: 1px solid rgba(196,214,232,.14); background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.015)); display: flex; flex-direction: column; gap: 10px">
-<span style="font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: {{d.color}}; font-variation-settings: 'wght' 560">{{it.tag}}</span>
-<h3 style="margin: 0; font-size: 19px; line-height: 1.3; font-weight: 400; font-variation-settings: 'wght' 520">{{it.title}}</h3>
-<p style="margin: 0; font-size: 14px; line-height: 1.6; color: #a2a9b8">{{it.body}}</p>
-</article>
-</sc-for>
-</div>
-</div>
-</section>
-</sc-for>
-
-<section id="agency" class="sec" style="padding: 120px clamp(22px, 8vw, 120px); background: radial-gradient(70% 60% at 50% 0%, rgba(255,200,120,.12), rgba(2,6,15,0) 70%)">
+<section id="more" class="sec" style="padding: 100px clamp(22px, 8vw, 120px)">
 <div style="max-width: 1200px; margin: 0 auto">
-<p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">Built into Scale · AI marketing agency</p>
-<div class="split" style="display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 48px; align-items: end; margin-bottom: 52px">
-<div>
-<h2 class="h2" style="margin: 0 0 18px; font-size: 48px; line-height: 1.12; font-weight: 400; font-variation-settings: 'wght' 424">Your AI marketing agency, already on staff.</h2>
-<p style="margin: 0; max-width: 56ch; font-size: 18px; line-height: 1.6; color: #a2a9b8">A 50-agent marketing team that plans, creates, publishes and improves every channel, every day. You approve the strategy and the spend. The agents do the rest, and learn what works for your market.</p>
-</div>
-<div class="glass" style="padding: 30px; border-radius: 24px; display: flex; flex-direction: column; gap: 6px">
-<span style="font-size: 56px; line-height: 1; font-variation-settings: 'wght' 260">50</span>
-<span style="font-size: 15px; color: #c9d2de">marketing agents, working as one agency</span>
-</div>
-</div>
-<div class="g4" style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 40px">
-<sc-for list="{{agency}}" as="a" hint-placeholder-count="8">
-<article style="padding: 24px; border-radius: 20px; border: 1px solid rgba(255,226,178,.18); background: rgba(255,226,178,.03); display: flex; flex-direction: column; gap: 10px">
-<h3 style="margin: 0; font-size: 18px; font-weight: 400; font-variation-settings: 'wght' 520">{{a.title}}</h3>
-<p style="margin: 0; font-size: 14px; line-height: 1.55; color: #a2a9b8">{{a.body}}</p>
-</article>
-</sc-for>
-</div>
-<div class="g2" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
-<div style="padding: 30px; border-radius: 22px; border: 1px solid rgba(196,214,232,.18); background: rgba(255,255,255,.03); display: flex; flex-direction: column; gap: 10px">
-<span style="font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: #96c4f4">Option A</span>
-<h3 style="margin: 0; font-size: 22px; font-weight: 400; font-variation-settings: 'wght' 520">Run it yourself, in the platform</h3>
-<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #a2a9b8">Included in every plan. Set goals and budget, approve the calendar, watch results in your morning briefing.</p>
-</div>
-<div style="padding: 30px; border-radius: 22px; border: 1px solid rgba(255,226,178,.3); background: rgba(255,226,178,.04); display: flex; flex-direction: column; gap: 10px">
-<span style="font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: #ffe2b2">Option B</span>
-<h3 style="margin: 0; font-size: 22px; font-weight: 400; font-variation-settings: 'wght' 520">Done for you, by the SIXXAB agency</h3>
-<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #a2a9b8">Our team runs the agents for you, with industry playbooks for [INDUSTRY 1], [INDUSTRY 2] and local businesses.</p>
-</div>
-</div>
-</div>
-</section>
-
-<section id="box" class="sec" style="padding: 120px clamp(22px, 8vw, 120px); background: radial-gradient(70% 50% at 100% 0%, rgba(120,170,240,.12), rgba(2,6,15,0) 70%)">
-<div style="max-width: 1200px; margin: 0 auto">
-<p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">Startups in a Box · Global expansion</p>
-<h2 class="h2" style="margin: 0 0 18px; font-size: 48px; line-height: 1.12; font-weight: 400; font-variation-settings: 'wght' 424; max-width: 22ch">A business in a box. Any size, any industry, any country.</h2>
-<p style="margin: 0 0 56px; max-width: 62ch; font-size: 18px; line-height: 1.6; color: #a2a9b8">Each box packages the right agents, playbooks, integrations and compliance for one business size, one industry and one market, so a new business or business line is running in days, not months.</p>
-
-<div class="g3" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-bottom: 56px">
-<sc-for list="{{segments}}" as="sg" hint-placeholder-count="3">
-<article style="padding: 32px; border-radius: 24px; border: 1px solid {{sg.border}}; background: {{sg.bg}}; display: flex; flex-direction: column; gap: 12px">
-<span style="font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: {{sg.color}}; font-variation-settings: 'wght' 560">{{sg.who}}</span>
-<h3 style="margin: 0; font-size: 24px; font-weight: 400; font-variation-settings: 'wght' 500">{{sg.box}}</h3>
-<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #a2a9b8">{{sg.body}}</p>
-<ul style="list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px">
-<sc-for list="{{sg.points}}" as="pt" hint-placeholder-count="3">
-<li style="display: flex; gap: 10px; align-items: baseline; font-size: 14px; line-height: 1.5; color: #e2ebf5"><svg viewBox="0 0 11 20" width="7" height="12" aria-hidden="true" style="flex: none; fill: none; stroke: {{sg.color}}; stroke-width: 2; stroke-linecap: round"><path d="M1.15 1.15 L9.6 10 L1.15 18.85"></path></svg>{{pt}}</li>
-</sc-for>
-</ul>
-</article>
-</sc-for>
-</div>
-
-<div class="split" style="display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 40px; margin-bottom: 48px">
-<div style="display: flex; flex-direction: column; gap: 16px">
-<h3 style="margin: 0; font-size: 22px; font-weight: 400; font-variation-settings: 'wght' 520">Industry boxes</h3>
-<div style="display: flex; flex-wrap: wrap; gap: 8px">
-<sc-for list="{{industries}}" as="ind" hint-placeholder-count="10">
-<span style="display: inline-flex; align-items: center; gap: 8px; padding: 9px 15px; border-radius: 999px; border: 1px solid {{ind.border}}; background: rgba(255,255,255,.035); font-size: 14px; color: #e2ebf5">{{ind.name}}<sc-if value="{{ind.tag}}" hint-placeholder-val="{{ false }}"><span style="font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: #ffe2b2">{{ind.tag}}</span></sc-if></span>
-</sc-for>
-</div>
-</div>
-<div style="display: flex; flex-direction: column; gap: 16px">
-<h3 style="margin: 0; font-size: 22px; font-weight: 400; font-variation-settings: 'wght' 520">Markets</h3>
-<div style="display: flex; flex-direction: column; gap: 8px">
-<sc-for list="{{markets}}" as="mk" hint-placeholder-count="5">
-<div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 16px; border-radius: 14px; border: 1px solid rgba(196,214,232,.14); background: rgba(255,255,255,.025)">
-<span style="font-size: 15px; color: #e2ebf5">{{mk.name}}</span>
-<span style="font-size: 12px; letter-spacing: 1px; text-transform: uppercase; color: {{mk.color}}; font-variation-settings: 'wght' 560">{{mk.status}}</span>
-</div>
-</sc-for>
-</div>
-</div>
-</div>
-
-<div class="glass" style="padding: 30px 32px; border-radius: 24px; display: flex; flex-direction: column; gap: 18px">
-<h3 style="margin: 0; font-size: 20px; font-weight: 400; font-variation-settings: 'wght' 520">What's in every box</h3>
-<div class="g4" style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 18px">
-<sc-for list="{{boxParts}}" as="bp" hint-placeholder-count="5">
-<div style="display: flex; flex-direction: column; gap: 6px">
-<span style="font-size: 15px; color: #ffffff; font-variation-settings: 'wght' 560">{{bp.k}}</span>
-<span style="font-size: 13px; line-height: 1.5; color: #c9d2de">{{bp.v}}</span>
-</div>
-</sc-for>
-</div>
-<p style="margin: 0; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.12); font-size: 14px; line-height: 1.55; color: #c9d2de">Delivered directly by SIXXAB, or through certified SIXXAB CxO Strategy Consultants in your country.</p>
-</div>
-</div>
-</section>
-
-<section id="platform" class="sec" style="padding: 120px clamp(22px, 8vw, 120px); max-width: 1440px; margin: 0 auto; box-sizing: border-box">
-<p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">The platform</p>
-<h2 class="h2" style="margin: 0 0 18px; font-size: 44px; line-height: 1.15; font-weight: 400; font-variation-settings: 'wght' 424; max-width: 22ch">One autonomous business platform. Every agent, connected.</h2>
-<p style="margin: 0 0 56px; max-width: 60ch; font-size: 18px; line-height: 1.55; color: #a2a9b8">Founder agents set direction. CXO agents turn it into plans. Department agents do the work. Every result flows back into shared memory, so every agent gets better every day.</p>
-<div class="g4" style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px">
-<sc-for list="{{layers}}" as="l" hint-placeholder-count="4">
-<article style="padding: 28px; border-radius: 22px; border: 1px solid {{l.border}}; background: rgba(255,255,255,.03); display: flex; flex-direction: column; gap: 10px">
-<span style="font-size: 44px; color: {{l.color}}; font-variation-settings: 'wght' 260">{{l.count}}</span>
-<h3 style="margin: 0; font-size: 19px; font-weight: 400; font-variation-settings: 'wght' 520">{{l.name}}</h3>
-<p style="margin: 0; font-size: 14px; line-height: 1.55; color: #a2a9b8">{{l.body}}</p>
-</article>
-</sc-for>
-</div>
-</section>
-
-<section id="consultants" class="sec" style="padding: 120px clamp(22px, 8vw, 120px); background: radial-gradient(70% 60% at 0% 100%, rgba(255,200,120,.10), rgba(2,6,15,0) 70%)">
-<div style="max-width: 1200px; margin: 0 auto">
-<p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">SIXXAB Consultant Certification · Global expansion</p>
-<div class="split" style="display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 48px; align-items: end; margin-bottom: 52px">
-<div>
-<h2 class="h2" style="margin: 0 0 18px; font-size: 46px; line-height: 1.12; font-weight: 400; font-variation-settings: 'wght' 424">Become a certified SIXXAB consultant. Bring the platform to your market.</h2>
-<p style="margin: 0; max-width: 58ch; font-size: 18px; line-height: 1.6; color: #a2a9b8">We train and certify independent consultants to deliver SIXXAB strategy and AI transformation to startups, medium businesses and enterprises in their own countries, using the SIXXAB platform, playbooks and agents.</p>
-</div>
-<div class="glass" style="padding: 28px 30px; border-radius: 24px; display: flex; flex-direction: column; gap: 10px">
-<span style="font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase; color: #ffe2b2">For consultants who want</span>
-<span style="font-size: 16px; line-height: 1.55; color: #ffffff">A proven framework, a platform to deliver it, and recurring revenue from every client they bring.</span>
-</div>
-</div>
-<ol class="g4" style="list-style: none; margin: 0 0 20px; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px">
-<sc-for list="{{certSteps}}" as="cs" hint-placeholder-count="5">
-<li style="padding: 22px; border-radius: 20px; border: 1px solid rgba(255,226,178,.2); background: rgba(255,226,178,.03); display: flex; flex-direction: column; gap: 10px">
-<span style="font-size: 28px; color: #ffe2b2; font-variation-settings: 'wght' 220">{{cs.n}}</span>
-<h3 style="margin: 0; font-size: 18px; font-weight: 400; font-variation-settings: 'wght' 540">{{cs.k}}</h3>
-<p style="margin: 0; font-size: 14px; line-height: 1.55; color: #a2a9b8">{{cs.v}}</p>
-</li>
-</sc-for>
-</ol>
-<div style="display: flex; flex-direction: column; gap: 20px">
-<div style="padding: 30px; border-radius: 22px; border: 1px solid rgba(196,214,232,.16); background: rgba(255,255,255,.03); display: flex; flex-direction: column; gap: 16px">
-<h3 style="margin: 0; font-size: 20px; font-weight: 400; font-variation-settings: 'wght' 520">Every certified consultant gets</h3>
-<div class="g2" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 24px">
-<sc-for list="{{certGets}}" as="cg" hint-placeholder-count="6">
-<span style="display: flex; gap: 10px; align-items: baseline; font-size: 15px; line-height: 1.5; color: #e2ebf5"><svg viewBox="0 0 14 11" width="12" height="10" aria-hidden="true" style="flex: none; fill: none; stroke: #ffe2b2; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><path d="M1 5.5 L5 9.5 L13 1.5"></path></svg>{{cg}}</span>
-</sc-for>
-</div>
-</div>
-<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; margin-top: 20px">
-<h3 style="margin: 0; font-size: 26px; font-weight: 400; font-variation-settings: 'wght' 480">Three ways to join</h3>
-<div role="group" aria-label="Choose market" style="display: inline-flex; padding: 4px; border-radius: 999px; border: 1px solid rgba(196,214,232,.3); background: rgba(255,255,255,.03)">
-<sc-for list="{{marketTabs}}" as="mt" hint-placeholder-count="2">
-<button type="button" aria-pressed="{{mt.active}}" onClick="{{mt.pick}}" style="min-height: 44px; padding: 10px 22px; border: 0; border-radius: 999px; background: {{mt.bg}}; color: {{mt.ink}}; font-family: inherit; font-size: 15px; cursor: pointer; font-variation-settings: 'wght' 560">{{mt.label}}</button>
-</sc-for>
-</div>
-</div>
+<p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">More ways to work with SIXXAB</p>
 <div class="g3" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px">
-<sc-for list="{{tiersCert}}" as="tc" hint-placeholder-count="3">
-<article style="padding: 32px; border-radius: 24px; border: 1px solid {{tc.border}}; background: {{tc.bg}}; display: flex; flex-direction: column; gap: 14px">
-<span style="font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: {{tc.color}}; font-variation-settings: 'wght' 560">{{tc.kicker}}</span>
-<h4 style="margin: 0; font-size: 24px; font-weight: 400; font-variation-settings: 'wght' 520">{{tc.name}}</h4>
-<p style="margin: 0; font-size: 14px; line-height: 1.55; color: #a2a9b8">{{tc.tagline}}</p>
-<div style="display: flex; flex-direction: column; gap: 2px; padding: 14px 0; border-top: 1px solid rgba(255,255,255,.1); border-bottom: 1px solid rgba(255,255,255,.1)">
-<span style="font-size: 36px; line-height: 1.1; font-variation-settings: 'wght' 340">{{tc.fee}}</span>
-<span style="font-size: 13px; color: #a2a9b8">one-time certification · then {{tc.annual}}</span>
-</div>
-<dl style="margin: 0; display: flex; flex-direction: column; gap: 10px">
-<sc-for list="{{tc.rows}}" as="rw" hint-placeholder-count="5">
-<div style="display: flex; flex-direction: column; gap: 2px"><dt style="font-size: 12px; color: #8d96a8">{{rw.k}}</dt><dd style="margin: 0; font-size: 14px; line-height: 1.45; color: #e2ebf5">{{rw.v}}</dd></div>
+<sc-for list="{{more}}" as="mo" hint-placeholder-count="3">
+<a href="{{mo.href}}" style="padding: 28px; border-radius: 22px; border: 1px solid {{mo.border}}; background: rgba(255,255,255,.03); display: flex; flex-direction: column; gap: 10px; color: #ffffff">
+<span style="font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: {{mo.color}}; font-variation-settings: 'wght' 560">{{mo.tag}}</span>
+<span style="font-size: 21px; line-height: 1.25; font-variation-settings: 'wght' 500">{{mo.title}}</span>
+<span style="font-size: 15px; line-height: 1.55; color: #a2a9b8">{{mo.body}}</span>
+</a>
 </sc-for>
-</dl>
-<a href="#begin" style="margin-top: auto; padding: 14px 22px; text-align: center; border-radius: 999px; border: 1.6px solid {{tc.btn}}; background: {{tc.btnBg}}; color: {{tc.btnInk}}; font-size: 15px; font-variation-settings: 'wght' 540">{{tc.cta}}</a>
-</article>
-</sc-for>
-</div>
-<p style="margin: 0; font-size: 13px; line-height: 1.6; color: #8d96a8">{{certNote}} Consultants keep 100% of their own consulting fees. Revenue share is paid on client platform subscriptions for 36 months while the client stays active. Fees exclude applicable taxes.</p>
 </div>
 </div>
 </section>
-
 <section id="pricing" class="sec" style="padding: 110px clamp(22px, 8vw, 120px)">
 <div style="max-width: 1200px; margin: 0 auto; text-align: center">
 <p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">Pricing</p>
@@ -475,7 +244,7 @@ a:focus-visible,button:focus-visible{outline:2px solid #9fe0ff;outline-offset:3p
 
 <footer style="padding: 40px clamp(22px, 8vw, 120px); border-top: 1px solid rgba(196,214,232,.12); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; font-size: 14px; color: #a2a9b8">
 <span>© 2026 SIXXAB AI · sixxab.ai</span>
-<span style="display: flex; gap: 24px"><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="mailto:sunil.kattikar@gmail.com">Contact</a></span>
+<span style="display: flex; flex-wrap: wrap; gap: 24px"><a href="/investors">Investors</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="mailto:sunil.kattikar@gmail.com">Contact</a></span>
 </footer>
 </div>
 </x-dc>
@@ -483,7 +252,7 @@ a:focus-visible,button:focus-visible{outline:2px solid #9fe0ff;outline-offset:3p
 class Component extends DCLogic {
   constructor(props) {
     super(props);
-    this.state = { menuOpen: false, tick: 0, snap: false, journey: 0, market: 'us' };
+    this.state = { menuOpen: false, tick: 0, snap: false };
   }
   componentDidMount() {
     this.timer = setInterval(() => {
@@ -498,85 +267,6 @@ class Component extends DCLogic {
     clearInterval(this.timer);
     clearTimeout(this.snapTimer);
   }
-  certTiers(m) {
-    const us = m === 'us';
-    return [
-      { kicker: 'Entry', name: 'Certified Consultant', color: '#ffe2b2', border: 'rgba(196,214,232,.2)', bg: 'rgba(255,255,255,.03)', btn: 'rgba(196,214,232,.72)', btnBg: 'transparent', btnInk: '#ffffff', cta: 'Apply as a consultant',
-        tagline: 'For independent consultants starting their SIXXAB practice.',
-        fee: us ? '$2,500' : '₹1,50,000', annual: us ? 'no license fee in year 1, $1,500 / year after' : 'no license fee in year 1, ₹75,000 / year after',
-        rows: [
-          { k: 'Revenue share', v: '15% of client subscriptions, 36 months' },
-          { k: 'SIXXAB-sourced leads', v: '10% referral fee on year 1' },
-          { k: 'Brand', v: 'Certified SIXXAB Consultant badge' },
-          { k: 'Territory', v: 'Open, no exclusivity' },
-          { k: 'Stay certified', v: '1 active client a year + annual recertification' }
-        ] },
-      { kicker: 'Most popular', name: 'Certified Partner', color: '#cfe3fa', border: 'rgba(207,227,250,.5)', bg: 'linear-gradient(180deg, rgba(207,227,250,.10), rgba(207,227,250,.02))', btn: '#ffffff', btnBg: '#ffffff', btnInk: '#02060f', cta: 'Apply as a partner',
-        tagline: 'For established firms delivering all three SIXXAB paths.',
-        fee: us ? '$15,000' : '₹5,00,000', annual: us ? '$6,000 / year license' : '₹2,00,000 / year license',
-        rows: [
-          { k: 'Revenue share', v: '20% of client subscriptions, 36 months' },
-          { k: 'SIXXAB-sourced leads', v: 'Priority leads, 10% referral fee on year 1' },
-          { k: 'Brand', v: 'Certified SIXXAB Partner, co-branded delivery' },
-          { k: 'Territory', v: 'Open, featured in the partner directory' },
-          { k: 'Stay certified', v: '2 active clients a year + annual recertification' }
-        ] },
-      { kicker: 'Exclusive', name: us ? 'Country Partner' : 'Regional Partner', color: '#96c4f4', border: 'rgba(150,196,244,.45)', bg: 'linear-gradient(180deg, rgba(150,196,244,.10), rgba(150,196,244,.02))', btn: 'rgba(196,214,232,.72)', btnBg: 'transparent', btnInk: '#ffffff', cta: 'Talk to us',
-        tagline: us ? 'Own SIXXAB in a country or region, under your brand or ours.' : 'Own SIXXAB in an Indian state or region, under your brand or ours.',
-        fee: us ? '$50,000' : '₹15,00,000', annual: us ? '$25,000 / year license' : '₹6,00,000 / year license',
-        rows: [
-          { k: 'Revenue share', v: '25% for 36 months, or white-label at 35% off list price' },
-          { k: 'Recruiting', v: '5% of revenue from consultants you certify' },
-          { k: 'Brand', v: 'White-label option: sell under your own brand' },
-          { k: 'Territory', v: us ? 'Exclusive country or region' : 'Exclusive state or region' },
-          { k: 'Stay certified', v: 'Annual growth targets agreed with SIXXAB' }
-        ] }
-    ];
-  }
-  journeyData() {
-    const gold = '#ffe2b2', mid = '#cfe3fa', blue = '#96c4f4';
-    return [
-      { n: '01', who: 'Startups & small businesses', color: gold, border: 'rgba(255,226,178,.3)', toBg: 'rgba(255,226,178,.10)',
-        title: 'Restart, scale and run your business with AI agents.',
-        from: 'Just starting, stuck, or stretched too thin', to: 'A business that runs on agents, with you in command',
-        cta: 'Start my path', ctaHref: '/login?next=start',
-        steps: [
-          { n: 1, title: 'Diagnose', body: 'A business health check places you on the SIXXAB path and shows what is holding you back.', agents: 'Strategy Coach, CFO', out: 'Stage report and top priorities', you: 'Confirm goals and stage' },
-          { n: 2, title: 'Restart', body: 'Reset the niche, offer and pricing around real demand. Stop what is not working.', agents: 'Niche Selector, CSO, CPO', out: 'A validated offer', you: 'Choose the offer to back' },
-          { n: 3, title: 'Plan', body: 'One goal, a 90-day roadmap and a weekly plan that every agent works to.', agents: 'Founder Orchestrator, Roadmap', out: '90-day roadmap', you: 'Approve the roadmap' },
-          { n: 4, title: 'Staff with agents', body: 'Switch on the CXO and department agents your stage needs, and connect your tools.', agents: 'CEO, CMO, CRO, CFO + departments', out: 'Your AI team, live', you: 'Pick which agents start' },
-          { n: 5, title: 'Grow', body: 'The built-in marketing agency, sales and support run every day. You approve spend and messages.', agents: '50 marketing agents, Deal Closer, Support', out: 'Leads, customers, revenue', you: 'Approve spend and messages' },
-          { n: 6, title: 'Run', body: 'Morning briefings, approvals and the learning loop keep the business improving while you lead.', agents: 'Founder Orchestrator, Learning Engine', out: 'A self-improving business', you: 'Handle exceptions and big calls' }
-        ],
-        outcomes: ['Revenue before headcount', 'Founder time back', 'A clear next milestone', 'Costs that grow with you'] },
-      { n: '02', who: 'Medium businesses', color: mid, border: 'rgba(207,227,250,.3)', toBg: 'rgba(207,227,250,.09)',
-        title: 'Transition and scale to SIXXAB level.',
-        from: 'Growing, but limited by people and process', to: 'SIXXAB level: a $10M business, built to keep growing',
-        cta: 'Plan my transition', ctaHref: '#begin',
-        steps: [
-          { n: 1, title: 'Assess', body: 'Map every department, process and tool. Score AI readiness and find the highest-return moves.', agents: 'COO, CIO', out: 'AI readiness map', you: 'Set the priorities' },
-          { n: 2, title: 'Connect', body: 'Bring CRM, finance, support and data into one platform, with roles and approvals.', agents: 'CIO, CDO', out: 'One connected operating system', you: 'Grant access and roles' },
-          { n: 3, title: 'Augment', body: 'Agents work alongside each team, taking repetitive work first. People review and approve.', agents: 'Department agents', out: 'Capacity without new hires', you: 'Review and approve agent work' },
-          { n: 4, title: 'Orchestrate', body: 'All 18 CXO agents align to one business plan, with one live view for you and your board.', agents: 'Founder Orchestrator, 18 CXO', out: 'Board-ready plan and packs', you: 'Sign off the business plan' },
-          { n: 5, title: 'Expand', body: 'Open new markets, products and industries with Startups in a Box.', agents: 'CGO, CINO, expansion agents', out: 'New revenue lines', you: 'Choose markets to enter' },
-          { n: 6, title: 'Reach SIXXAB', body: 'Technology, data and security agents make growth durable as you pass Significance.', agents: 'CTO, CDO, CISO, CAIO', out: 'A $10M-ready business', you: 'Decide what runs autonomously' }
-        ],
-        outcomes: ['Growth not capped by hiring', 'Every department measured', 'One plan, board to front line', 'New markets in parallel'] },
-      { n: '03', who: 'Large businesses', color: blue, border: 'rgba(150,196,244,.35)', toBg: 'rgba(150,196,244,.10)',
-        title: 'Optimize and transform into an AI-driven business.',
-        from: 'Complex, costly and slow to change', to: 'An AI-driven enterprise, with risk under control',
-        cta: 'Talk to us about transformation', ctaHref: '#begin',
-        steps: [
-          { n: 1, title: 'Discover', body: 'Review cost, processes and portfolio to find where AI moves profit and productivity most.', agents: 'CFO, COO, CAIO', out: 'AI value map and business case', you: 'Approve the business case' },
-          { n: 2, title: 'Govern', body: 'Guardrails first: security, compliance, audit and stage-gates enforced by the platform.', agents: 'CISO, CLO', out: 'AI governance framework', you: 'Set risk limits and policies' },
-          { n: 3, title: 'Pilot', body: 'Prove value in one business unit or function, with clear metrics, in weeks.', agents: 'Department agents', out: 'Measured pilot results', you: 'Pick the pilot and its metrics' },
-          { n: 4, title: 'Optimize', body: 'Automate operations, finance and support, and retire duplicate tools and cost.', agents: 'COO, CFO, CIO', out: 'Lower cost to run', you: 'Approve what changes or retires' },
-          { n: 5, title: 'Transform', body: 'Move to an AI-native operating model: CXO agents per business unit, Venture boxes for new lines.', agents: 'Founder Orchestrator, 18 CXO', out: 'AI-driven operating model', you: 'Lead the operating-model change' },
-          { n: 6, title: 'Sustain', body: 'Build an AI center of excellence and train people to lead alongside agents.', agents: 'CHRO, CAIO, Learning Engine', out: 'Future-ready talent', you: 'Own the talent plan' }
-        ],
-        outcomes: ['Measurable profit', 'Higher productivity', 'Stronger brand value', 'Future-ready talent', 'Risk under control'] }
-    ];
-  }
   renderVals() {
     const v = this.props.veilStrength ?? 0.35;
     const veil = 'radial-gradient(130% 50% at 50% 45%, rgba(6,10,18,' + (v * 1.1).toFixed(2) + ') 0%, rgba(6,10,18,' + (v * 0.5).toFixed(2) + ') 55%, rgba(6,10,18,0) 100%), linear-gradient(180deg, rgba(6,10,18,' + (v * 0.6).toFixed(2) + ') 0%, rgba(6,10,18,0) 22%, rgba(6,10,18,0) 70%, #02060f 100%)';
@@ -587,11 +277,6 @@ class Component extends DCLogic {
       bookHref: (this.props.bookingUrl || '').trim() || 'mailto:sunil.kattikar@gmail.com?subject=Book%20a%20SIXXAB%20AI%20strategy%20call',
       menuOpen: this.state.menuOpen,
       toggleMenu: () => this.setState({ menuOpen: !this.state.menuOpen }),
-      journeys: this.journeyData().map((j, i) => {
-        const on = i === this.state.journey;
-        return { n: j.n, who: j.who, active: on, pick: () => this.setState({ journey: i }), tabBorder: on ? j.color : 'rgba(196,214,232,.3)', tabBg: on ? j.toBg : 'rgba(255,255,255,.03)', tabInk: on ? '#ffffff' : '#c9d2de', numInk: j.color };
-      }),
-      cur: this.journeyData()[this.state.journey],
       loopSteps: [
         { n: '01', who: 'Agents', k: 'Plan', v: 'Agents break the goal into tasks against the business plan.', color: '#ffe2b2', border: 'rgba(196,214,232,.14)', bg: 'rgba(2,6,15,.4)' },
         { n: '02', who: 'Agents', k: 'Act', v: 'They draft, build, publish, sell and serve within guardrails.', color: '#ffe2b2', border: 'rgba(196,214,232,.14)', bg: 'rgba(2,6,15,.4)' },
@@ -617,87 +302,14 @@ class Component extends DCLogic {
         { name: 'SIXXAB', money: '$10M', bar: blue }
       ],
       heads: [
-        { n: '01', href: '#start', name: 'Start the business', stages: 'Startup → Struggle · $0 to $10K', promise: 'From an idea to a validated offer and your first paying customers.', color: gold, border: 'rgba(255,226,178,.35)', bg: 'linear-gradient(180deg, rgba(255,226,178,.08), rgba(255,226,178,.015))' },
-        { n: '02', href: '#scale', name: 'Scale the business', stages: 'Scale → Success · $10K to $100K', promise: 'Repeatable growth with a built-in AI marketing agency, sales and support.', color: mid, border: 'rgba(207,227,250,.3)', bg: 'linear-gradient(180deg, rgba(207,227,250,.07), rgba(207,227,250,.015))' },
-        { n: '03', href: '#run', name: 'Run the business', stages: 'Significance → SIXXAB · $100K to $10M', promise: 'All 18 CXO agents on one plan, running the business while you lead.', color: blue, border: 'rgba(150,196,244,.35)', bg: 'linear-gradient(180deg, rgba(150,196,244,.08), rgba(150,196,244,.015))' }
+        { n: '01', href: '/login?next=start', cta: 'Start my business', name: 'Start the business', stages: 'Startup → Struggle · $0 to $10K', promise: 'From an idea to a validated offer and your first paying customers.', color: gold, border: 'rgba(255,226,178,.35)', bg: 'linear-gradient(180deg, rgba(255,226,178,.08), rgba(255,226,178,.015))' },
+        { n: '02', href: '/login?next=scale', cta: 'Scale my business', name: 'Scale the business', stages: 'Scale → Success · $10K to $100K', promise: 'Repeatable growth with a built-in AI marketing agency, sales and support.', color: mid, border: 'rgba(207,227,250,.3)', bg: 'linear-gradient(180deg, rgba(207,227,250,.07), rgba(207,227,250,.015))' },
+        { n: '03', href: '/login?next=run', cta: 'Run my business', name: 'Run the business', stages: 'Significance → SIXXAB · $100K to $10M', promise: 'All 18 CXO agents on one plan, running the business while you lead.', color: blue, border: 'rgba(150,196,244,.35)', bg: 'linear-gradient(180deg, rgba(150,196,244,.08), rgba(150,196,244,.015))' }
       ],
-      details: [
-        { id: 'start', n: '01', stages: 'Startup & Struggle', color: gold, wash: 'radial-gradient(70% 60% at 0% 0%, rgba(255,200,120,.08), rgba(2,6,15,0) 70%)',
-          title: 'Start the business.', body: 'Most businesses die before their first customer. SIXXAB gives you a strategist, a builder and a seller on day one, so you can go from idea to revenue without hiring anyone.',
-          agents: 'Founder Orchestrator, Niche Selector, Personal Strategy Coach, Roadmap & Implementation, plus CEO, CSO, CPO, CMO, CRO and CFO agents.',
-          cta: 'Start my business', ctaHref: '/login?next=start',
-          items: [
-            { tag: 'Validate', title: 'Pick the right niche', body: 'The Niche Selector tests your idea against real demand before you spend a dollar.' },
-            { tag: 'Plan', title: 'Get a roadmap you can follow', body: 'Your strategy coach turns goals into a 90-day plan and a weekly to-do list.' },
-            { tag: 'Launch', title: 'Brand, offer and website', body: 'Agents shape the offer, set the price and ship your site and first campaigns.' },
-            { tag: 'Sell', title: 'Win the first customers', body: 'Lead finding, outreach and follow-up run every day until people pay.' }
-          ] },
-        { id: 'scale', n: '02', stages: 'Scale & Success', color: mid, wash: 'radial-gradient(70% 60% at 100% 0%, rgba(120,170,240,.10), rgba(2,6,15,0) 70%)',
-          title: 'Scale the business.', body: 'Once people pay, the job changes: make growth repeatable and keep the business healthy. SIXXAB adds a full marketing agency, a sales team, a support desk and a back office.',
-          agents: 'COO, CCO, CBO, CLO and CHRO agents, the 50-agent marketing agency, and sales, support and finance department agents.',
-          cta: 'Scale my business', ctaHref: '/login?next=scale',
-          items: [
-            { tag: 'Market', title: 'AI marketing agency, built in', body: 'Content, social, ads, SEO and email, planned and published every day.' },
-            { tag: 'Sell', title: 'A pipeline that follows up itself', body: 'CRM stays current, quiet deals get nudged, and the next step is always owned.' },
-            { tag: 'Serve', title: 'Support and success, any hour', body: 'Customers get answers in minutes; anything sensitive comes to you.' },
-            { tag: 'Operate', title: 'Books, invoices and payroll', body: 'Collections, payables, month-end close and compliance stay on track.' }
-          ] },
-        { id: 'run', n: '03', stages: 'Significance & SIXXAB', color: blue, wash: 'radial-gradient(70% 60% at 0% 0%, rgba(120,170,240,.10), rgba(2,6,15,0) 70%)',
-          title: 'Run the business.', body: 'At this stage you lead, and the business runs. The Founder Orchestrator keeps all 18 CXO agents working to one plan and reports to you and your board.',
-          agents: 'All 18 CXO agents, including CTO, CIO, CDO, CISO, CAIO, CGO and CINO, plus technology and expansion department agents.',
-          cta: 'Run my business', ctaHref: '/login?next=run',
-          items: [
-            { tag: 'Orchestrate', title: 'One plan, 18 executives', body: 'Every CXO agent works toward the same goals, with one view for you and the board.' },
-            { tag: 'Build', title: 'Technology, data and security', body: 'Engineering, cloud, analytics and security agents keep the platform strong.' },
-            { tag: 'Govern', title: 'Board packs and investor relations', body: 'Monthly packs, investor updates and fundraising support, always ready.' },
-            { tag: 'Expand', title: 'New markets, US and India', body: 'Market entry, localization, partnerships and new products, run in parallel.' }
-          ] }
-      ],
-      segments: [
-        { who: 'Startups & solo founders', box: 'Start box', color: gold, border: 'rgba(255,226,178,.35)', bg: 'linear-gradient(180deg, rgba(255,226,178,.07), rgba(255,226,178,.015))',
-          body: 'A whole business team for one founder, from idea to first revenue.',
-          points: ['Founder agents and first six CXO agents', 'Launch-ready brand, site and offer', 'Industry playbook from day one'] },
-        { who: 'Small & medium businesses', box: 'Growth box', color: mid, border: 'rgba(207,227,250,.3)', bg: 'linear-gradient(180deg, rgba(207,227,250,.06), rgba(207,227,250,.015))',
-          body: 'Add an AI marketing agency, sales, support and back office to the team you already have.',
-          points: ['Connects to the tools you already use', 'Agents work alongside your staff', 'Your data stays yours'] },
-        { who: 'Large enterprises', box: 'Venture box', color: blue, border: 'rgba(150,196,244,.38)', bg: 'linear-gradient(180deg, rgba(150,196,244,.08), rgba(150,196,244,.015))',
-          body: 'Launch a new business line, product or market with an AI team, inside your governance.',
-          points: ['Single sign-on, roles and audit trail', 'Stage-gates enforced in the platform', 'Regional data and compliance options'] }
-      ],
-      industries: [
-        { name: 'Healthcare & clinics', tag: 'Pilot', border: 'rgba(255,226,178,.45)' },
-        { name: 'Home services', tag: '', border: 'rgba(196,214,232,.22)' },
-        { name: 'Professional services', tag: '', border: 'rgba(196,214,232,.22)' },
-        { name: 'Retail & e-commerce', tag: '', border: 'rgba(196,214,232,.22)' },
-        { name: 'Real estate', tag: '', border: 'rgba(196,214,232,.22)' },
-        { name: 'Education & coaching', tag: '', border: 'rgba(196,214,232,.22)' },
-        { name: 'Hospitality & food', tag: '', border: 'rgba(196,214,232,.22)' },
-        { name: 'Manufacturing', tag: '', border: 'rgba(196,214,232,.22)' },
-        { name: 'Financial services', tag: '', border: 'rgba(196,214,232,.22)' },
-        { name: 'Technology & SaaS', tag: '', border: 'rgba(196,214,232,.22)' }
-      ],
-      markets: [
-        { name: 'United States', status: 'Launch market', color: gold },
-        { name: 'India', status: 'Launch market', color: gold },
-        { name: '[NEXT MARKET]', status: 'Planned', color: '#8d96a8' },
-        { name: '[NEXT MARKET]', status: 'Planned', color: '#8d96a8' }
-      ],
-      boxParts: [
-        { k: 'Agents', v: 'The right founder, CXO and department agents for the stage.' },
-        { k: 'Playbooks', v: 'Industry workflows, offers and campaigns that already work.' },
-        { k: 'Integrations', v: 'CRM, payments, email, social and accounting, connected.' },
-        { k: 'Compliance', v: 'Local rules and approvals built into every workflow.' },
-        { k: 'Local fit', v: 'Language, currency and payments for each market.' }
-      ],
-      agency: [
-        { title: 'Strategy & calendar', body: 'A monthly plan built from what sells and when.' },
-        { title: 'Content & video', body: 'Posts, reels and articles written in your voice.' },
-        { title: 'Social publishing', body: 'Scheduled across every channel, every day.' },
-        { title: 'Paid ads', body: 'Campaigns tested and budgets moved to what works.' },
-        { title: 'SEO & AI visibility', body: 'Found on Google and in AI answers.' },
-        { title: 'Email & messaging', body: 'Newsletters, sequences and win-back campaigns.' },
-        { title: 'Reviews & reputation', body: 'More reviews, and every one answered.' },
-        { title: 'Leads & speed-to-lead', body: 'New leads contacted in minutes, not days.' }
+      more: [
+        { tag: 'Done for you', title: 'AI marketing agency', body: '50 marketing agents run content, social, ads, SEO and email. You approve the plan and the spend.', href: '#begin', color: gold, border: 'rgba(255,226,178,.3)' },
+        { tag: 'Any industry, any market', title: 'Startups in a Box', body: 'Agents, playbooks and integrations packaged for one industry and one market, live in days.', href: '#begin', color: mid, border: 'rgba(207,227,250,.3)' },
+        { tag: 'For consultants', title: 'SIXXAB certification', body: 'Deliver SIXXAB to clients in your country, with the platform, the playbooks and recurring revenue.', href: 'mailto:sunil.kattikar@gmail.com?subject=SIXXAB%20consultant%20certification', color: blue, border: 'rgba(150,196,244,.35)' }
       ],
       layers: [
         { count: '1', name: 'Founder Orchestrator', body: 'Sets one goal and one plan, and aligns every agent to it.', color: gold, border: 'rgba(255,226,178,.35)' },
@@ -705,20 +317,6 @@ class Component extends DCLogic {
         { count: '50', name: 'Marketing agents', body: 'Your built-in AI marketing agency.', color: mid, border: 'rgba(207,227,250,.25)' },
         { count: '∞', name: 'Learning loop', body: 'Act, measure, learn, improve. Every agent, every day.', color: blue, border: 'rgba(150,196,244,.3)' }
       ],
-      certSteps: [
-        { n: '01', k: 'Apply', v: 'Consultants with strategy, transformation or industry experience apply.' },
-        { n: '02', k: 'Train', v: 'The SIXXAB Framework, the three paths, loop engineering and AI governance.' },
-        { n: '03', k: 'Certify', v: 'An assessment plus a supervised first client delivery.' },
-        { n: '04', k: 'License', v: 'Platform access to run SIXXAB for your own clients, under your practice.' },
-        { n: '05', k: 'Deliver & grow', v: 'Take clients through their path and join the global partner network.' }
-      ],
-      marketTabs: [['us', 'United States · USD'], ['in', 'India · INR']].map((m) => {
-        const on = this.state.market === m[0];
-        return { label: m[1], active: on, pick: () => this.setState({ market: m[0] }), bg: on ? '#ffffff' : 'transparent', ink: on ? '#02060f' : '#c9d2de' };
-      }),
-      certNote: this.state.market === 'us' ? 'United States pricing in USD.' : 'India pricing in INR, built for the Indian consulting market.',
-      tiersCert: this.certTiers(this.state.market),
-      certGets: ['SIXXAB platform license for your clients', 'All agents, playbooks and Startups in a Box', 'Delivery toolkit: assessments, roadmaps, board packs', 'Listing in the global consultant directory', 'Recurring revenue from client subscriptions', 'Ongoing training as the platform improves'],
       plans: [
         { n: '01', who: 'Startups & small businesses', name: 'Founder', price: '$5,000', body: 'Restart, scale and run your business with AI agents.', cta: 'Start my path', color: gold, border: 'rgba(255,226,178,.3)', bg: 'rgba(255,255,255,.03)', btn: 'rgba(196,214,232,.72)', btnBg: 'transparent', btnInk: '#ffffff',
           features: ['Founder agents: Niche Selector, Strategy Coach, Roadmap', 'Founder Orchestrator with core CXO agents', 'Built-in AI marketing agency', 'Sales, support and back-office agents', 'Daily briefing and approvals'] },

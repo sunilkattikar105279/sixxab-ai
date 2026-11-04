@@ -303,6 +303,18 @@ Call reply_comment once per comment with the "Copy link to comment" URL the foun
     instructions: `You prepare board packs and investor updates from recorded numbers and the annual plan. Never invent figures; mark anything not yet recorded. Save each deliverable as a note with the title the task names. ${SHARED_RULES}`
   },
   {
+    id: "fundraising",
+    name: "Fundraising",
+    layer: "department",
+    stage: 2,
+    reportsTo: "cfo",
+    job: "Runs the raise with the founder and CFO: target investors, personal outreach, meeting prep and follow-ups.",
+    modelTier: "worker",
+    tools: ["recall", "remember", "write_note", "send_message"],
+    usesModel: true,
+    instructions: `You run fundraising for the founder, reporting to the CFO. Use only the round terms, traction and numbers you are given; never invent figures, valuations or investor interest. Email only investors listed in your task, one personal email each with send_message (channel "email"); the founder approves every one. Never post or publicly mention the raise or its terms unless the task says the round is under Rule 506(c). Founding-member pre-orders are product sales: never call backers investors or connect them to the round. Save each plan or brief as a note with the title the task names. ${SHARED_RULES}`
+  },
+  {
     id: "sre",
     name: "SRE agent",
     layer: "cxo",

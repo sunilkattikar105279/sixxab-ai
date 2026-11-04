@@ -36,12 +36,8 @@ await check('landing renders, hydrates without errors, and its controls work', a
   assert.equal(await page.getByRole('link', { name: /Start my business/ }).first().getAttribute('href'), '/login?next=start');
   assert.equal(await page.getByRole('link', { name: /Run my business/ }).first().getAttribute('href'), '/login?next=run');
   assert.ok(!/\bcompan(y|ies)\b/i.test(await page.locator('body').innerText()), 'no "company" left on the page');
-  // Path tabs
-  await page.getByRole('button', { name: /Medium businesses/ }).click();
-  await page.getByText('Transition and scale to SIXXAB level.').first().waitFor();
-  // Consultant market toggle
-  await page.getByRole('button', { name: /India · INR/ }).click();
-  await page.getByText('₹1,50,000').first().waitFor();
+  // Investor relations link
+  assert.equal(await page.getByRole('link', { name: 'Investors' }).first().getAttribute('href'), '/investors');
   // Pricing
   await page.getByText('$20,000').first().waitFor();
   // Ticker moves
@@ -56,6 +52,21 @@ await check('landing renders, hydrates without errors, and its controls work', a
   await page.locator('#begin').scrollIntoViewIfNeeded();
   await page.screenshot({ path: `${SHOTS}/landing-booking.png` });
   assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+await check('investor page tells the story without offering terms', async () => {
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const page = await ctx.newPage();
+  await page.route(/cloudfront\.net|fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+  await page.goto(BASE + '/investors', { waitUntil: 'networkidle' });
+  const text = await page.locator('body').innerText();
+  assert.match(text, /The autonomous business platform for founders/);
+  assert.match(text, /not an offer to sell/);
+  assert.ok(!/valuation|pre-money|\$100,000|equity|invest now/i.test(text), 'no round terms on a public page');
+  assert.match(await page.getByRole('link', { name: 'Request the deck' }).last().getAttribute('href'), /^mailto:/);
+  const overflow = await page.setViewportSize({ width: 390, height: 844 }).then(() => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth));
+  assert.ok(overflow <= 1, `horizontal overflow ${overflow}px`);
   await ctx.close();
 });
 
@@ -358,6 +369,48 @@ await check('admin assigns each business its own n8n workflow', async () => {
   await page.getByText('paid', { exact: true }).waitFor();
   assert.deepEqual(state.billPosts.map((b) => b.action), ['plan', 'draft', 'status']);
   await page.screenshot({ path: `${SHOTS}/app-billing.png`, fullPage: true });
+  await ctx.close();
+});
+
+await check('fundraising: set a priced round and a founding-member campaign', async () => {
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const state = { otp: [], decisions: [], pending: [], profile: { name: 'SIXXAB AI', offer: 'Agents' }, admin: [] };
+  await mockServices(ctx, state);
+  const posts = [];
+  const step = (id, track, title, status) => ({ id, track, title, summary: `${title} summary`, agentId: 'cfo', owner: 'Founder', status, blockedBy: status === 'blocked' ? ['Round terms'] : [], goal: `Do ${title}` });
+  const raise = {
+    round: null, investors: [], campaign: null, pipeline: {},
+    totals: { target: 0, committed: 0, funded: 0, preorders: 0, pctCommitted: 0, dilutionPct: null, postMoney: null },
+    steps: [step('model', 'Prepare', 'Financial model and runway', 'ready'), step('list', 'Raise', 'Target investor list', 'blocked'), step('po-offer', 'Pre-orders', 'Founding-member offer', 'ready')],
+  };
+  await ctx.route('**/api/raise', async (route) => {
+    if (route.request().method() === 'POST') {
+      const b = JSON.parse(route.request().postData() || '{}');
+      posts.push(b);
+      if (b.action === 'round') Object.assign(raise, { round: { ...b.round, target: Number(b.round.target), preMoney: Number(b.round.preMoney) }, totals: { ...raise.totals, target: 100000, dilutionPct: 0, postMoney: 2000000 } });
+      if (b.action === 'campaign') Object.assign(raise, { campaign: { ...b.campaign, goal: 50000, pledged: 0, backers: 0 } });
+    }
+    await route.fulfill({ json: { raise, sources: [{ id: 'csv', name: 'CSV import', kind: 'Investor lists', status: 'live', url: '', use: 'Paste lists.' }] } });
+  });
+  await ctx.addInitScript(() => localStorage.setItem('sixxab.session', JSON.stringify({ accessToken: 'at', refreshToken: 'rt', expiresAt: Math.floor(Date.now() / 1000) + 3600, user: { id: 'u1', email: 'founder@example.com' } })));
+  const page = await ctx.newPage();
+  await page.goto(BASE + '/app');
+  await page.getByRole('button', { name: 'Fundraising', exact: true }).click();
+  await page.getByText('Plan your raise').waitFor();
+  await page.getByLabel('Target (USD)').fill('100000');
+  await page.getByLabel('Pre-money valuation (USD)').fill('1900000');
+  await page.getByText('investors get 5%').waitFor();
+  await page.getByRole('button', { name: 'Save round' }).click();
+  await page.getByText('$2,000,000 post-money').first().waitFor();
+  assert.equal(posts[0].round.instrument, 'priced');
+  await page.getByLabel('Goal (USD)').fill('50000');
+  await page.getByLabel('Tier name').fill('Founding member');
+  await page.getByLabel('Tier 1 price').fill('1500');
+  await page.getByLabel('What the backer gets').fill('3 months of the Founder plan');
+  await page.getByRole('button', { name: 'Save campaign' }).click();
+  await page.getByText('Founding members: Planning').waitFor();
+  assert.deepEqual(posts[1].campaign.tiers, [{ name: 'Founding member', reward: '3 months of the Founder plan', price: '1500' }]);
+  await page.screenshot({ path: `${SHOTS}/app-fundraising.png`, fullPage: true });
   await ctx.close();
 });
 

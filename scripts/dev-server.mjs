@@ -33,7 +33,7 @@ http.createServer(async (req, res) => {
   if (url.pathname.startsWith('/api/')) {
     let name = url.pathname.slice(5).replace(/\/$/, '');
     // Mirror vercel.json: the account and admin endpoints share one function.
-    if (['me', 'admin', 'governance', 'billing'].includes(name)) { url.searchParams.set('route', name); name = 'platform'; }
+    if (['me', 'admin', 'governance', 'billing', 'raise'].includes(name)) { url.searchParams.set('route', name); name = 'platform'; }
     const file = path.join(root, 'api', `${name}.js`);
     if (!/^[a-z-]+$/.test(name) || !fs.existsSync(file)) { res.writeHead(404).end('{"error":"not found"}'); return; }
     const mod = await import(pathToFileURL(file).href);

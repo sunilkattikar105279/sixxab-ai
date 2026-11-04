@@ -1,0 +1,117 @@
+<!-- Investor relations page, prerendered by scripts/build.mjs to /investors.
+     Securities note: this page describes the business only. It must not state round size, valuation,
+     instrument, minimums or "invest now" (general solicitation under Rule 506(b)). Terms live in the
+     deck, shared privately. Change that only if the round is run under 506(c) or Reg CF, with counsel. -->
+<style>
+.inv{background:#02060f;color:#fff;font-family:'Sora',system-ui,sans-serif;min-height:100vh}
+.inv a{color:inherit;text-decoration:none}
+.inv .wrap{max-width:1120px;margin:0 auto;padding:0 clamp(18px,6vw,64px)}
+.inv nav{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:32px 0}
+.inv .brand{display:flex;align-items:center;gap:9px;font-size:19px;letter-spacing:4px;font-variation-settings:'wght' 531}
+.inv .brand b{color:#ffe2b2;letter-spacing:2px;font-weight:400;font-variation-settings:'wght' 340}
+.inv .pill{display:inline-flex;align-items:center;min-height:44px;padding:11px 22px;border-radius:999px;border:1.6px solid rgba(196,214,232,.6);font-size:14px;color:#e8ecf0}
+.inv .pill.solid{background:#fff;color:#02060f;border-color:#fff}
+.inv header{padding:72px 0 64px;background:radial-gradient(60% 80% at 50% 0%,rgba(255,200,120,.14),rgba(2,6,15,0) 70%)}
+.inv .kick{margin:0 0 16px;font-size:13px;letter-spacing:3px;text-transform:uppercase;color:#ffe2b2;font-variation-settings:'wght' 534}
+.inv h1{margin:0 0 20px;max-width:20ch;font-size:clamp(34px,5vw,60px);line-height:1.1;font-weight:400;font-variation-settings:'wght' 424}
+.inv h2{margin:0 0 14px;font-size:clamp(26px,3vw,36px);line-height:1.2;font-weight:400;font-variation-settings:'wght' 440}
+.inv h3{margin:0;font-size:19px;line-height:1.3;font-weight:400;font-variation-settings:'wght' 540}
+.inv p{margin:0;font-size:17px;line-height:1.6;color:#a2a9b8}
+.inv .lead{max-width:56ch;font-size:19px}
+.inv section{padding:72px 0;border-top:1px solid rgba(196,214,232,.1)}
+.inv .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:32px}
+.inv .card{padding:26px;border-radius:22px;border:1px solid rgba(196,214,232,.16);background:rgba(255,255,255,.03);display:flex;flex-direction:column;gap:10px}
+.inv .card p{font-size:15px}
+.inv .card .tag{font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:#ffe2b2;font-variation-settings:'wght' 560}
+.inv ul.facts{list-style:none;margin:28px 0 0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 28px}
+.inv ul.facts li{display:flex;gap:12px;align-items:baseline;font-size:16px;line-height:1.5;color:#e2ebf5}
+.inv ul.facts li::before{content:'';flex:none;width:8px;height:8px;border-radius:50%;background:#ffe2b2;transform:translateY(-2px)}
+.inv .split{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:40px;align-items:start}
+.inv .cta{padding:40px;border-radius:28px;border:1px solid rgba(255,226,178,.3);background:linear-gradient(180deg,rgba(255,226,178,.08),rgba(255,226,178,.015));display:flex;flex-direction:column;gap:18px}
+.inv .row{display:flex;flex-wrap:wrap;gap:12px}
+.inv footer{padding:36px 0;border-top:1px solid rgba(196,214,232,.12);font-size:14px;color:#8d96a8;display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px}
+.inv .note{font-size:13px;color:#8d96a8}
+@media (max-width:860px){.inv .grid,.inv ul.facts,.inv .split{grid-template-columns:minmax(0,1fr)}.inv .hide-sm{display:none}}
+</style>
+<div class="inv">
+<div class="wrap">
+<nav aria-label="Main">
+<a href="/" class="brand"><svg viewBox="0 0 23 17" width="24" height="18" aria-hidden="true" style="fill:#fff"><path d="M8.15 0.9 L4.55 0.9 L0.5 9.3 L4.1 9.3 Z"/><path d="M17.0 0 L13.4 0 L6.15 16.4 L9.75 16.4 Z"/><path d="M22.9 0 L19.3 0 L15.0 7.6 L18.6 7.6 Z"/><path d="M22.6 6.9 L19.0 6.9 L14.05 16.4 L17.65 16.4 Z"/></svg>SIXXAB <b>AI</b></a>
+<span class="row"><a class="pill hide-sm" href="/">Product</a><a class="pill solid" href="#contact">Request the deck</a></span>
+</nav>
+</div>
+
+<header>
+<div class="wrap">
+<p class="kick">Investor relations</p>
+<h1>The autonomous business platform for founders.</h1>
+<p class="lead">SIXXAB AI gives a founder a full executive team of AI agents that plans, sells, markets and runs the business, with a person approving anything that reaches a customer or spends money.</p>
+</div>
+</header>
+
+<div class="wrap">
+<section aria-labelledby="why">
+<p class="kick">Why it matters</p>
+<h2 id="why">Small businesses can't afford the team they need.</h2>
+<div class="grid">
+<div class="card"><span class="tag">Problem</span><h3>Founders run everything alone</h3><p>Strategy, marketing, sales and finance compete for one person's time, and consultants and agencies cost more than an early business earns.</p></div>
+<div class="card"><span class="tag">Solution</span><h3>An AI team that earns trust</h3><p>Founder, executive and department agents work to one plan. Each task type earns more autonomy only after people approve its work.</p></div>
+<div class="card"><span class="tag">Why now</span><h3>Agents can finally do the work</h3><p>Current AI models can draft, decide and act through real tools. What has been missing is the guardrails, approvals and learning loop to run a business on them.</p></div>
+</div>
+</section>
+
+<section aria-labelledby="built">
+<p class="kick">What's built</p>
+<h2 id="built">Live at sixxab.ai, onboarding its first businesses.</h2>
+<ul class="facts">
+<li>Launched November 2026, with email and mobile sign-in and an installable app</li>
+<li>Three pilot businesses in the US and India, including an orthopaedic hospital and a pathology lab</li>
+<li>21-step journey from first idea to a running business, stage by stage</li>
+<li>Approved LinkedIn posts, comment replies and emails already go out live</li>
+<li>Human approval enforced in the database, not left to the AI</li>
+<li>Autonomy earned per task type, and every action audited</li>
+<li>Model cost tracked per business and per agent</li>
+<li>Revenue milestones from $10K a month to $10M a year, tracked and celebrated</li>
+</ul>
+</section>
+
+<section aria-labelledby="model">
+<div class="split">
+<div>
+<p class="kick">Business model</p>
+<h2 id="model">Subscriptions, plus a partner channel.</h2>
+<p>Businesses subscribe on 12-month plans that start at $5,000 a month for startups and small businesses. Certified consultants license the platform to deliver SIXXAB to clients in their own countries, starting with the US and India.</p>
+</div>
+<div class="card"><span class="tag">Markets</span><h3>United States and India</h3><p>Launching in both, with USD and INR pricing, and a consultant network for expansion into new countries.</p></div>
+</div>
+</section>
+
+<section aria-labelledby="team">
+<div class="split">
+<div>
+<p class="kick">Founder</p>
+<h2 id="team">Sunil Kattikar</h2>
+<p>25 years in enterprise technology. Former Head of Cloud, AI &amp; Platform Engineering at GameStop. Led a hybrid cloud modernization at Western Union with 35+ architects and engineers, after 17 years in transformation consulting at Infosys. Executive MBA; AWS and Azure certified solutions architect.</p>
+</div>
+<div class="card"><span class="tag">Built with</span><h3>AI-native from day one</h3><p>The platform is built and run with the same agent loop it sells: plan, act, approve, measure, learn and improve.</p></div>
+</div>
+</section>
+
+<section id="contact" aria-labelledby="talk">
+<div class="cta">
+<p class="kick" style="margin:0">Investor relations</p>
+<h2 id="talk" style="margin:0">Request the investor deck.</h2>
+<p>Tell Sunil a little about you and how you invest. He replies personally with the deck and a time to talk. Partnerships and press are welcome too.</p>
+<div class="row">
+<a class="pill solid" href="mailto:sunil.kattikar@gmail.com?subject=SIXXAB%20AI%20investor%20deck%20request">Request the deck</a>
+<a class="pill" href="/">See the product</a>
+</div>
+<p class="note">This page describes the business only. It is not an offer to sell, or a solicitation of an offer to buy, any securities.</p>
+</div>
+</section>
+</div>
+
+<div class="wrap">
+<footer><span>© 2026 SIXXAB AI · sixxab.ai</span><span class="row" style="gap:24px"><a href="/">Home</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></span></footer>
+</div>
+</div>

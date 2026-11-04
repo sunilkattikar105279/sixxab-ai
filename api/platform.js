@@ -139,9 +139,9 @@ function profileText(p) {
   }).filter(Boolean);
   return [PROFILE_PREFIX, ...lines].join("\n");
 }
-function parseProfile(text) {
+function parseProfile(text2) {
   const out = {};
-  for (const line of text.split("\n").slice(1)) {
+  for (const line of text2.split("\n").slice(1)) {
     const i = line.indexOf(": ");
     if (i < 0) continue;
     const label = line.slice(0, i);
@@ -290,8 +290,8 @@ var SupabaseStore = class {
       }
     });
     if (!res.ok) throw new Error(`Supabase ${res.status} on ${path.split("?")[0]}: ${(await res.text()).slice(0, 300)}`);
-    const text = await res.text();
-    return text ? JSON.parse(text) : [];
+    const text2 = await res.text();
+    return text2 ? JSON.parse(text2) : [];
   }
   one(rows, what) {
     if (!rows[0]) throw new Error(`${what} not found`);
@@ -454,17 +454,17 @@ var field = (input, name, max = 4e3) => {
   return t.slice(0, max);
 };
 function parseLinkedInComment(input) {
-  let text = input.trim();
+  let text2 = input.trim();
   try {
-    text = decodeURIComponent(text);
+    text2 = decodeURIComponent(text2);
   } catch {
   }
-  const m = text.match(/urn:li:comment:\((?:urn:li:)?(activity|ugcPost|share):(\d+),(\d+)\)/);
+  const m = text2.match(/urn:li:comment:\((?:urn:li:)?(activity|ugcPost|share):(\d+),(\d+)\)/);
   if (m) {
     const threadUrn2 = `urn:li:${m[1]}:${m[2]}`;
     return { threadUrn: threadUrn2, commentUrn: `urn:li:comment:(${threadUrn2},${m[3]})` };
   }
-  const d = text.match(/urn:li:fsd_comment:\((\d+),urn:li:(activity|ugcPost|share):(\d+)\)/);
+  const d = text2.match(/urn:li:fsd_comment:\((\d+),urn:li:(activity|ugcPost|share):(\d+)\)/);
   if (!d) return null;
   const threadUrn = `urn:li:${d[2]}:${d[3]}`;
   return { threadUrn, commentUrn: `urn:li:comment:(${threadUrn},${d[1]})` };
@@ -609,9 +609,9 @@ function toolsFor(agent) {
 }
 var WEBHOOK_TIMEOUT_MS = 3e4;
 var RECEIPT_MAX = 500;
-function parseReceipt(text) {
+function parseReceipt(text2) {
   try {
-    const body = JSON.parse(text);
+    const body = JSON.parse(text2);
     if (!body || typeof body !== "object") return void 0;
     const { ok, message } = body;
     return {
@@ -710,10 +710,10 @@ async function requireUser(request) {
   return { userId: user.id, orgId, label, store: s };
 }
 async function readJson(request, maxBytes = 64e3) {
-  const text = await request.text();
-  if (text.length > maxBytes) throw new HttpError(413, "Request too large");
+  const text2 = await request.text();
+  if (text2.length > maxBytes) throw new HttpError(413, "Request too large");
   try {
-    return JSON.parse(text || "{}");
+    return JSON.parse(text2 || "{}");
   } catch {
     throw new HttpError(400, "Invalid JSON");
   }
@@ -1162,6 +1162,18 @@ Call reply_comment once per comment with the "Copy link to comment" URL the foun
     tools: ["recall", "remember", "write_note"],
     usesModel: true,
     instructions: `You prepare board packs and investor updates from recorded numbers and the annual plan. Never invent figures; mark anything not yet recorded. Save each deliverable as a note with the title the task names. ${SHARED_RULES}`
+  },
+  {
+    id: "fundraising",
+    name: "Fundraising",
+    layer: "department",
+    stage: 2,
+    reportsTo: "cfo",
+    job: "Runs the raise with the founder and CFO: target investors, personal outreach, meeting prep and follow-ups.",
+    modelTier: "worker",
+    tools: ["recall", "remember", "write_note", "send_message"],
+    usesModel: true,
+    instructions: `You run fundraising for the founder, reporting to the CFO. Use only the round terms, traction and numbers you are given; never invent figures, valuations or investor interest. Email only investors listed in your task, one personal email each with send_message (channel "email"); the founder approves every one. Never post or publicly mention the raise or its terms unless the task says the round is under Rule 506(c). Founding-member pre-orders are product sales: never call backers investors or connect them to the round. Save each plan or brief as a note with the title the task names. ${SHARED_RULES}`
   },
   {
     id: "sre",
@@ -1920,11 +1932,11 @@ function computeGovernance(input) {
 
 // server/build-info.ts
 var BUILD_INFO = {
-  "builtAt": "2026-11-04T16:37:17.781Z",
-  "files": 59,
-  "lines": 5817,
-  "tests": 72,
-  "e2e": 8,
+  "builtAt": "2026-11-04T18:08:49.794Z",
+  "files": 65,
+  "lines": 6442,
+  "tests": 82,
+  "e2e": 10,
   "rlsTables": 9,
   "cspHeader": true,
   "apiRoutes": 12
@@ -1935,9 +1947,9 @@ var TIMEOUT_MS = 5e3;
 async function probe(url, headers) {
   try {
     const res = await fetch(url, { headers, signal: AbortSignal.timeout(TIMEOUT_MS) });
-    const text = await res.text();
+    const text2 = await res.text();
     try {
-      return { ok: res.ok, body: JSON.parse(text) };
+      return { ok: res.ok, body: JSON.parse(text2) };
     } catch {
       return { ok: res.ok, body: null };
     }
@@ -2111,8 +2123,467 @@ var GET4 = handle(async (request) => {
   return json({ label, admin: isAdmin(label, process.env.ADMIN_EMAILS) });
 });
 
+// server/routes/raise.ts
+var raise_exports = {};
+__export(raise_exports, {
+  GET: () => GET5,
+  POST: () => POST4
+});
+
+// core/raise-steps.ts
+var RAISE_STEPS = [
+  {
+    id: "model",
+    track: "Prepare",
+    title: "Financial model and runway",
+    agentId: "cfo",
+    owner: "Founder confirms the numbers",
+    summary: "18-month plan from recorded revenue and costs: burn, runway and what the money buys.",
+    hard: [],
+    goal: 'Build an 18-month financial model for the raise from the revenue and costs I have recorded: monthly burn, runway with and without the raise, and a use-of-funds split. Mark every assumption. Save it as a note titled "Raise: financial model".'
+  },
+  {
+    id: "entity",
+    track: "Prepare",
+    title: "Company, cap table and IP ready",
+    agentId: "clo",
+    owner: "Founder and lawyer confirm",
+    summary: "Checklist: the right entity for US investors, founder shares, IP assignment and a clean cap table.",
+    hard: [],
+    goal: 'Write the readiness checklist a US seed investor expects before buying shares: entity (usually a Delaware C-corp; note what changes if the business is an Indian company), authorised shares, founder stock and 83(b) elections, IP assignment to the company, an option pool decision, board consent, and a cap table in a tool such as Carta. Mark each item for a lawyer to confirm. Save it as a note titled "Raise: company readiness".'
+  },
+  {
+    id: "terms",
+    track: "Prepare",
+    title: "Round terms",
+    agentId: "cfo",
+    owner: "Founder sets the round",
+    summary: "CFO proposes size, valuation and instrument from the model; the founder sets them in Round terms.",
+    hard: ["model"],
+    goal: 'From the financial model and the round terms recorded below, check the round: amount, pre-money and post-money valuation, the percentage investors get, price per share given the fully diluted share count (ask for it if unknown), option pool, and minimum cheque. Show the arithmetic, compare it with a post-money SAFE at the same valuation, and list what a lawyer should confirm. Save it as a note titled "Raise: proposed terms".'
+  },
+  {
+    id: "deck",
+    track: "Prepare",
+    title: "Pitch deck and one-pager",
+    agentId: "investor-relations",
+    owner: "Founder approves the story",
+    summary: "Problem, solution, traction, market, model, team, the ask and use of funds.",
+    hard: ["terms"],
+    goal: 'Draft the outline of a 10-slide pitch deck and a one-page investor brief: problem, solution, product, traction (only what is recorded), market, business model, go-to-market, team, the ask and use of funds. Save it as a note titled "Raise: deck outline".'
+  },
+  {
+    id: "dataroom",
+    track: "Prepare",
+    title: "Data room",
+    agentId: "cfo",
+    owner: "Founder uploads the files",
+    summary: "The documents investors ask for, in one shared folder.",
+    hard: ["model", "entity"],
+    goal: 'List the data room an early-stage investor expects, grouped by corporate, financial, product, customers and team, with which documents exist already and which are missing. Save it as a note titled "Raise: data room".'
+  },
+  {
+    id: "list",
+    track: "Raise",
+    title: "Target investor list",
+    agentId: "fundraising",
+    owner: "Founder picks who to approach",
+    summary: "Angels, syndicates, funds and accelerators that back this stage and sector.",
+    hard: ["terms"],
+    goal: 'Describe the investor profile for this round (cheque size, stage, sector, geography) and the kinds of investors to approach first. Start from people the founder already knows. Save it as a note titled "Raise: target investors".'
+  },
+  {
+    id: "outreach",
+    track: "Raise",
+    title: "Outreach",
+    agentId: "fundraising",
+    owner: "Founder approves every email",
+    summary: "Personal emails drafted per investor; each waits in Approvals.",
+    hard: ["deck", "list"],
+    goal: ""
+  },
+  {
+    id: "meetings",
+    track: "Raise",
+    title: "Meetings and diligence",
+    agentId: "fundraising",
+    owner: "Founder takes the meetings",
+    summary: "Prep notes per meeting, follow-ups, answers to diligence questions.",
+    hard: ["outreach", "dataroom"],
+    goal: 'Prepare a meeting brief for the investors now in meetings or diligence: what each cares about, likely questions with answers from recorded facts, and the follow-up to send. Save it as a note titled "Raise: meeting briefs".'
+  },
+  {
+    id: "close",
+    track: "Raise",
+    title: "Sign and close",
+    agentId: "clo",
+    owner: "Founder signs; lawyer reviews",
+    summary: "Round documents signed, money received, shares issued, cap table updated.",
+    hard: ["meetings"],
+    goal: 'Write the closing checklist for the committed investors, matching the instrument recorded below. For a priced round: term sheet, stock purchase agreement and charter amendment (NVCA-style seed documents), board and stockholder consents, e-signature, wire instructions confirmed by phone, funds received, shares issued, cap table updated. Add the filings a lawyer should confirm, such as Form D within 15 days of the first sale and state notices. Save it as a note titled "Raise: closing checklist".'
+  },
+  {
+    id: "updates",
+    track: "Raise",
+    title: "Monthly investor updates",
+    agentId: "investor-relations",
+    owner: "Founder approves each update",
+    summary: "Highlights, numbers, asks; the same every month.",
+    hard: ["close"],
+    goal: 'Draft this month\u2019s investor update from recorded numbers: highlights, revenue, burn and runway, lowlights, and 3 specific asks. Save it as a note titled "Raise: investor update".'
+  },
+  {
+    id: "po-offer",
+    track: "Pre-orders",
+    title: "Founding-member offer",
+    agentId: "cro",
+    owner: "Founder sets the tiers",
+    summary: "What founding members pay now, what they get and when; up to 6 tiers.",
+    hard: [],
+    goal: 'Design a founding-member pre-order offer for this business: 2 to 4 tiers (name, price, limited quantity, exactly what the backer gets and when), priced against the regular plans, plus a realistic delivery date and refund promise. These are product sales, not shares; never call backers investors. Save it as a note titled "Pre-orders: offer".'
+  },
+  {
+    id: "po-page",
+    track: "Pre-orders",
+    title: "Payment page and terms",
+    agentId: "clo",
+    owner: "Founder creates the payment link",
+    summary: "A Stripe or Razorpay link (or Kickstarter/Indiegogo page), with clear delivery and refund terms.",
+    hard: ["po-offer"],
+    goal: 'Write the pre-order terms to show on the payment page: what is sold, delivery date, what happens if delivery slips (customers can cancel for a full refund), refund policy, taxes, and that this is not an investment. Then list the steps to create a Stripe Payment Link (USD) and a Razorpay Payment Page (INR). Save it as a note titled "Pre-orders: page and terms".'
+  },
+  {
+    id: "po-launch",
+    track: "Pre-orders",
+    title: "Campaign launch",
+    agentId: "cmo",
+    owner: "Founder approves every post",
+    summary: "A 30-day plan of posts and emails to customers and followers; each post waits for approval.",
+    hard: ["po-page"],
+    goal: 'Plan a 30-day founding-member campaign: launch post, weekly progress posts, emails to the people who already know us, and a last-chance post. Every message links to the payment page and repeats the delivery date. Never mention the equity round or call backers investors. Save it as a note titled "Pre-orders: launch plan".'
+  },
+  {
+    id: "po-fulfil",
+    track: "Pre-orders",
+    title: "Deliver and convert",
+    agentId: "coo",
+    owner: "Founder confirms delivery",
+    summary: "Onboard every founding member on time, then turn them into subscribers and testimonials.",
+    hard: ["po-launch"],
+    goal: 'Write the delivery plan for founding members: onboarding order, a status email to send if any date slips (with the option to cancel for a refund), how to collect feedback, and how to convert them into 12-month subscribers. Save it as a note titled "Pre-orders: delivery".'
+  }
+];
+
+// core/raise.ts
+var INSTRUMENTS = ["priced", "safe-post", "safe-pre", "note"];
+var EXEMPTIONS = ["506b", "506c"];
+var INVESTOR_TYPES = ["angel", "syndicate", "vc", "accelerator", "strategic", "family"];
+var STAGES2 = ["target", "contacted", "meeting", "diligence", "committed", "signed", "funded", "passed"];
+var ACCREDITATION = ["unknown", "self-certified", "verified"];
+var CHANNELS = ["Own page (Stripe link)", "Own page (Razorpay link)", "Kickstarter", "Indiegogo"];
+var CAMPAIGN_STAGES = ["planning", "prelaunch", "live", "fulfilling", "closed", "cancelled"];
+var MAX_TIERS = 6;
+var RAISE_EVENTS = ["raise.round", "raise.investor", "raise.investor_stage", "raise.investor_removed", "raise.campaign", "raise.step"];
+var COMMITTED = ["committed", "signed", "funded"];
+var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+var MAX_MONEY = 1e10;
+var text = (v, max) => String(v ?? "").trim().slice(0, max);
+var money = (v, label, required = false) => {
+  if (v === void 0 || v === null || v === "") {
+    if (required) throw new Error(`${label} must be more than zero`);
+    return void 0;
+  }
+  const n = typeof v === "string" ? Number(v.replace(/[,$\s]/g, "")) : Number(v);
+  if (!Number.isFinite(n) || n < 0 || n > MAX_MONEY || required && n === 0) throw new Error(`${label} must be ${required ? "more than zero" : "zero or more"}`);
+  return n;
+};
+var oneOf = (list, v, label) => {
+  if (!list.includes(v)) throw new Error(`${label} must be one of: ${list.join(", ")}`);
+  return v;
+};
+var fmt = (n) => n.toLocaleString("en-US", { maximumFractionDigits: 0 });
+var record = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
+async function setRound(store2, orgId, r, by) {
+  const round2 = {
+    name: text(r.name, 60) || "Pre-seed",
+    instrument: oneOf(INSTRUMENTS, r.instrument, "instrument"),
+    exemption: oneOf(EXEMPTIONS, r.exemption, "exemption"),
+    target: money(r.target, "The target", true),
+    cap: r.instrument === "priced" ? void 0 : money(r.cap, "The valuation cap"),
+    preMoney: r.instrument === "priced" ? money(r.preMoney, "The pre-money valuation") : void 0,
+    discount: r.discount === void 0 || r.discount === null ? void 0 : Number(r.discount),
+    minCheck: money(r.minCheck, "The minimum cheque"),
+    currency: "USD"
+  };
+  if (round2.discount !== void 0 && !(round2.discount >= 0 && round2.discount <= 50)) throw new Error("The discount must be between 0 and 50 percent");
+  await record(store2, orgId, by, "raise.round", { ...round2, summary: `Round set: ${round2.name}, $${fmt(round2.target)} (${round2.instrument}, ${round2.exemption})${round2.preMoney ? ` at $${fmt(round2.preMoney)} pre-money` : ""}` });
+  return loadRaise(store2, orgId);
+}
+function cleanInvestor(i) {
+  const name = text(i.name, 120);
+  if (!name) throw new Error("An investor needs a name");
+  const email = text(i.email, 200);
+  if (email && !EMAIL_RE.test(email)) throw new Error("That email address does not look right");
+  return {
+    id: i.id && /^[\w-]{6,64}$/.test(i.id) ? i.id : newId(),
+    name,
+    email,
+    firm: text(i.firm, 120),
+    type: oneOf(INVESTOR_TYPES, i.type, "type"),
+    relationship: text(i.relationship, 200),
+    accredited: i.accredited ? oneOf(ACCREDITATION, i.accredited, "accredited") : "unknown",
+    nextStep: text(i.nextStep, 200),
+    notes: text(i.notes, 2e3)
+  };
+}
+async function upsertInvestor(store2, orgId, input, by) {
+  const inv = cleanInvestor(input);
+  await record(store2, orgId, by, "raise.investor", { investor: inv, summary: `Investor saved: ${inv.name}` });
+  const found = (await loadRaise(store2, orgId)).investors.find((x) => x.id === inv.id);
+  return found;
+}
+async function removeInvestor(store2, orgId, id, by) {
+  await record(store2, orgId, by, "raise.investor_removed", { investorId: id, summary: "Investor removed from the pipeline" });
+}
+async function setInvestorStage(store2, orgId, id, stage, by, amount) {
+  const st = oneOf(STAGES2, stage, "stage");
+  const state = await loadRaise(store2, orgId);
+  const inv = state.investors.find((x) => x.id === id);
+  if (!inv) throw new Error("Investor not found");
+  const amt = money(amount, "The amount") ?? inv.amount;
+  if (st === "funded" && state.round?.exemption === "506c" && inv.accredited !== "verified") {
+    throw new Error("Under 506(c), verify this investor is accredited before accepting their money");
+  }
+  await record(store2, orgId, by, "raise.investor_stage", { investorId: id, stage: st, amount: amt, summary: `${inv.name}: ${st}${amt ? ` ($${fmt(amt)})` : ""}` });
+  return loadRaise(store2, orgId);
+}
+var DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+function cleanTiers(tiers) {
+  if (!Array.isArray(tiers)) return [];
+  if (tiers.length > MAX_TIERS) throw new Error(`A campaign can have at most ${MAX_TIERS} tiers`);
+  return tiers.map((t, i) => {
+    const name = text(t?.name, 60);
+    const reward = text(t?.reward, 300);
+    if (!name || !reward) throw new Error(`Tier ${i + 1} needs a name and what the backer gets`);
+    return { name, reward, price: money(t?.price, `Tier ${i + 1} price`, true), limit: money(t?.limit, `Tier ${i + 1} limit`) };
+  });
+}
+async function setCampaign(store2, orgId, c, by) {
+  const channel = oneOf(CHANNELS, c.channel, "The channel");
+  const url = text(c.url, 300);
+  if (url && !/^https:\/\/[\w.-]+(\/[\w\-./?=&%#]*)?$/i.test(url)) throw new Error("The campaign url must start with https://");
+  const campaign = {
+    channel,
+    url,
+    stage: oneOf(CAMPAIGN_STAGES, c.stage, "The campaign stage"),
+    goal: money(c.goal, "The goal"),
+    pledged: money(c.pledged, "The amount pledged"),
+    backers: money(c.backers, "The number of backers"),
+    deadline: DATE_RE.test(String(c.deadline ?? "")) ? String(c.deadline) : void 0,
+    deliverBy: DATE_RE.test(String(c.deliverBy ?? "")) ? String(c.deliverBy) : void 0,
+    tiers: cleanTiers(c.tiers)
+  };
+  if (campaign.stage === "live" && (!campaign.tiers.length || !campaign.deliverBy)) {
+    throw new Error("Before going live, add at least one tier and the date you promise to deliver by");
+  }
+  await record(store2, orgId, by, "raise.campaign", { ...campaign, summary: `Founding-member pre-orders (${channel}): ${campaign.stage}` });
+  return loadRaise(store2, orgId);
+}
+async function completeRaiseStep(store2, orgId, stepId, by) {
+  const state = await loadRaise(store2, orgId);
+  const step = state.steps.find((s) => s.id === stepId);
+  if (!step) throw new Error("Unknown step");
+  if (step.status === "blocked") throw new Error(`Finish first: ${step.blockedBy.join(", ")}`);
+  if (stepId === "terms" && !state.round) throw new Error("Set the round terms before marking this done");
+  await record(store2, orgId, by, "raise.step", { step: stepId, done: true, summary: `Raise step done: ${step.title}` });
+  return loadRaise(store2, orgId);
+}
+async function reopenRaiseStep(store2, orgId, stepId, by) {
+  if (!RAISE_STEPS.some((s) => s.id === stepId)) throw new Error("Unknown step");
+  await record(store2, orgId, by, "raise.step", { step: stepId, done: false, summary: `Raise step reopened: ${stepId}` });
+  return loadRaise(store2, orgId);
+}
+async function importInvestors(store2, orgId, csv, by) {
+  const rows = String(csv ?? "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean).slice(0, 201);
+  if (rows[0] && /^name\s*,/i.test(rows[0])) rows.shift();
+  let added = 0;
+  let skipped = 0;
+  for (const row of rows.slice(0, 200)) {
+    const [name, firm, email, type, relationship] = row.split(",").map((x) => x.trim());
+    try {
+      const inv = cleanInvestor({ name, firm, email, type: INVESTOR_TYPES.includes(type) ? type : "angel", relationship });
+      await record(store2, orgId, by, "raise.investor", { investor: inv, summary: `Investor imported: ${inv.name}` });
+      added++;
+    } catch {
+      skipped++;
+    }
+  }
+  return { added, skipped };
+}
+async function loadRaise(store2, orgId) {
+  return computeRaise(await store2.listAuditByActions(orgId, RAISE_EVENTS));
+}
+function investorWarnings(inv, exemption) {
+  const warnings = [];
+  let canEmail = Boolean(inv.email) && inv.stage !== "passed";
+  if ((exemption ?? "506b") === "506b" && !inv.relationship) {
+    canEmail = false;
+    warnings.push("Under 506(b), approach only people you already know or were introduced to. Add how you know them before reaching out.");
+  }
+  if (exemption === "506c" && COMMITTED.includes(inv.stage) && inv.accredited !== "verified") {
+    warnings.push("Under 506(c), verify accreditation (for example through a verification service or a CPA or lawyer letter) before accepting money.");
+  }
+  return { canEmail, warnings };
+}
+function computeRaise(events) {
+  let round2 = null;
+  let campaign = null;
+  const investors = /* @__PURE__ */ new Map();
+  const done = /* @__PURE__ */ new Set();
+  for (const e of events) {
+    const d = e.detail;
+    if (e.action === "raise.round") round2 = { ...d, setAt: e.at };
+    else if (e.action === "raise.campaign") campaign = { ...d, setAt: e.at };
+    else if (e.action === "raise.investor") {
+      const inv = d.investor;
+      const prev = investors.get(inv.id);
+      investors.set(inv.id, { ...inv, stage: prev?.stage ?? "target", amount: prev?.amount ?? 0, updatedAt: e.at });
+    } else if (e.action === "raise.investor_stage") {
+      const prev = investors.get(String(d.investorId));
+      if (prev) investors.set(prev.id, { ...prev, stage: d.stage, amount: Number(d.amount) || 0, updatedAt: e.at });
+    } else if (e.action === "raise.investor_removed") investors.delete(String(d.investorId));
+    else if (e.action === "raise.step") d.done ? done.add(String(d.step)) : done.delete(String(d.step));
+  }
+  const list = [...investors.values()].map((i) => ({ ...i, ...investorWarnings(i, round2?.exemption) })).sort((a, b) => STAGES2.indexOf(b.stage) - STAGES2.indexOf(a.stage) || a.name.localeCompare(b.name));
+  const pipeline = Object.fromEntries(STAGES2.map((s) => [s, list.filter((i) => i.stage === s).length]));
+  const preorders = campaign && campaign.stage !== "cancelled" ? Number(campaign.pledged ?? 0) : 0;
+  const committed = list.filter((i) => COMMITTED.includes(i.stage)).reduce((s, i) => s + i.amount, 0);
+  const funded = list.filter((i) => i.stage === "funded").reduce((s, i) => s + i.amount, 0);
+  const target = round2?.target ?? 0;
+  const cap = round2?.cap ?? 0;
+  const pre = round2?.preMoney ?? 0;
+  const dilution = round2?.instrument === "priced" ? pre ? committed / (pre + committed) : null : !cap ? null : round2?.instrument === "safe-post" ? committed / cap : committed / (cap + committed);
+  const totals = {
+    target,
+    committed,
+    funded,
+    preorders,
+    pctCommitted: target ? Math.round(committed / target * 1e3) / 10 : 0,
+    dilutionPct: dilution === null ? null : Math.round(dilution * 1e4) / 100,
+    postMoney: round2?.instrument === "priced" && pre ? pre + target : null
+  };
+  const state = { round: round2, investors: list, campaign, steps: [], pipeline, totals };
+  const context = raiseForPrompt(state);
+  const preorderContext = raiseForPrompt({ ...state, round: null }).replace(/^Raise: No round[^\n]*\n?/, "") || "No pre-order campaign is recorded yet.";
+  state.steps = RAISE_STEPS.map((s) => {
+    const blockedBy = s.hard.filter((h) => !done.has(h)).map((h) => RAISE_STEPS.find((x) => x.id === h).title);
+    const base = s.id === "outreach" ? outreachGoal(list) : s.goal;
+    if (s.track === "Pre-orders") {
+      return {
+        id: s.id,
+        track: s.track,
+        title: s.title,
+        summary: s.summary,
+        agentId: s.agentId,
+        owner: s.owner,
+        blockedBy,
+        status: done.has(s.id) ? "done" : blockedBy.length ? "blocked" : "ready",
+        goal: `${base}
+
+${preorderContext}`
+      };
+    }
+    return {
+      id: s.id,
+      track: s.track,
+      title: s.title,
+      summary: s.summary,
+      agentId: s.agentId,
+      owner: s.owner,
+      blockedBy,
+      status: done.has(s.id) ? "done" : blockedBy.length ? "blocked" : "ready",
+      goal: base ? `${base}
+
+${context}` : ""
+    };
+  });
+  return state;
+}
+function outreachGoal(list) {
+  const ready = list.filter((i) => i.canEmail && (i.stage === "target" || i.stage === "contacted")).slice(0, 10);
+  if (!ready.length) return 'No investors can be emailed yet. Explain what to add to the pipeline (name, email and how the founder knows them) and save it as a note titled "Raise: outreach".';
+  return `Draft a short, personal first email to each investor below and queue each with send_message (channel "email"). Each email: who we are in one line, why this investor, the traction we have recorded, and a request for a 20-minute call. Share terms only with these known investors, never in public posts. Each email waits for the founder's approval.
+${ready.map((i) => `- ${i.name}${i.firm ? ` (${i.firm})` : ""} <${i.email}>, ${i.type}; how we know them: ${i.relationship || "n/a"}`).join("\n")}`;
+}
+function raiseForPrompt(s) {
+  const preorders = s.campaign ? `Founding-member pre-orders (product sales, not investment; never call backers investors or promise them shares): ${s.campaign.channel}, ${s.campaign.stage}${s.campaign.pledged ? `, $${fmt(s.campaign.pledged)} pre-sold to ${s.campaign.backers ?? 0} backers` : ""}${s.campaign.deliverBy ? `, delivery promised by ${s.campaign.deliverBy}` : ""}${s.campaign.tiers?.length ? `. Tiers: ${s.campaign.tiers.map((t) => `${t.name} $${fmt(t.price)} (${t.reward})`).join("; ")}` : ""}.` : "";
+  if (!s.round) return ["Raise: No round is set yet. Do not state a round size, valuation or instrument; mark them as to be decided by the founder.", preorders].filter(Boolean).join("\n");
+  const r = s.round;
+  const exemption = r.exemption === "506b" ? "Rule 506(b): private, no public mention of the raise" : "Rule 506(c): may be public, accredited investors only and verified";
+  const priced = r.instrument === "priced";
+  const lines = [
+    `Raise: ${r.name}, target $${fmt(r.target)} USD as a ${r.instrument === "safe-post" ? "post-money SAFE" : r.instrument === "safe-pre" ? "pre-money SAFE" : r.instrument === "note" ? "convertible note" : "priced equity round"}${priced && r.preMoney ? ` at a $${fmt(r.preMoney)} pre-money valuation ($${fmt(r.preMoney + r.target)} post-money, ${Math.round(r.target / (r.preMoney + r.target) * 1e3) / 10}% for investors)` : ""}${!priced && r.cap ? `, valuation cap $${fmt(r.cap)}` : ""}${r.discount ? `, ${r.discount}% discount` : ""}${r.minCheck ? `, minimum cheque $${fmt(r.minCheck)}` : ""}.`,
+    `Exemption: ${exemption}.`,
+    `Progress: $${fmt(s.totals.committed)} committed (${s.totals.pctCommitted}%), $${fmt(s.totals.funded)} received. Pipeline: ${STAGES2.filter((k) => s.pipeline[k]).map((k) => `${s.pipeline[k]} ${k}`).join(", ") || "empty"}.`
+  ];
+  if (preorders) lines.push(preorders);
+  return lines.join("\n");
+}
+var RAISE_SOURCES = [
+  { id: "gmail", name: "Gmail (via n8n)", kind: "Outreach", status: "live", url: "", use: "Investor emails go out from your Gmail after you approve each one." },
+  { id: "csv", name: "CSV import", kind: "Investor lists", status: "live", url: "", use: "Paste lists exported from Crunchbase, Signal, AngelList or your contacts." },
+  { id: "signal", name: "Signal by NFX", kind: "Investor discovery", status: "link", url: "https://signal.nfx.com", use: "Find seed investors by stage and sector, then import." },
+  { id: "crunchbase", name: "Crunchbase", kind: "Investor discovery", status: "link", url: "https://www.crunchbase.com", use: "Funds and angels active at seed, then import." },
+  { id: "angellist", name: "AngelList", kind: "Angels and syndicates", status: "link", url: "https://www.angellist.com", use: "Roll many small cheques into one line on the cap table." },
+  { id: "carta", name: "Carta", kind: "Cap table", status: "link", url: "https://carta.com", use: "Cap table, share issuance and 409A." },
+  { id: "documenso", name: "Documenso", kind: "E-signature", status: "link", url: "https://documenso.com", use: "Sign the round documents; open source." },
+  { id: "stripe", name: "Stripe Payment Links", kind: "Pre-orders (US)", status: "link", url: "https://stripe.com/payments/payment-links", use: "Take founding-member pre-orders in USD from your own page." },
+  { id: "razorpay", name: "Razorpay Payment Pages", kind: "Pre-orders (India)", status: "link", url: "https://razorpay.com/payment-pages/", use: "Take founding-member pre-orders in INR." },
+  { id: "kickstarter", name: "Kickstarter", kind: "Reward crowdfunding", status: "link", url: "https://www.kickstarter.com", use: "All-or-nothing reward campaign with a built-in audience." },
+  { id: "indiegogo", name: "Indiegogo", kind: "Reward crowdfunding", status: "link", url: "https://www.indiegogo.com", use: "Reward campaign; flexible funding allowed." }
+];
+
+// server/routes/raise.ts
+var GET5 = handle(async (request) => {
+  const { orgId, store: store2 } = await requireUser(request);
+  return json({ raise: await loadRaise(store2, orgId), sources: RAISE_SOURCES });
+});
+var POST4 = handle(async (request) => {
+  const { orgId, label, store: store2 } = await requireUser(request);
+  const b = await readJson(request, 1e5);
+  const id = String(b.investorId ?? "");
+  try {
+    switch (b.action) {
+      case "round":
+        return json({ raise: await setRound(store2, orgId, b.round ?? {}, label) });
+      case "investor":
+        await upsertInvestor(store2, orgId, b.investor ?? {}, label);
+        break;
+      case "stage":
+        return json({ raise: await setInvestorStage(store2, orgId, id, b.stage, label, b.amount === void 0 || b.amount === "" ? void 0 : Number(String(b.amount).replace(/[,$\s]/g, ""))) });
+      case "remove":
+        await removeInvestor(store2, orgId, id, label);
+        break;
+      case "import":
+        return json({ ...await importInvestors(store2, orgId, String(b.csv ?? ""), label), raise: await loadRaise(store2, orgId) });
+      case "campaign":
+        return json({ raise: await setCampaign(store2, orgId, b.campaign ?? {}, label) });
+      case "complete":
+        return json({ raise: await completeRaiseStep(store2, orgId, String(b.step ?? ""), label) });
+      case "reopen":
+        return json({ raise: await reopenRaiseStep(store2, orgId, String(b.step ?? ""), label) });
+      default:
+        throw new HttpError(400, "Unknown action");
+    }
+  } catch (e) {
+    if (e instanceof HttpError) throw e;
+    throw new HttpError(400, e instanceof Error ? e.message : "Could not update the raise");
+  }
+  return json({ raise: await loadRaise(store2, orgId) });
+});
+
 // server/api/platform.ts
-var ROUTES = { admin: admin_exports, billing: billing_exports, governance: governance_exports, me: me_exports };
+var ROUTES = { admin: admin_exports, billing: billing_exports, governance: governance_exports, me: me_exports, raise: raise_exports };
 function dispatch(method) {
   return async (request) => {
     const url = new URL(request.url);
@@ -2124,9 +2595,9 @@ function dispatch(method) {
     return handler(request);
   };
 }
-var GET5 = dispatch("GET");
-var POST4 = dispatch("POST");
+var GET6 = dispatch("GET");
+var POST5 = dispatch("POST");
 export {
-  GET5 as GET,
-  POST4 as POST
+  GET6 as GET,
+  POST5 as POST
 };
