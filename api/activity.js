@@ -155,6 +155,17 @@ var SupabaseStore = class {
     });
     return org.id;
   }
+  /** Exact row count of a table (platform-wide; admin governance only). */
+  async countRows(table) {
+    if (!/^[a-z_]+$/.test(table)) throw new Error("Invalid table");
+    const res = await this.fetchImpl(`${this.url}/rest/v1/${table}?select=*&limit=1`, {
+      method: "HEAD",
+      headers: { apikey: this.serviceKey, ...isLegacyJwt(this.serviceKey) ? { authorization: `Bearer ${this.serviceKey}` } : {}, prefer: "count=exact" }
+    });
+    const range = res.headers.get("content-range") ?? "";
+    const n = Number(range.split("/")[1]);
+    return Number.isFinite(n) ? n : 0;
+  }
   async listOrgIds() {
     return (await this.req("orgs?select=id")).map((r) => String(r.id));
   }

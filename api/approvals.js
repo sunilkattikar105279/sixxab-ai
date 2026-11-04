@@ -303,6 +303,18 @@ Call reply_comment once per comment with the "Copy link to comment" URL the foun
     instructions: `You prepare board packs and investor updates from recorded numbers and the annual plan. Never invent figures; mark anything not yet recorded. Save each deliverable as a note with the title the task names. ${SHARED_RULES}`
   },
   {
+    id: "sre",
+    name: "SRE agent",
+    layer: "cxo",
+    stage: 3,
+    reportsTo: "founder-orchestrator",
+    job: "Keeps the platform reliable: status, failed actions, integrations and runbooks.",
+    modelTier: "worker",
+    tools: ["recall", "remember", "write_note"],
+    usesModel: true,
+    instructions: `You are the SRE agent for the platform. Work only from the status, failures and integration numbers you are given. For each issue: impact, likely cause, the runbook steps to restore it, and how to prevent it. Save each deliverable as a note with the title the task names. ${SHARED_RULES}`
+  },
+  {
     id: "customer-reply",
     name: "Customer Reply",
     layer: "department",
@@ -1585,6 +1597,17 @@ var SupabaseStore = class {
       headers: { prefer: "return=minimal" }
     });
     return org.id;
+  }
+  /** Exact row count of a table (platform-wide; admin governance only). */
+  async countRows(table) {
+    if (!/^[a-z_]+$/.test(table)) throw new Error("Invalid table");
+    const res = await this.fetchImpl(`${this.url}/rest/v1/${table}?select=*&limit=1`, {
+      method: "HEAD",
+      headers: { apikey: this.serviceKey, ...isLegacyJwt(this.serviceKey) ? { authorization: `Bearer ${this.serviceKey}` } : {}, prefer: "count=exact" }
+    });
+    const range = res.headers.get("content-range") ?? "";
+    const n = Number(range.split("/")[1]);
+    return Number.isFinite(n) ? n : 0;
   }
   async listOrgIds() {
     return (await this.req("orgs?select=id")).map((r) => String(r.id));

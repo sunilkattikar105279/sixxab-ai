@@ -6,9 +6,11 @@ import { BusinessProfile } from './BusinessProfile';
 import { Journey } from './Journey';
 import { Rate } from './Rate';
 import { AdminPanel } from './AdminPanel';
+import { Governance } from './Governance';
+import { Billing } from './Billing';
 import { useLoad } from './useLoad';
 
-type Tab = 'journey' | 'today' | 'approvals' | 'agents' | 'activity';
+type Tab = 'journey' | 'today' | 'approvals' | 'agents' | 'activity' | 'governance' | 'billing';
 type AgentInfo = Omit<RoleCard, 'instructions'>;
 interface TaskRow { id: string; agentId: string; goal: string; status: string; output: string | null; updatedAt: string; createdAt: string; parentTaskId: string | null }
 
@@ -22,6 +24,7 @@ export default function Dashboard() {
   const [checked, setChecked] = useState(false);
   const [tab, setTab] = useState<Tab>('journey');
   const [pendingCount, setPendingCount] = useState(0);
+  const [admin, setAdmin] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -32,6 +35,7 @@ export default function Dashboard() {
       }
       setSession(s);
       setChecked(true);
+      api<{ admin: boolean }>('/api/me').then((m) => setAdmin(m.admin)).catch(() => setAdmin(false));
     })();
   }, []);
 
@@ -48,9 +52,9 @@ export default function Dashboard() {
         </div>
       </header>
       <nav className="app-tabs" aria-label="Workspace">
-        {(['journey', 'today', 'approvals', 'agents', 'activity'] as Tab[]).map((t) => (
+        {([...(['journey', 'today', 'approvals', 'agents', 'activity'] as Tab[]), ...(admin ? (['governance', 'billing'] as Tab[]) : [])]).map((t) => (
           <button key={t} type="button" className={tab === t ? 'app-tab on' : 'app-tab'} aria-current={tab === t ? 'page' : undefined} onClick={() => setTab(t)}>
-            {t === 'journey' ? 'Journey' : t === 'today' ? 'Today' : t === 'approvals' ? `Approvals${pendingCount ? ` (${pendingCount})` : ''}` : t === 'agents' ? 'Agents' : 'Activity'}
+            {t === 'journey' ? 'Journey' : t === 'today' ? 'Today' : t === 'approvals' ? `Approvals${pendingCount ? ` (${pendingCount})` : ''}` : t === 'agents' ? 'Agents' : t === 'activity' ? 'Activity' : t === 'governance' ? 'Governance' : 'Billing'}
           </button>
         ))}
       </nav>
@@ -60,6 +64,8 @@ export default function Dashboard() {
         {tab === 'approvals' && <Approvals onCount={setPendingCount} />}
         {tab === 'agents' && <Agents />}
         {tab === 'activity' && <Activity />}
+        {tab === 'governance' && admin && <Governance />}
+        {tab === 'billing' && admin && <Billing />}
       </main>
     </div>
   );

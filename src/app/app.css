@@ -168,3 +168,16 @@ th { color: var(--sub); font-weight: 500; font-size: 12px; text-transform: upper
 .cost-tiles strong { font-size: 18px; font-weight: 500; }
 @media (max-width: 640px) { .cost-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .path-input { width: 100%; min-height: 36px; padding: 6px 12px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,0.04); color: #fff; font: inherit; font-size: 13px; }
+/* Governance and billing */
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 999px; margin-right: 6px; vertical-align: middle; background: var(--sub); }
+.dot-green { background: var(--good); }
+.dot-amber { background: var(--gold); }
+.dot-red { background: var(--bad); }
+.dot-off { background: rgba(255,255,255,0.25); }
+.checks li { padding: 6px 0; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.sub { margin: 18px 0 8px; font-size: 13px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--gold); }
+.cost-editor { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 8px 0 12px; }
+.cost-row { display: grid; grid-template-columns: 1fr 110px; gap: 8px; }
+.cost-row input, .plan-form input, .plan-form select { min-height: 40px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,0.04); color: #fff; font: inherit; font-size: 14px; }
+.plan-form { display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 10px; align-items: end; margin: 10px 0; }
+@media (max-width: 760px) { .cost-editor, .plan-form { grid-template-columns: 1fr; } }

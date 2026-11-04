@@ -111,24 +111,23 @@ function handle(fn) {
   };
 }
 
-// server/api/health.ts
+// server/checks.ts
 var TIMEOUT_MS = 5e3;
 async function probe(url, headers) {
   try {
     const res = await fetch(url, { headers, signal: AbortSignal.timeout(TIMEOUT_MS) });
     const text = await res.text();
-    let body = null;
     try {
-      body = JSON.parse(text);
+      return { ok: res.ok, body: JSON.parse(text) };
     } catch {
-      body = null;
+      return { ok: res.ok, body: null };
     }
-    return { ok: res.ok, status: res.status, body };
   } catch {
-    return { ok: false, status: 0, body: null };
+    return { ok: false, body: null };
   }
 }
-var GET = handle(async () => {
+var has = (k) => Boolean(process.env[k]?.trim());
+async function liveChecks() {
   const url = normalizeSupabaseUrl(process.env.SUPABASE_URL);
   const anon = process.env.SUPABASE_ANON_KEY?.trim();
   const service = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
@@ -144,15 +143,32 @@ var GET = handle(async () => {
     if (service.startsWith("eyJ")) headers.authorization = `Bearer ${service}`;
     tables = (await probe(`${url}/rest/v1/orgs?select=id&limit=1`, headers)).ok;
   }
-  return json({
-    ok: true,
+  return {
     database: Boolean(url && service),
     signIn: Boolean(url && anon),
-    model: Boolean(process.env.ANTHROPIC_API_KEY),
-    automations: Boolean(process.env.N8N_WEBHOOK_URL),
+    model: has("ANTHROPIC_API_KEY"),
+    automations: has("N8N_WEBHOOK_URL"),
     supabaseUrlValid: Boolean(url),
     auth,
-    tables
+    tables,
+    webhookSecret: has("N8N_WEBHOOK_SECRET"),
+    cron: has("CRON_SECRET"),
+    admins: (process.env.ADMIN_EMAILS ?? "").split(",").map((e) => e.trim()).filter(Boolean).length
+  };
+}
+
+// server/api/health.ts
+var GET = handle(async () => {
+  const c = await liveChecks();
+  return json({
+    ok: true,
+    database: c.database,
+    signIn: c.signIn,
+    model: c.model,
+    automations: c.automations,
+    supabaseUrlValid: c.supabaseUrlValid,
+    auth: c.auth,
+    tables: c.tables
   });
 });
 export {

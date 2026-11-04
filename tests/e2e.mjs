@@ -103,6 +103,40 @@ async function mockServices(ctx, state) {
     }
     return r.fulfill({ json: { agents: [{ id: 'cmo', name: 'CMO agent', layer: 'cxo', job: 'Owns marketing' }], taskTypes: [{ key: 'publish_post', label: 'Publish a social post', level: 2, maxLevel: 3 }], progress: [{ taskType: 'publish_post', level: 2, maxLevel: 3, streak: 12, needed: 15, proposal: null }], cost: { last30Days: { costUsd: 0.42, tasks: 6, avgPerTaskUsd: 0.07, inputTokens: 120000, outputTokens: 18000 }, byAgent: [{ agentId: 'social-poster', costUsd: 0.3, tasks: 4 }] }, tasks: state.leftover ?? [] } });
   });
+  await ctx.route('**/api/me', (r) => r.fulfill({ json: { label: 'x', admin: Boolean(state.admin) } }));
+  await ctx.route('**/api/governance', async (r) => {
+    if (!state.admin) return r.fulfill({ status: 403, json: { error: 'Admins only' } });
+    if (r.request().method() === 'POST') {
+      const b = r.request().postDataJSON(); (state.govPosts = state.govPosts ?? []).push(b);
+      return r.fulfill({ json: b.action === 'review' ? { taskId: 'rv1', status: 'done', output: 'CFO review: Radhakrishna Ortho margin is thin.' } : { fixedCosts: b.fixedCosts } });
+    }
+    const governance = {
+      generatedAt: new Date().toISOString(),
+      status: { overall: 'amber', checks: [{ key: 'model', label: 'AI model', state: 'green', detail: 'Configured' }, { key: 'failures', label: 'Failed actions, last 24 hours', state: 'amber', detail: '1 failed' }] },
+      journey: { businesses: 2, byStage: { startup: 2, struggle: 0, scale: 0, success: 0, significance: 0, sixxab: 0 }, onboarded: 1, stepsDone: 4, stepsTotal: 42, pendingApprovals: 1, oldestApprovalHours: 5,
+        businessesList: [{ orgId: 'o1', name: 'SIXXAB AI', stage: 'startup', onboarded: true, stepsDone: 4, pending: 1 }, { orgId: 'o2', name: 'Radhakrishna Ortho', stage: 'startup', onboarded: false, stepsDone: 0, pending: 0 }] },
+      workflows: { tasks7d: { done: 5 }, delivered7d: 2, failed7d: 1 },
+      integrations: [{ tool: 'reply_comment', sent: 1, recorded: 0, failed: 1, lastError: 'LinkedIn reply failed: Bad request' }],
+      data: { counts: { orgs: 2, tasks: 30 } },
+      security: { healthcareBusinesses: 1, controls: [{ key: 'rls', label: 'Row-level security on workspace tables', ok: true, detail: '9 tables' }], recentChanges: [] },
+      code: { files: 52, lines: 5285, tests: 72, e2e: 9, apiRoutes: 15 }, pipeline: { env: 'production', sha: 'abcdef1234', message: 'feat: governance' },
+      cost: { modelUsd30d: 1.25, fixedMonthlyUsd: 80, totalMonthlyUsd: 81.25, fixedCosts: { Vercel: 20 }, inrPerUsd: 85,
+        byBusiness: [{ orgId: 'o2', name: 'Radhakrishna Ortho', plan: { name: 'Pilot', monthlyFee: 8500, currency: 'INR' }, modelUsd: 0.25, fixedUsd: 16, costUsd: 16.25, revenueUsd: 100, marginUsd: 83.75 }] },
+    };
+    return r.fulfill({ json: { governance, reviewers: [{ id: 'cto', title: 'Architecture review' }, { id: 'cfo', title: 'Tech cost review' }] } });
+  });
+  await ctx.route('**/api/billing', async (r) => {
+    if (!state.admin) return r.fulfill({ status: 403, json: { error: 'Admins only' } });
+    state.billing = state.billing ?? { plan: null, invoices: [] };
+    if (r.request().method() === 'POST') {
+      const b = r.request().postDataJSON(); (state.billPosts = state.billPosts ?? []).push(b);
+      if (b.action === 'plan') state.billing.plan = { name: b.name, monthlyFee: Number(b.monthlyFee), currency: b.currency };
+      if (b.action === 'draft') state.billing.invoices = [{ id: 'i1', number: 'SIX-202611-ORTHO1', period: b.period, currency: 'INR', lines: [{ description: 'Pilot plan', amount: 8500 }], total: 8500, status: 'draft', createdAt: new Date().toISOString(), sentAt: null, paidAt: null }];
+      if (b.action === 'status') state.billing.invoices[0].status = b.status;
+      return r.fulfill({ json: { ok: true } });
+    }
+    return r.fulfill({ json: { businesses: [{ orgId: 'o2', name: 'Radhakrishna Ortho', location: 'Tasgaon', plan: state.billing.plan, invoices: state.billing.invoices }] } });
+  });
   await ctx.route('**/api/admin', async (r) => {
     if (!state.admin) return r.fulfill({ status: 403, json: { error: 'Admins only' } });
     if (r.request().method() === 'POST') { (state.adminPosts = state.adminPosts ?? []).push(r.request().postDataJSON()); return r.fulfill({ json: { ok: true } }); }
@@ -246,6 +280,7 @@ await check('workspace: run a goal, edit and approve, see agents and activity', 
   await page.getByRole('heading', { name: 'Cost' }).waitFor();
   await page.getByText('$0.420').waitFor();
   assert.equal(await page.getByText('Businesses and workflows').count(), 0, 'admin panel hidden for non-admins');
+  assert.equal(await page.getByRole('button', { name: 'Governance' }).count(), 0, 'Governance tab hidden for non-admins');
   await page.getByText('L2 Approve').waitFor();
   await page.screenshot({ path: `${SHOTS}/app-agents.png` });
   await page.getByRole('button', { name: 'Activity' }).click();
@@ -299,6 +334,30 @@ await check('admin assigns each business its own n8n workflow', async () => {
   await page.getByRole('button', { name: 'Save' }).click();
   await page.getByText('Saved').waitFor();
   assert.deepEqual(state.adminPosts[0], { orgId: 'org-ortho-1234', path: 'ortho-tasgaon' });
+  // Governance: single pane, costs, CXO review
+  await page.getByRole('button', { name: 'Governance', exact: true }).click();
+  await page.getByText('Platform is running with warnings').waitFor();
+  await page.getByText('LinkedIn reply failed: Bad request').waitFor();
+  await page.getByText('$83.75').waitFor();
+  await page.getByLabel('Monthly cost for Vercel').fill('25');
+  await page.getByRole('button', { name: 'Save costs' }).click();
+  await page.getByText('Saved').waitFor();
+  assert.deepEqual(state.govPosts[0], { action: 'costs', fixedCosts: { Vercel: 25 } });
+  await page.getByRole('button', { name: 'CFO: Tech cost review' }).click();
+  await page.getByText('CFO review: Radhakrishna Ortho margin is thin.').waitFor();
+  await page.screenshot({ path: `${SHOTS}/app-governance.png`, fullPage: true });
+  // Billing: plan, draft invoice, mark paid
+  await page.getByRole('button', { name: 'Billing', exact: true }).click();
+  await page.getByLabel('Plan name for Radhakrishna Ortho').fill('Pilot');
+  await page.getByLabel('Monthly fee for Radhakrishna Ortho').fill('8500');
+  await page.getByLabel('Currency for Radhakrishna Ortho').selectOption('INR');
+  await page.getByRole('button', { name: 'Save plan' }).click();
+  await page.getByRole('button', { name: 'Draft invoice' }).click();
+  await page.getByText('SIX-202611-ORTHO1').waitFor();
+  await page.getByRole('button', { name: 'Mark paid' }).click();
+  await page.getByText('paid', { exact: true }).waitFor();
+  assert.deepEqual(state.billPosts.map((b) => b.action), ['plan', 'draft', 'status']);
+  await page.screenshot({ path: `${SHOTS}/app-billing.png`, fullPage: true });
   await ctx.close();
 });
 

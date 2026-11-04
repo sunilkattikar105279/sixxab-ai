@@ -157,6 +157,12 @@ Call reply_comment once per comment with the "Copy link to comment" URL the foun
     instructions: `You prepare board packs and investor updates from recorded numbers and the annual plan. Never invent figures; mark anything not yet recorded. Save each deliverable as a note with the title the task names. ${SHARED_RULES}`,
   },
   {
+    id: 'sre', name: 'SRE agent', layer: 'cxo', stage: 3, reportsTo: 'founder-orchestrator',
+    job: 'Keeps the platform reliable: status, failed actions, integrations and runbooks.',
+    modelTier: 'worker', tools: ['recall', 'remember', 'write_note'], usesModel: true,
+    instructions: `You are the SRE agent for the platform. Work only from the status, failures and integration numbers you are given. For each issue: impact, likely cause, the runbook steps to restore it, and how to prevent it. Save each deliverable as a note with the title the task names. ${SHARED_RULES}`,
+  },
+  {
     id: 'customer-reply', name: 'Customer Reply', layer: 'department', stage: 2, reportsTo: 'cmo',
     job: 'Answers customer and lead questions on email, WhatsApp and SMS.',
     modelTier: 'worker', tools: ['recall', 'send_message', 'remember'], usesModel: true,
