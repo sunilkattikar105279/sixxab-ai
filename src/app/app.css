@@ -150,3 +150,8 @@ th { color: var(--sub); font-weight: 500; font-size: 12px; text-transform: upper
 .milestones li.reached span[aria-hidden] { color: var(--good); }
 .revenue-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end; margin: 12px 0; }
 @media (max-width: 640px) { .revenue-form { grid-template-columns: 1fr; } }
+.head-group { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+.head-group > summary { cursor: pointer; list-style: none; display: flex; align-items: baseline; gap: 10px; min-height: 40px; font-size: 16px; }
+.head-group > summary::-webkit-details-marker { display: none; }
+.head-group > summary::before { content: '›'; color: var(--gold); transition: transform .15s; display: inline-block; }
+.head-group[open] > summary::before { transform: rotate(90deg); }

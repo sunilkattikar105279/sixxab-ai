@@ -115,15 +115,15 @@ async function mockServices(ctx, state) {
     const step = (id, title, agentId, hard) => {
       const done = id === 'onboard' ? onboarded : state.journeyDone.includes(id);
       const blocked = hard && !(hard === 'onboard' ? onboarded : state.journeyDone.includes(hard));
-      return { id, title, summary: `${title} summary`, agentId, agents: 'Agent', ownerDecides: 'You decide', output: 'Output', goal: `${title} goal`,
+      return { id, stage: 'Start', title, summary: `${title} summary`, agentId, agents: 'Agent', ownerDecides: 'You decide', output: 'Output', goal: `${title} goal`,
         status: done ? 'done' : blocked ? 'blocked' : 'ready', blockedBy: blocked ? [hard === 'onboard' ? 'Onboard' : 'Diagnose'] : [], warnings: id === 'diagnose' && !state.revenue ? ['Record last month\u2019s revenue'] : [], doneAt: done ? new Date().toISOString() : null };
     };
     const journey = {
-      stage: { key: 'struggle', name: 'Struggle', head: 'Start', level: '$10K', summary: 'First customers to repeatable revenue', live: true },
+      stage: { key: 'struggle', name: 'Struggle', head: 'Start', level: '$10K', opensAt: 'a $10K month', summary: '$10K months, building to $50K', live: true },
       nextGate: 'Next gate: the Scale level.',
-      stages: [{ key: 'startup', name: 'Startup', head: 'Start', level: '$0', summary: '', live: true }, { key: 'struggle', name: 'Struggle', head: 'Start', level: '$10K', summary: '', live: true }, { key: 'scale', name: 'Scale', head: 'Scale', level: '$50K', summary: '', live: false }],
+      stages: [{ key: 'startup', name: 'Startup', head: 'Start', level: '$0', opensAt: 'Day one', summary: '', live: true }, { key: 'struggle', name: 'Struggle', head: 'Start', level: '$10K', opensAt: 'a $10K month', summary: '', live: true }, { key: 'scale', name: 'Scale', head: 'Scale', level: '$50K', opensAt: 'a $50K month', summary: '', live: true }],
       steps: [step('onboard', 'Onboard', null, null), step('diagnose', 'Diagnose', 'health-check', 'onboard'), step('restart', 'Restart', 'niche-offer', 'diagnose')],
-      revenue: { currency: 'INR', months: state.revenue ?? [] },
+      revenue: { currency: 'INR', months: state.revenue ?? [], bestRecentMonthUsd: state.revenue ? 5294 : 0, last12Usd: state.revenue ? 5294 : 0, inrPerUsd: 85 },
       milestones: [{ key: 'profile_saved', title: 'Business profile saved', reachedAt: onboarded ? new Date().toISOString() : null }, { key: 'first_customer', title: 'First paying customer', reachedAt: null }],
     };
     return r.fulfill({ json: { journey } });
@@ -212,6 +212,7 @@ await check('workspace: run a goal, edit and approve, see agents and activity', 
   await page.getByLabel(/Revenue \(INR\)/).fill('450000');
   await page.getByRole('button', { name: 'Save revenue' }).click();
   await page.getByText('₹4,50,000').waitFor();
+  await page.getByText('(at ₹85 per $)').waitFor();
   assert.equal(state.journeyPosts.at(-1).action, 'revenue');
   await page.getByRole('button', { name: 'Today', exact: true }).click();
   await page.getByText('About your business').waitFor();

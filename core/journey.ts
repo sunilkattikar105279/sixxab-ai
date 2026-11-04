@@ -1,86 +1,34 @@
-// The SIXXAB journey: six stages, the Startup and Struggle steps with hard and soft dependencies,
-// revenue by month and milestones. State is derived from append-only audit events, so every
-// step, entry and celebration is also part of the audit trail.
+// The SIXXAB journey: six stages with revenue gates, the step catalogue with hard and soft
+// dependencies, revenue by month and milestones. State is derived from append-only audit
+// events, so every step, revenue entry and celebration is also in the audit trail.
+//
+// Gates (owner's decision, Nov 4 2026): Struggle, Scale and Success open at a $10K, $50K and
+// $100K month; Significance and SIXXAB at $1M and $10M in the last 12 months. Each gate also
+// needs the one before it. Rupees convert at INR_PER_USD (default 85).
 import { newId, nowIso, type Store } from './store.js';
-import { BUSINESS_STAGES, loadBusinessProfile, type BusinessProfile } from './profile.js';
+import { loadBusinessProfile, type BusinessProfile } from './profile.js';
+import { STEPS, type Head, type StepDef } from './journey-steps.js';
 import type { AuditEvent } from './types.js';
 
-export interface Stage { key: string; name: string; head: 'Start' | 'Scale' | 'Run'; level: string; summary: string; live: boolean }
+export { STEPS, type StepDef, type Head } from './journey-steps.js';
+
+export const DEFAULT_INR_PER_USD = 85;
+
+export interface Stage { key: string; name: string; head: Head; level: string; opensAt: string; summary: string; live: boolean }
+interface Gate { monthUsd?: number; yearUsd?: number }
 
 export const STAGES: Stage[] = [
-  { key: 'startup', name: 'Startup', head: 'Start', level: '$0', summary: 'Idea or restart to the first customer', live: true },
-  { key: 'struggle', name: 'Struggle', head: 'Start', level: '$10K', summary: 'First customers to repeatable revenue', live: true },
-  { key: 'scale', name: 'Scale', head: 'Scale', level: '$50K', summary: 'Marketing, sales and support run daily', live: false },
-  { key: 'success', name: 'Success', head: 'Scale', level: '$100K', summary: 'A healthy business with a back office', live: false },
-  { key: 'significance', name: 'Significance', head: 'Run', level: '$1M', summary: 'You lead; CXO agents work to one plan', live: false },
-  { key: 'sixxab', name: 'SIXXAB', head: 'Run', level: '$10M', summary: 'Runs on agents; new markets in parallel', live: false },
+  { key: 'startup', name: 'Startup', head: 'Start', level: '$0', opensAt: 'Day one', summary: 'From idea or restart to your first $10K month', live: true },
+  { key: 'struggle', name: 'Struggle', head: 'Start', level: '$10K', opensAt: 'a $10K month', summary: '$10K months, building to $50K', live: true },
+  { key: 'scale', name: 'Scale', head: 'Scale', level: '$50K', opensAt: 'a $50K month', summary: '$50K months, building to $100K', live: true },
+  { key: 'success', name: 'Success', head: 'Scale', level: '$100K', opensAt: 'a $100K month', summary: '$100K months, building to $1M a year', live: true },
+  { key: 'significance', name: 'Significance', head: 'Run', level: '$1M', opensAt: '$1M in 12 months', summary: '$1M a year, building to $10M', live: true },
+  { key: 'sixxab', name: 'SIXXAB', head: 'Run', level: '$10M', opensAt: '$10M in 12 months', summary: '$10M a year, running on agents', live: true },
 ];
-
-interface SoftCheck { label: string; ok: (ctx: Ctx) => boolean }
-
-export interface StepDef {
-  id: string;
-  title: string;
-  summary: string;
-  agentId: string | null;
-  agents: string;
-  ownerDecides: string;
-  output: string;
-  /** Steps that must be done first (blocks). */
-  hard: string[];
-  /** Checks that should pass first (warns, never blocks). */
-  soft: SoftCheck[];
-  /** What the step's agent is asked to do. */
-  goal: string;
-}
-
-interface Ctx { profile: BusinessProfile | null; revenueMonths: RevenueMonth[] }
-const has = (k: keyof BusinessProfile) => (c: Ctx) => Boolean(c.profile?.[k]);
-const anyChannel = (c: Ctx) => ['whatsapp', 'googleProfile', 'instagram', 'facebook', 'linkedin'].some((k) => c.profile?.[k as keyof BusinessProfile]);
-
-export const STEPS: StepDef[] = [
-  {
-    id: 'onboard', title: 'Onboard', summary: 'Tell your agents about the business: offer, customers, numbers, goals and channels.',
-    agentId: null, agents: 'Onboarding Guide', ownerDecides: 'Confirms the business profile', output: 'Business profile, stage placed',
-    hard: [], soft: [], goal: '',
-  },
-  {
-    id: 'diagnose', title: 'Diagnose', summary: 'A health check places you on the SIXXAB path and shows what is holding you back.',
-    agentId: 'health-check', agents: 'Business Health Check, Strategy Coach', ownerDecides: 'Confirms goals and stage', output: 'Stage report and top 3 priorities',
-    hard: ['onboard'], soft: [{ label: 'Record last month’s revenue', ok: (c) => has('revenueMonthly')(c) || c.revenueMonths.length > 0 }],
-    goal: 'Run the business health check: place the business on the SIXXAB path, name what is holding it back, and give the top 3 priorities for the next 90 days. Save it as a note titled "Stage report".',
-  },
-  {
-    id: 'restart', title: 'Restart', summary: 'Reset the niche, offer and pricing around real demand. Stop what is not working.',
-    agentId: 'niche-offer', agents: 'Niche and Offer, Strategy Coach', ownerDecides: 'Chooses the offer to back', output: 'One validated offer with price',
-    hard: ['diagnose'], soft: [{ label: 'Add your prices to the profile', ok: has('pricing') }],
-    goal: 'Review the niche, offer and pricing against what customers actually buy. Propose up to three offer options with price, who it is for and why, and recommend one. Save it as a note titled "Offer options".',
-  },
-  {
-    id: 'plan', title: 'Plan', summary: 'One goal, a 90-day roadmap and a weekly plan that every agent works to.',
-    agentId: 'roadmap-planner', agents: 'Roadmap Planner, Founder Orchestrator', ownerDecides: 'Approves the roadmap', output: 'One goal, 90-day roadmap, weekly plan',
-    hard: ['restart'], soft: [{ label: 'Set a monthly marketing budget', ok: has('budget') }],
-    goal: 'Write the 90-day roadmap: one measurable goal, three 30-day milestones, and this week’s plan with an owner for each task. Save it as a note titled "90-day roadmap".',
-  },
-  {
-    id: 'staff', title: 'Staff with agents', summary: 'Switch on the agents your stage needs and connect your channels.',
-    agentId: null, agents: 'Founder Orchestrator', ownerDecides: 'Picks which agents start; connects channels', output: 'Agent team and channels live',
-    hard: ['plan'], soft: [{ label: 'Add at least one channel (WhatsApp, Google, Instagram, Facebook or LinkedIn)', ok: anyChannel }],
-    goal: '',
-  },
-  {
-    id: 'grow', title: 'Grow', summary: 'Marketing, replies and follow-up run every day. You approve posts, messages and spend.',
-    agentId: 'cmo', agents: 'CMO, Social Poster, Comment Responder, Customer Reply', ownerDecides: 'Approves posts, replies and spend', output: 'Posts, replies, enquiries',
-    hard: ['staff'], soft: [{ label: 'Describe your brand voice', ok: has('voice') }],
-    goal: 'Plan this week’s marketing from the 90-day roadmap: three posts for the business’s channels, drafted in its voice and sent for approval.',
-  },
-  {
-    id: 'run', title: 'Run', summary: 'Weekly review: revenue, milestones and what the agents learned, so the next week runs better.',
-    agentId: 'milestone-tracker', agents: 'Milestone Tracker, Learning Engine', ownerDecides: 'Handles exceptions and big calls', output: 'Weekly review',
-    hard: ['grow'], soft: [{ label: 'Record this month’s revenue', ok: (c) => c.revenueMonths.length > 0 }],
-    goal: 'Write the weekly review: revenue against the goal, milestones reached, what was approved, edited or rejected and what to change next week. Save it as a note titled "Weekly review".',
-  },
-];
+const GATES: Record<string, Gate> = {
+  struggle: { monthUsd: 10_000 }, scale: { monthUsd: 50_000 }, success: { monthUsd: 100_000 },
+  significance: { yearUsd: 1_000_000 }, sixxab: { yearUsd: 10_000_000 },
+};
 
 export interface MilestoneDef { key: string; title: string }
 export const MILESTONES: MilestoneDef[] = [
@@ -91,6 +39,13 @@ export const MILESTONES: MilestoneDef[] = [
   { key: 'first_post', title: 'First post live' },
   { key: 'first_reply', title: 'First reply sent' },
   { key: 'first_customer', title: 'First paying customer' },
+  { key: 'month_10k', title: 'First $10K month' },
+  { key: 'playbooks', title: 'Operating playbooks written' },
+  { key: 'month_50k', title: 'First $50K month' },
+  { key: 'month_100k', title: 'First $100K month' },
+  { key: 'annual_plan', title: 'Annual plan approved' },
+  { key: 'year_1m', title: '$1M in 12 months' },
+  { key: 'year_10m', title: '$10M in 12 months' },
   { key: 'autonomy_earned', title: 'An agent earned autonomy' },
 ];
 
@@ -101,17 +56,34 @@ export interface Journey {
   nextGate: string;
   stages: Stage[];
   steps: StepState[];
-  revenue: { currency: string; months: RevenueMonth[] };
+  revenue: { currency: string; months: RevenueMonth[]; bestRecentMonthUsd: number; last12Usd: number; inrPerUsd: number };
   milestones: { key: string; title: string; reachedAt: string | null }[];
 }
+export interface JourneyOptions { inrPerUsd?: number }
 
 const EVENTS = ['profile.updated', 'journey.step_done', 'journey.step_reopened', 'revenue.recorded', 'milestone.reached', 'tool.executed', 'autonomy.promoted'];
-const PAYING = new Set(BUSINESS_STAGES.slice(2));
 
-function revenueMonths(events: AuditEvent[], currency: string): RevenueMonth[] {
-  const latest = new Map<string, number>();
-  for (const e of events) if (e.action === 'revenue.recorded') latest.set(String(e.detail.month), Number(e.detail.amount));
-  return [...latest.entries()].sort(([a], [b]) => (a < b ? -1 : 1)).map(([month, amount]) => ({ month, amount, currency }));
+const monthIndex = (m: string) => Number(m.slice(0, 4)) * 12 + Number(m.slice(5, 7)) - 1;
+
+/** Revenue as of the events so far: latest entry per month, best of the last 3 recorded months, and the last 12 months' total, in USD. */
+function revenueSnapshot(byMonth: Map<string, number>, toUsd: (n: number) => number) {
+  const months = [...byMonth.keys()].sort();
+  if (!months.length) return { bestRecentMonthUsd: 0, last12Usd: 0 };
+  const latest = monthIndex(months.at(-1)!);
+  const bestRecentMonthUsd = Math.max(...months.slice(-3).map((m) => toUsd(byMonth.get(m)!)));
+  const last12Usd = months.filter((m) => latest - monthIndex(m) < 12).reduce((sum, m) => sum + toUsd(byMonth.get(m)!), 0);
+  return { bestRecentMonthUsd, last12Usd };
+}
+
+function stageFor(bestRecentMonthUsd: number, last12Usd: number): Stage {
+  let i = 0;
+  for (let k = 1; k < STAGES.length; k++) {
+    const g = GATES[STAGES[k].key];
+    const ok = (g.monthUsd === undefined || bestRecentMonthUsd >= g.monthUsd) && (g.yearUsd === undefined || last12Usd >= g.yearUsd);
+    if (!ok) break;
+    i = k;
+  }
+  return STAGES[i];
 }
 
 function stepsDone(events: AuditEvent[]): Map<string, string> {
@@ -124,51 +96,75 @@ function stepsDone(events: AuditEvent[]): Map<string, string> {
   return done;
 }
 
-/** Pure: the journey as the events and profile describe it. */
-export function computeJourney(profile: BusinessProfile | null, events: AuditEvent[]): Journey {
+const usdText = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
+
+/** Pure: the journey as the profile and events describe it. */
+export function computeJourney(profile: BusinessProfile | null, events: AuditEvent[], opts: JourneyOptions = {}): Journey {
   const currency = profile?.currency ?? 'USD';
-  const months = revenueMonths(events, currency);
-  const ctx: Ctx = { profile, revenueMonths: months };
+  const inrPerUsd = opts.inrPerUsd && opts.inrPerUsd > 0 ? opts.inrPerUsd : DEFAULT_INR_PER_USD;
+  const toUsd = (n: number) => (currency === 'INR' ? n / inrPerUsd : n);
+
+  // Walk revenue in order: the month total so far, plus when each revenue milestone was first crossed.
+  const byMonth = new Map<string, number>();
+  const crossed: Record<string, string | null> = { first_customer: null, month_10k: null, month_50k: null, month_100k: null, year_1m: null, year_10m: null };
+  for (const e of events) {
+    if (e.action !== 'revenue.recorded') continue;
+    byMonth.set(String(e.detail.month), Number(e.detail.amount));
+    const snap = revenueSnapshot(byMonth, toUsd);
+    const mark = (k: string, ok: boolean) => { if (ok && !crossed[k]) crossed[k] = e.at; };
+    mark('first_customer', Number(e.detail.amount) > 0);
+    mark('month_10k', snap.bestRecentMonthUsd >= 10_000);
+    mark('month_50k', snap.bestRecentMonthUsd >= 50_000);
+    mark('month_100k', snap.bestRecentMonthUsd >= 100_000);
+    mark('year_1m', snap.last12Usd >= 1_000_000);
+    mark('year_10m', snap.last12Usd >= 10_000_000);
+  }
+  const months = [...byMonth.entries()].sort(([a], [b]) => (a < b ? -1 : 1)).map(([month, amount]) => ({ month, amount, currency }));
+  const { bestRecentMonthUsd, last12Usd } = revenueSnapshot(byMonth, toUsd);
+
   const done = stepsDone(events);
   const firstProfile = events.find((e) => e.action === 'profile.updated');
   if (profile?.name && profile.offer && firstProfile) done.set('onboard', done.get('onboard') ?? firstProfile.at);
 
   const title = (id: string) => STEPS.find((s) => s.id === id)!.title;
+  const ctx = { profile, revenueMonths: months };
   const steps: StepState[] = STEPS.map(({ soft, ...s }) => {
     const blockedBy = s.hard.filter((h) => !done.has(h)).map(title);
     const doneAt = done.get(s.id) ?? null;
     return { ...s, status: doneAt ? 'done' : blockedBy.length ? 'blocked' : 'ready', blockedBy, warnings: doneAt ? [] : soft.filter((c) => !c.ok(ctx)).map((c) => c.label), doneAt };
   });
 
-  const firstPaid = events.find((e) => e.action === 'revenue.recorded' && Number(e.detail.amount) > 0)?.at
-    ?? (profile?.businessStage && PAYING.has(profile.businessStage) ? firstProfile?.at ?? null : null);
   const firstTool = (tools: string[]) => events.find((e) => e.action === 'tool.executed' && tools.includes(String(e.detail.tool)))?.at ?? null;
   const reached: Record<string, string | null> = {
+    ...crossed,
     profile_saved: firstProfile?.at ?? null,
     diagnosed: done.get('diagnose') ?? null,
     offer_chosen: done.get('restart') ?? null,
     roadmap_approved: done.get('plan') ?? null,
     first_post: firstTool(['publish_post']),
     first_reply: firstTool(['reply_comment', 'send_message']),
-    first_customer: firstPaid,
+    playbooks: done.get('ops') ?? null,
+    annual_plan: done.get('exec_plan') ?? null,
     autonomy_earned: events.find((e) => e.action === 'autonomy.promoted')?.at ?? null,
   };
 
-  const stage = STAGES[firstPaid ? 1 : 0];
-  const nextGate = stage.key === 'startup'
-    ? 'Next gate: your first paying customer (record revenue, or set "Paying customers" in your profile).'
-    : 'Next gate: the Scale level. Scale, Success and later stages open after the pilot; gate rules are being confirmed.';
+  const stage = stageFor(bestRecentMonthUsd, last12Usd);
+  const next = STAGES[STAGES.indexOf(stage) + 1];
+  const where = next && GATES[next.key].yearUsd ? `last 12 months ${usdText(last12Usd)}` : `best recent month ${usdText(bestRecentMonthUsd)}`;
+  const nextGate = next
+    ? `Next: ${next.name} opens at ${next.opensAt} (${where}${currency === 'INR' ? `, at ₹${inrPerUsd} per $` : ''}).`
+    : 'You have reached SIXXAB: the business runs on agents while you lead.';
   return {
     stage, nextGate, stages: STAGES, steps,
-    revenue: { currency, months },
-    milestones: MILESTONES.map((m) => ({ ...m, reachedAt: reached[m.key] })),
+    revenue: { currency, months, bestRecentMonthUsd, last12Usd, inrPerUsd },
+    milestones: MILESTONES.map((m) => ({ ...m, reachedAt: reached[m.key] ?? null })),
   };
 }
 
 /** Loads the journey and records any newly reached milestone once, so it is celebrated once. */
-export async function loadJourney(store: Store, orgId: string): Promise<Journey> {
+export async function loadJourney(store: Store, orgId: string, opts: JourneyOptions = {}): Promise<Journey> {
   const [profile, events] = await Promise.all([loadBusinessProfile(store, orgId), store.listAuditByActions(orgId, EVENTS)]);
-  const j = computeJourney(profile, events);
+  const j = computeJourney(profile, events, opts);
   const celebrated = new Set(events.filter((e) => e.action === 'milestone.reached').map((e) => String(e.detail.key)));
   for (const m of j.milestones) {
     if (!m.reachedAt || celebrated.has(m.key)) continue;
@@ -177,26 +173,25 @@ export async function loadJourney(store: Store, orgId: string): Promise<Journey>
   return j;
 }
 
-export async function completeStep(store: Store, orgId: string, stepId: string, by: string): Promise<Journey> {
+export async function completeStep(store: Store, orgId: string, stepId: string, by: string, opts: JourneyOptions = {}): Promise<Journey> {
   const def = STEPS.find((s) => s.id === stepId);
   if (!def) throw new Error(`Unknown step "${stepId}"`);
-  const j = await loadJourney(store, orgId);
-  const step = j.steps.find((s) => s.id === stepId)!;
+  const step = (await loadJourney(store, orgId, opts)).steps.find((s) => s.id === stepId)!;
   if (step.status === 'blocked') throw new Error(`Finish first: ${step.blockedBy.join(', ')}`);
   if (step.status !== 'done') {
     await store.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: 'journey.step_done', taskId: null, detail: { step: stepId, summary: `${def.title} done`, warnings: step.warnings } });
   }
-  return loadJourney(store, orgId);
+  return loadJourney(store, orgId, opts);
 }
 
-export async function reopenStep(store: Store, orgId: string, stepId: string, by: string): Promise<Journey> {
+export async function reopenStep(store: Store, orgId: string, stepId: string, by: string, opts: JourneyOptions = {}): Promise<Journey> {
   const def = STEPS.find((s) => s.id === stepId);
   if (!def) throw new Error(`Unknown step "${stepId}"`);
   await store.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: 'journey.step_reopened', taskId: null, detail: { step: stepId, summary: `${def.title} reopened` } });
-  return loadJourney(store, orgId);
+  return loadJourney(store, orgId, opts);
 }
 
-export async function recordRevenue(store: Store, orgId: string, entry: { month: string; amount: number; note?: string }, by: string): Promise<Journey> {
+export async function recordRevenue(store: Store, orgId: string, entry: { month: string; amount: number; note?: string }, by: string, opts: JourneyOptions = {}): Promise<Journey> {
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(entry.month)) throw new Error('month must look like 2026-10');
   if (!Number.isFinite(entry.amount) || entry.amount < 0) throw new Error('amount must be zero or more');
   const profile = await loadBusinessProfile(store, orgId);
@@ -205,22 +200,22 @@ export async function recordRevenue(store: Store, orgId: string, entry: { month:
     id: newId(), orgId, at: nowIso(), actor: by, action: 'revenue.recorded', taskId: null,
     detail: { month: entry.month, amount: entry.amount, currency: profile?.currency ?? 'USD', note, summary: `Revenue ${entry.month}: ${entry.amount}` },
   });
-  return loadJourney(store, orgId);
+  return loadJourney(store, orgId, opts);
 }
 
 /** A short journey summary for agent prompts (read-only: records nothing). */
-export async function journeyForPrompt(store: Store, orgId: string): Promise<string> {
+export async function journeyForPrompt(store: Store, orgId: string, opts: JourneyOptions = {}): Promise<string> {
   const [profile, events] = await Promise.all([loadBusinessProfile(store, orgId), store.listAuditByActions(orgId, EVENTS)]);
-  const j = computeJourney(profile, events);
-  const done = j.steps.filter((s) => s.status === 'done').map((s) => s.title);
-  const next = j.steps.find((s) => s.status !== 'done');
+  const j = computeJourney(profile, events, opts);
+  const doneSteps = j.steps.filter((s) => s.status === 'done').map((s) => s.title);
+  const next = j.steps.find((s) => s.status === 'ready');
   const months = j.revenue.months.slice(-3).map((m) => `${m.month}: ${m.amount} ${m.currency}`);
   const reached = j.milestones.filter((m) => m.reachedAt).map((m) => m.title);
   return [
     '\n\nWhere the business is on the SIXXAB journey:',
     `- Stage: ${j.stage.name} (${j.stage.summary}). ${j.nextGate}`,
-    `- Steps done: ${done.length ? done.join(', ') : 'none yet'}`,
-    next ? `- Next step: ${next.title}${next.warnings.length ? ` (also: ${next.warnings.join('; ')})` : ''}` : '- All Start-the-business steps are done',
+    `- Steps done: ${doneSteps.length ? doneSteps.join(', ') : 'none yet'}`,
+    next ? `- Next step: ${next.title}${next.warnings.length ? ` (also: ${next.warnings.join('; ')})` : ''}` : '- No step is ready; finish the blocked ones first',
     `- Revenue by month: ${months.length ? months.join('; ') : 'not recorded yet'}`,
     `- Milestones reached: ${reached.length ? reached.join(', ') : 'none yet'}`,
   ].join('\n');

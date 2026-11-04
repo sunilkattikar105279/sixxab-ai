@@ -5,7 +5,7 @@ import { newId, nowIso, type Store } from './store.js';
 import { NOT_SENT_PREFIX, toolForTaskType, toolsFor, TOOLS, type Integrations, type Tool } from './tools.js';
 import { recordDecision } from './learning.js';
 import { PROFILE_PREFIX, profileForPrompt } from './profile.js';
-import { journeyForPrompt } from './journey.js';
+import { journeyForPrompt, type JourneyOptions } from './journey.js';
 import type {
   Approval, ChatMessage, ModelClient, PromotionProposal, RoleCard, Task, TaskType, TextBlock,
   ToolResultBlock, ToolUseBlock,
@@ -16,6 +16,8 @@ export interface RuntimeDeps {
   model: ModelClient;
   integrations: Integrations;
   maxTurns?: number;
+  /** Journey settings, e.g. the rupee rate used for stage gates. */
+  journey?: JourneyOptions;
 }
 
 export interface RunResult {
@@ -36,8 +38,8 @@ function textOf(content: ChatMessage['content']): string {
   return content.filter((b): b is TextBlock => b.type === 'text').map((b) => b.text).join('\n').trim();
 }
 
-async function systemPrompt(store: Store, agent: RoleCard, task: Task): Promise<string> {
-  const [profile, journey, memories] = await Promise.all([profileForPrompt(store, task.orgId), journeyForPrompt(store, task.orgId), store.recall(task.orgId, task.goal, 5)]);
+async function systemPrompt(store: Store, agent: RoleCard, task: Task, journeyOpts: JourneyOptions = {}): Promise<string> {
+  const [profile, journey, memories] = await Promise.all([profileForPrompt(store, task.orgId), journeyForPrompt(store, task.orgId, journeyOpts), store.recall(task.orgId, task.goal, 5)]);
   const relevant = memories.filter((m) => !m.text.startsWith(PROFILE_PREFIX) && !m.text.startsWith('Company profile'));
   const memo = relevant.length ? `\n\nRelevant business memory:\n${relevant.map((m) => `- ${m.text.slice(0, 1500)}`).join('\n')}` : '';
   return `${agent.instructions}\n\nYour role: ${agent.name}. ${agent.job}${profile}${journey}${memo}`;
@@ -156,7 +158,7 @@ export async function runTask(deps: RuntimeDeps, taskId: string): Promise<RunRes
   task = await deps.store.updateTask(task.id, { status: 'running' });
   for (let turn = 0; turn < maxTurns; turn++) {
     const resp = await deps.model.complete({
-      tier: agent.modelTier, system: await systemPrompt(deps.store, agent, task), messages: task.transcript, tools, maxTokens: MAX_TOKENS[agent.modelTier],
+      tier: agent.modelTier, system: await systemPrompt(deps.store, agent, task, deps.journey), messages: task.transcript, tools, maxTokens: MAX_TOKENS[agent.modelTier],
     });
     const transcript: ChatMessage[] = [...task.transcript, { role: 'assistant', content: resp.content }];
     const uses = resp.content.filter((b): b is ToolUseBlock => b.type === 'tool_use');

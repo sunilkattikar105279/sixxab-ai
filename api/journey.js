@@ -107,20 +107,16 @@ async function loadBusinessProfile(store2, orgId) {
   return m ? parseProfile(m.text) : null;
 }
 
-// core/journey.ts
-var STAGES = [
-  { key: "startup", name: "Startup", head: "Start", level: "$0", summary: "Idea or restart to the first customer", live: true },
-  { key: "struggle", name: "Struggle", head: "Start", level: "$10K", summary: "First customers to repeatable revenue", live: true },
-  { key: "scale", name: "Scale", head: "Scale", level: "$50K", summary: "Marketing, sales and support run daily", live: false },
-  { key: "success", name: "Success", head: "Scale", level: "$100K", summary: "A healthy business with a back office", live: false },
-  { key: "significance", name: "Significance", head: "Run", level: "$1M", summary: "You lead; CXO agents work to one plan", live: false },
-  { key: "sixxab", name: "SIXXAB", head: "Run", level: "$10M", summary: "Runs on agents; new markets in parallel", live: false }
-];
+// core/journey-steps.ts
 var has = (k) => (c) => Boolean(c.profile?.[k]);
 var anyChannel = (c) => ["whatsapp", "googleProfile", "instagram", "facebook", "linkedin"].some((k) => c.profile?.[k]);
+var revenueRecorded = (c) => c.revenueMonths.length > 0;
+var threeMonths = (c) => c.revenueMonths.length >= 3;
 var STEPS = [
+  // ---- Start the business: Startup and Struggle ----
   {
     id: "onboard",
+    stage: "Start",
     title: "Onboard",
     summary: "Tell your agents about the business: offer, customers, numbers, goals and channels.",
     agentId: null,
@@ -133,6 +129,7 @@ var STEPS = [
   },
   {
     id: "diagnose",
+    stage: "Start",
     title: "Diagnose",
     summary: "A health check places you on the SIXXAB path and shows what is holding you back.",
     agentId: "health-check",
@@ -140,11 +137,12 @@ var STEPS = [
     ownerDecides: "Confirms goals and stage",
     output: "Stage report and top 3 priorities",
     hard: ["onboard"],
-    soft: [{ label: "Record last month\u2019s revenue", ok: (c) => has("revenueMonthly")(c) || c.revenueMonths.length > 0 }],
+    soft: [{ label: "Record last month\u2019s revenue", ok: (c) => has("revenueMonthly")(c) || revenueRecorded(c) }],
     goal: 'Run the business health check: place the business on the SIXXAB path, name what is holding it back, and give the top 3 priorities for the next 90 days. Save it as a note titled "Stage report".'
   },
   {
     id: "restart",
+    stage: "Start",
     title: "Restart",
     summary: "Reset the niche, offer and pricing around real demand. Stop what is not working.",
     agentId: "niche-offer",
@@ -157,6 +155,7 @@ var STEPS = [
   },
   {
     id: "plan",
+    stage: "Start",
     title: "Plan",
     summary: "One goal, a 90-day roadmap and a weekly plan that every agent works to.",
     agentId: "roadmap-planner",
@@ -169,6 +168,7 @@ var STEPS = [
   },
   {
     id: "staff",
+    stage: "Start",
     title: "Staff with agents",
     summary: "Switch on the agents your stage needs and connect your channels.",
     agentId: null,
@@ -181,6 +181,7 @@ var STEPS = [
   },
   {
     id: "grow",
+    stage: "Start",
     title: "Grow",
     summary: "Marketing, replies and follow-up run every day. You approve posts, messages and spend.",
     agentId: "cmo",
@@ -193,6 +194,7 @@ var STEPS = [
   },
   {
     id: "run",
+    stage: "Start",
     title: "Run",
     summary: "Weekly review: revenue, milestones and what the agents learned, so the next week runs better.",
     agentId: "milestone-tracker",
@@ -200,10 +202,212 @@ var STEPS = [
     ownerDecides: "Handles exceptions and big calls",
     output: "Weekly review",
     hard: ["grow"],
-    soft: [{ label: "Record this month\u2019s revenue", ok: (c) => c.revenueMonths.length > 0 }],
+    soft: [{ label: "Record this month\u2019s revenue", ok: revenueRecorded }],
     goal: 'Write the weekly review: revenue against the goal, milestones reached, what was approved, edited or rejected and what to change next week. Save it as a note titled "Weekly review".'
+  },
+  // ---- Scale the business: Scale and Success ----
+  {
+    id: "market",
+    stage: "Scale",
+    title: "Marketing engine",
+    summary: "Turn weekly posts into a four-week plan across every channel, with reviews and referrals asked for.",
+    agentId: "cmo",
+    agents: "CMO, Social Poster, Comment Responder",
+    ownerDecides: "Approves the plan and every post",
+    output: "Four-week content and review plan",
+    hard: ["grow"],
+    soft: [{ label: "Set a monthly marketing budget", ok: has("budget") }, { label: "Add at least one channel", ok: anyChannel }],
+    goal: 'Write a four-week marketing plan from the roadmap: themes per week, posts per channel, how and when to ask happy customers for reviews and referrals, and how each channel is measured. Save it as a note titled "Marketing plan".'
+  },
+  {
+    id: "pipeline",
+    stage: "Scale",
+    title: "Sales pipeline",
+    summary: "Every lead has a stage and a next step, and no enquiry goes quiet.",
+    agentId: "cro",
+    agents: "CRO, Deal Closer",
+    ownerDecides: "Approves follow-up rules and offers",
+    output: "Pipeline stages and follow-up rules",
+    hard: ["market"],
+    soft: [{ label: "Describe where customers come from", ok: has("sources") }],
+    goal: 'Design the sales pipeline: stages from enquiry to paid, what moves a lead between stages, follow-up timing for each stage, and the scripts to use. Save it as a note titled "Sales pipeline".'
+  },
+  {
+    id: "support",
+    stage: "Scale",
+    title: "Support desk",
+    summary: "The top questions get approved answers, and anything sensitive goes to a person.",
+    agentId: "coo",
+    agents: "COO, Customer Reply",
+    ownerDecides: "Approves the answers and escalation rules",
+    output: "Support playbook",
+    hard: ["grow"],
+    soft: [],
+    goal: 'Write the support playbook: the 15 questions customers ask most with short approved answers, what must always go to a person, and the response time to aim for. Save it as a note titled "Support playbook".'
+  },
+  {
+    id: "economics",
+    stage: "Scale",
+    title: "Unit economics",
+    summary: "Know what a customer costs to win, what each offer earns and how long the cash lasts.",
+    agentId: "cfo",
+    agents: "CFO",
+    ownerDecides: "Confirms the numbers and pricing changes",
+    output: "Unit economics report",
+    hard: ["run"],
+    soft: [{ label: "Record three months of revenue", ok: threeMonths }],
+    goal: 'Write the unit economics report from recorded revenue and the profile: cost to win a customer, margin per offer, monthly costs and cash runway, with every assumption marked. Recommend at most two pricing or cost changes. Save it as a note titled "Unit economics".'
+  },
+  {
+    id: "ops",
+    stage: "Scale",
+    title: "Operating playbooks",
+    summary: "The five processes that matter most are written down, owned and checked.",
+    agentId: "coo",
+    agents: "COO",
+    ownerDecides: "Approves each playbook",
+    output: "Five process playbooks",
+    hard: ["support"],
+    soft: [{ label: "Describe your team size", ok: has("team") }],
+    goal: 'Write playbooks for the five processes that matter most to this business: steps, owner, time, and the quality check at the end of each. Save them as a note titled "Operating playbooks".'
+  },
+  {
+    id: "finance",
+    stage: "Scale",
+    title: "Finance back office",
+    summary: "Invoices, collections, payables and month-end close run on a calendar.",
+    agentId: "cfo",
+    agents: "CFO",
+    ownerDecides: "Approves payment terms and the close checklist",
+    output: "Finance calendar and close checklist",
+    hard: ["economics"],
+    soft: [],
+    goal: 'Write the finance back-office calendar: invoicing and collection rules, a payables calendar, and a month-end close checklist with an owner for each item. Save it as a note titled "Finance back office".'
+  },
+  {
+    id: "people",
+    stage: "Scale",
+    title: "Team and hiring",
+    summary: "Who does what now, who to hire next and how new people get up to speed.",
+    agentId: "chro",
+    agents: "CHRO",
+    ownerDecides: "Approves the next two hires",
+    output: "Team plan and first two roles",
+    hard: ["ops"],
+    soft: [],
+    goal: 'Write the team plan: roles today, the organisation in 12 months, the next two roles to hire with what each must deliver, and a two-week onboarding checklist. Save it as a note titled "Team plan".'
+  },
+  {
+    id: "compliance",
+    stage: "Scale",
+    title: "Compliance check",
+    summary: "Licences, registrations, policies and contracts listed with their status.",
+    agentId: "clo",
+    agents: "CLO",
+    ownerDecides: "Confirms each item with a professional",
+    output: "Compliance checklist",
+    hard: ["ops"],
+    soft: [],
+    goal: 'List the licences, registrations, policies and contracts a business like this usually needs where it operates, each with status unknown and who should confirm it. This is a checklist for a qualified professional to confirm, not legal advice. Save it as a note titled "Compliance checklist".'
+  },
+  // ---- Run the business: Significance and SIXXAB ----
+  {
+    id: "exec_plan",
+    stage: "Run",
+    title: "One plan for the executive team",
+    summary: "An annual plan with goals per executive agent, reviewed every month.",
+    agentId: "strategy-coach",
+    agents: "Founder Orchestrator, Strategy Coach, CXO agents",
+    ownerDecides: "Approves the annual plan",
+    output: "Annual plan with goals per executive",
+    hard: ["finance", "people"],
+    soft: [{ label: "Record three months of revenue", ok: threeMonths }],
+    goal: 'Write the annual plan: three company goals with numbers, the goals each executive area owns (marketing, sales, operations, finance, people, technology), and the monthly review rhythm. Save it as a note titled "Annual plan".'
+  },
+  {
+    id: "board",
+    stage: "Run",
+    title: "Board and investor pack",
+    summary: "A monthly pack for the board and investors, always ready.",
+    agentId: "investor-relations",
+    agents: "Investor Relations, CFO",
+    ownerDecides: "Approves what is shared",
+    output: "Monthly board pack template",
+    hard: ["exec_plan"],
+    soft: [],
+    goal: 'Write the monthly board pack template from the annual plan and recorded revenue: headline numbers, progress per goal, risks, decisions needed. Fill it for the latest month. Save it as a note titled "Board pack".'
+  },
+  {
+    id: "tech",
+    stage: "Run",
+    title: "Technology and data",
+    summary: "Systems, data and automation that let the business grow without more manual work.",
+    agentId: "cto",
+    agents: "CTO, CIO",
+    ownerDecides: "Approves the technology roadmap",
+    output: "Technology roadmap",
+    hard: ["exec_plan"],
+    soft: [],
+    goal: 'Write the technology roadmap: the systems the business runs on, the data it should track, the next three automations to build, and what each saves. Save it as a note titled "Technology roadmap".'
+  },
+  {
+    id: "security",
+    stage: "Run",
+    title: "Security and risk",
+    summary: "Access, backups, customer data and incident response, checked and owned.",
+    agentId: "ciso",
+    agents: "CISO",
+    ownerDecides: "Approves the risk register",
+    output: "Risk register and security checklist",
+    hard: ["tech"],
+    soft: [],
+    goal: 'Write the risk register and security checklist: who can access what, backups, customer-data handling, and what to do in an incident, with an owner for each. Save it as a note titled "Risk register".'
+  },
+  {
+    id: "expand",
+    stage: "Run",
+    title: "New markets",
+    summary: "Enter one new market or product line in parallel, with its own plan.",
+    agentId: "cgo",
+    agents: "CGO",
+    ownerDecides: "Chooses the market and budget",
+    output: "Market entry plan",
+    hard: ["board"],
+    soft: [],
+    goal: 'Compare up to three new markets or product lines for this business and write an entry plan for the best one: why, first 90 days, budget, and what proves it is working. Save it as a note titled "Market entry plan".'
+  },
+  {
+    id: "autonomy",
+    stage: "Run",
+    title: "Autonomous operations",
+    summary: "Decide which routine actions run on their own, and the exceptions that always come to you.",
+    agentId: "coo",
+    agents: "COO, Learning Engine",
+    ownerDecides: "Confirms each autonomy upgrade",
+    output: "Autonomy plan and exception rules",
+    hard: ["security"],
+    soft: [],
+    goal: 'Review the approval history recorded in memory and the playbooks: list which routine actions are ready to run on their own, the exceptions that must always come to the owner, and how results are checked each week. Save it as a note titled "Autonomy plan".'
   }
 ];
+
+// core/journey.ts
+var DEFAULT_INR_PER_USD = 85;
+var STAGES = [
+  { key: "startup", name: "Startup", head: "Start", level: "$0", opensAt: "Day one", summary: "From idea or restart to your first $10K month", live: true },
+  { key: "struggle", name: "Struggle", head: "Start", level: "$10K", opensAt: "a $10K month", summary: "$10K months, building to $50K", live: true },
+  { key: "scale", name: "Scale", head: "Scale", level: "$50K", opensAt: "a $50K month", summary: "$50K months, building to $100K", live: true },
+  { key: "success", name: "Success", head: "Scale", level: "$100K", opensAt: "a $100K month", summary: "$100K months, building to $1M a year", live: true },
+  { key: "significance", name: "Significance", head: "Run", level: "$1M", opensAt: "$1M in 12 months", summary: "$1M a year, building to $10M", live: true },
+  { key: "sixxab", name: "SIXXAB", head: "Run", level: "$10M", opensAt: "$10M in 12 months", summary: "$10M a year, running on agents", live: true }
+];
+var GATES = {
+  struggle: { monthUsd: 1e4 },
+  scale: { monthUsd: 5e4 },
+  success: { monthUsd: 1e5 },
+  significance: { yearUsd: 1e6 },
+  sixxab: { yearUsd: 1e7 }
+};
 var MILESTONES = [
   { key: "profile_saved", title: "Business profile saved" },
   { key: "diagnosed", title: "Business diagnosed" },
@@ -212,14 +416,34 @@ var MILESTONES = [
   { key: "first_post", title: "First post live" },
   { key: "first_reply", title: "First reply sent" },
   { key: "first_customer", title: "First paying customer" },
+  { key: "month_10k", title: "First $10K month" },
+  { key: "playbooks", title: "Operating playbooks written" },
+  { key: "month_50k", title: "First $50K month" },
+  { key: "month_100k", title: "First $100K month" },
+  { key: "annual_plan", title: "Annual plan approved" },
+  { key: "year_1m", title: "$1M in 12 months" },
+  { key: "year_10m", title: "$10M in 12 months" },
   { key: "autonomy_earned", title: "An agent earned autonomy" }
 ];
 var EVENTS = ["profile.updated", "journey.step_done", "journey.step_reopened", "revenue.recorded", "milestone.reached", "tool.executed", "autonomy.promoted"];
-var PAYING = new Set(BUSINESS_STAGES.slice(2));
-function revenueMonths(events, currency) {
-  const latest = /* @__PURE__ */ new Map();
-  for (const e of events) if (e.action === "revenue.recorded") latest.set(String(e.detail.month), Number(e.detail.amount));
-  return [...latest.entries()].sort(([a], [b]) => a < b ? -1 : 1).map(([month, amount]) => ({ month, amount, currency }));
+var monthIndex = (m) => Number(m.slice(0, 4)) * 12 + Number(m.slice(5, 7)) - 1;
+function revenueSnapshot(byMonth, toUsd) {
+  const months = [...byMonth.keys()].sort();
+  if (!months.length) return { bestRecentMonthUsd: 0, last12Usd: 0 };
+  const latest = monthIndex(months.at(-1));
+  const bestRecentMonthUsd = Math.max(...months.slice(-3).map((m) => toUsd(byMonth.get(m))));
+  const last12Usd = months.filter((m) => latest - monthIndex(m) < 12).reduce((sum, m) => sum + toUsd(byMonth.get(m)), 0);
+  return { bestRecentMonthUsd, last12Usd };
+}
+function stageFor(bestRecentMonthUsd, last12Usd) {
+  let i = 0;
+  for (let k = 1; k < STAGES.length; k++) {
+    const g = GATES[STAGES[k].key];
+    const ok = (g.monthUsd === void 0 || bestRecentMonthUsd >= g.monthUsd) && (g.yearUsd === void 0 || last12Usd >= g.yearUsd);
+    if (!ok) break;
+    i = k;
+  }
+  return STAGES[i];
 }
 function stepsDone(events) {
   const done = /* @__PURE__ */ new Map();
@@ -230,45 +454,68 @@ function stepsDone(events) {
   }
   return done;
 }
-function computeJourney(profile, events) {
+var usdText = (n) => `$${Math.round(n).toLocaleString("en-US")}`;
+function computeJourney(profile, events, opts = {}) {
   const currency = profile?.currency ?? "USD";
-  const months = revenueMonths(events, currency);
-  const ctx = { profile, revenueMonths: months };
+  const inrPerUsd = opts.inrPerUsd && opts.inrPerUsd > 0 ? opts.inrPerUsd : DEFAULT_INR_PER_USD;
+  const toUsd = (n) => currency === "INR" ? n / inrPerUsd : n;
+  const byMonth = /* @__PURE__ */ new Map();
+  const crossed = { first_customer: null, month_10k: null, month_50k: null, month_100k: null, year_1m: null, year_10m: null };
+  for (const e of events) {
+    if (e.action !== "revenue.recorded") continue;
+    byMonth.set(String(e.detail.month), Number(e.detail.amount));
+    const snap = revenueSnapshot(byMonth, toUsd);
+    const mark = (k, ok) => {
+      if (ok && !crossed[k]) crossed[k] = e.at;
+    };
+    mark("first_customer", Number(e.detail.amount) > 0);
+    mark("month_10k", snap.bestRecentMonthUsd >= 1e4);
+    mark("month_50k", snap.bestRecentMonthUsd >= 5e4);
+    mark("month_100k", snap.bestRecentMonthUsd >= 1e5);
+    mark("year_1m", snap.last12Usd >= 1e6);
+    mark("year_10m", snap.last12Usd >= 1e7);
+  }
+  const months = [...byMonth.entries()].sort(([a], [b]) => a < b ? -1 : 1).map(([month, amount]) => ({ month, amount, currency }));
+  const { bestRecentMonthUsd, last12Usd } = revenueSnapshot(byMonth, toUsd);
   const done = stepsDone(events);
   const firstProfile = events.find((e) => e.action === "profile.updated");
   if (profile?.name && profile.offer && firstProfile) done.set("onboard", done.get("onboard") ?? firstProfile.at);
   const title = (id) => STEPS.find((s) => s.id === id).title;
+  const ctx = { profile, revenueMonths: months };
   const steps = STEPS.map(({ soft, ...s }) => {
     const blockedBy = s.hard.filter((h) => !done.has(h)).map(title);
     const doneAt = done.get(s.id) ?? null;
     return { ...s, status: doneAt ? "done" : blockedBy.length ? "blocked" : "ready", blockedBy, warnings: doneAt ? [] : soft.filter((c) => !c.ok(ctx)).map((c) => c.label), doneAt };
   });
-  const firstPaid = events.find((e) => e.action === "revenue.recorded" && Number(e.detail.amount) > 0)?.at ?? (profile?.businessStage && PAYING.has(profile.businessStage) ? firstProfile?.at ?? null : null);
   const firstTool = (tools) => events.find((e) => e.action === "tool.executed" && tools.includes(String(e.detail.tool)))?.at ?? null;
   const reached = {
+    ...crossed,
     profile_saved: firstProfile?.at ?? null,
     diagnosed: done.get("diagnose") ?? null,
     offer_chosen: done.get("restart") ?? null,
     roadmap_approved: done.get("plan") ?? null,
     first_post: firstTool(["publish_post"]),
     first_reply: firstTool(["reply_comment", "send_message"]),
-    first_customer: firstPaid,
+    playbooks: done.get("ops") ?? null,
+    annual_plan: done.get("exec_plan") ?? null,
     autonomy_earned: events.find((e) => e.action === "autonomy.promoted")?.at ?? null
   };
-  const stage = STAGES[firstPaid ? 1 : 0];
-  const nextGate = stage.key === "startup" ? 'Next gate: your first paying customer (record revenue, or set "Paying customers" in your profile).' : "Next gate: the Scale level. Scale, Success and later stages open after the pilot; gate rules are being confirmed.";
+  const stage = stageFor(bestRecentMonthUsd, last12Usd);
+  const next = STAGES[STAGES.indexOf(stage) + 1];
+  const where = next && GATES[next.key].yearUsd ? `last 12 months ${usdText(last12Usd)}` : `best recent month ${usdText(bestRecentMonthUsd)}`;
+  const nextGate = next ? `Next: ${next.name} opens at ${next.opensAt} (${where}${currency === "INR" ? `, at \u20B9${inrPerUsd} per $` : ""}).` : "You have reached SIXXAB: the business runs on agents while you lead.";
   return {
     stage,
     nextGate,
     stages: STAGES,
     steps,
-    revenue: { currency, months },
-    milestones: MILESTONES.map((m) => ({ ...m, reachedAt: reached[m.key] }))
+    revenue: { currency, months, bestRecentMonthUsd, last12Usd, inrPerUsd },
+    milestones: MILESTONES.map((m) => ({ ...m, reachedAt: reached[m.key] ?? null }))
   };
 }
-async function loadJourney(store2, orgId) {
+async function loadJourney(store2, orgId, opts = {}) {
   const [profile, events] = await Promise.all([loadBusinessProfile(store2, orgId), store2.listAuditByActions(orgId, EVENTS)]);
-  const j = computeJourney(profile, events);
+  const j = computeJourney(profile, events, opts);
   const celebrated = new Set(events.filter((e) => e.action === "milestone.reached").map((e) => String(e.detail.key)));
   for (const m of j.milestones) {
     if (!m.reachedAt || celebrated.has(m.key)) continue;
@@ -276,24 +523,23 @@ async function loadJourney(store2, orgId) {
   }
   return j;
 }
-async function completeStep(store2, orgId, stepId, by) {
+async function completeStep(store2, orgId, stepId, by, opts = {}) {
   const def = STEPS.find((s) => s.id === stepId);
   if (!def) throw new Error(`Unknown step "${stepId}"`);
-  const j = await loadJourney(store2, orgId);
-  const step = j.steps.find((s) => s.id === stepId);
+  const step = (await loadJourney(store2, orgId, opts)).steps.find((s) => s.id === stepId);
   if (step.status === "blocked") throw new Error(`Finish first: ${step.blockedBy.join(", ")}`);
   if (step.status !== "done") {
     await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "journey.step_done", taskId: null, detail: { step: stepId, summary: `${def.title} done`, warnings: step.warnings } });
   }
-  return loadJourney(store2, orgId);
+  return loadJourney(store2, orgId, opts);
 }
-async function reopenStep(store2, orgId, stepId, by) {
+async function reopenStep(store2, orgId, stepId, by, opts = {}) {
   const def = STEPS.find((s) => s.id === stepId);
   if (!def) throw new Error(`Unknown step "${stepId}"`);
   await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "journey.step_reopened", taskId: null, detail: { step: stepId, summary: `${def.title} reopened` } });
-  return loadJourney(store2, orgId);
+  return loadJourney(store2, orgId, opts);
 }
-async function recordRevenue(store2, orgId, entry, by) {
+async function recordRevenue(store2, orgId, entry, by, opts = {}) {
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(entry.month)) throw new Error("month must look like 2026-10");
   if (!Number.isFinite(entry.amount) || entry.amount < 0) throw new Error("amount must be zero or more");
   const profile = await loadBusinessProfile(store2, orgId);
@@ -307,7 +553,7 @@ async function recordRevenue(store2, orgId, entry, by) {
     taskId: null,
     detail: { month: entry.month, amount: entry.amount, currency: profile?.currency ?? "USD", note, summary: `Revenue ${entry.month}: ${entry.amount}` }
   });
-  return loadJourney(store2, orgId);
+  return loadJourney(store2, orgId, opts);
 }
 
 // core/policy.ts
@@ -522,6 +768,10 @@ function store() {
   if (!url || !key) throw new HttpError(503, "The platform database is not configured yet");
   return new SupabaseStore(url, key);
 }
+function journeyOptions() {
+  const rate = Number(env("INR_PER_USD"));
+  return Number.isFinite(rate) && rate > 0 ? { inrPerUsd: rate } : {};
+}
 async function requireUser(request) {
   const url = supabaseUrl();
   const anon = env("SUPABASE_ANON_KEY");
@@ -562,17 +812,17 @@ function handle(fn) {
 // server/api/journey.ts
 var GET = handle(async (request) => {
   const { orgId, store: store2 } = await requireUser(request);
-  return json({ journey: await loadJourney(store2, orgId) });
+  return json({ journey: await loadJourney(store2, orgId, journeyOptions()) });
 });
 var POST = handle(async (request) => {
   const { orgId, label, store: store2 } = await requireUser(request);
   const b = await readJson(request);
   try {
-    if (b.action === "complete" && b.step) return json({ journey: await completeStep(store2, orgId, b.step, label) });
-    if (b.action === "reopen" && b.step) return json({ journey: await reopenStep(store2, orgId, b.step, label) });
+    if (b.action === "complete" && b.step) return json({ journey: await completeStep(store2, orgId, b.step, label, journeyOptions()) });
+    if (b.action === "reopen" && b.step) return json({ journey: await reopenStep(store2, orgId, b.step, label, journeyOptions()) });
     if (b.action === "revenue") {
       const amount = typeof b.amount === "string" ? Number(b.amount.replace(/,/g, "")) : Number(b.amount);
-      return json({ journey: await recordRevenue(store2, orgId, { month: String(b.month ?? ""), amount, note: b.note }, label) });
+      return json({ journey: await recordRevenue(store2, orgId, { month: String(b.month ?? ""), amount, note: b.note }, label, journeyOptions()) });
     }
   } catch (e) {
     throw new HttpError(409, e instanceof Error ? e.message : "Could not update the journey");

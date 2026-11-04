@@ -565,7 +565,7 @@ test('journey steps unlock only when their hard dependencies are done; soft ones
   await saveBusinessProfile(store, ORG, { name: 'More Laboratory', offer: 'Pathology tests', industry: 'Healthcare: laboratory or diagnostics', businessStage: 'Paying customers' }, 'sunil');
   j = await loadJourney(store, ORG);
   assert.equal(j.steps.find((s) => s.id === 'onboard')!.status, 'done', 'a saved profile completes onboarding');
-  assert.equal(j.stage.key, 'struggle', 'paying customers place the business in Struggle');
+  assert.equal(j.stage.key, 'startup', 'stages follow revenue, not the profile wording');
   const diagnose = j.steps.find((s) => s.id === 'diagnose')!;
   assert.equal(diagnose.status, 'ready');
   assert.ok(diagnose.warnings.includes('Record last month’s revenue'), 'soft dependency warns');
@@ -576,29 +576,39 @@ test('journey steps unlock only when their hard dependencies are done; soft ones
   assert.ok(store.auditLog.some((e) => e.action === 'journey.step_done' && e.detail.step === 'diagnose'));
 });
 
-test('revenue is recorded per month, the first paying customer moves Startup to Struggle, and milestones are celebrated once', async () => {
+test('revenue is recorded per month; the first paying customer is a milestone celebrated once', async () => {
   const { loadJourney, recordRevenue } = await import('../core/journey.js');
   const { saveBusinessProfile } = await import('../core/profile.js');
   const { store } = setup([]);
-  await saveBusinessProfile(store, ORG, { name: 'New Co', offer: 'Coaching', businessStage: 'Launched, no paying customers yet', currency: 'USD' }, 'sunil');
-  assert.equal((await loadJourney(store, ORG)).stage.key, 'startup');
+  await saveBusinessProfile(store, ORG, { name: 'New Co', offer: 'Coaching', currency: 'USD' }, 'sunil');
   await recordRevenue(store, ORG, { month: '2026-10', amount: 1200, note: 'First two clients' }, 'sunil');
   await recordRevenue(store, ORG, { month: '2026-10', amount: 1500 }, 'sunil');
   const j = await loadJourney(store, ORG);
-  assert.equal(j.stage.key, 'struggle');
+  assert.equal(j.stage.key, 'startup', 'Struggle opens at a $10K month');
   assert.deepEqual(j.revenue.months, [{ month: '2026-10', amount: 1500, currency: 'USD' }], 'the latest entry for a month wins');
-  const first = j.milestones.find((m) => m.key === 'first_customer')!;
-  assert.ok(first.reachedAt, 'first paying customer reached');
+  assert.ok(j.milestones.find((m) => m.key === 'first_customer')!.reachedAt);
   await loadJourney(store, ORG);
   assert.equal(store.auditLog.filter((e) => e.action === 'milestone.reached' && e.detail.key === 'first_customer').length, 1, 'celebrated once');
   await assert.rejects(recordRevenue(store, ORG, { month: '2026-13', amount: 5 }, 'sunil'), /month/);
   await assert.rejects(recordRevenue(store, ORG, { month: '2026-10', amount: -5 }, 'sunil'), /amount/);
 });
 
-test('the six stages are listed with Start live and later stages marked after launch', async () => {
-  const { STAGES } = await import('../core/journey.js');
+test('the six stages each have steps, and every step agent is real and only plans or records', async () => {
+  const { STAGES, STEPS } = await import('../core/journey.js');
+  const { getAgent } = await import('../core/agents.js');
+  const { TOOLS } = await import('../core/tools.js');
   assert.deepEqual(STAGES.map((s) => s.key), ['startup', 'struggle', 'scale', 'success', 'significance', 'sixxab']);
-  assert.deepEqual(STAGES.filter((s) => s.live).map((s) => s.key), ['startup', 'struggle']);
+  for (const st of STAGES) assert.ok(STEPS.some((x) => x.stage === st.head), `steps for ${st.head}`);
+  for (const x of STEPS) {
+    for (const h of x.hard) assert.ok(STEPS.some((y) => y.id === h), `${x.id} depends on unknown ${h}`);
+    if (!x.agentId) continue;
+    const a = getAgent(x.agentId);
+    assert.ok(a?.usesModel, `${x.id}: agent ${x.agentId}`);
+    for (const t of a!.tools) {
+      const tt = TOOLS[t]?.taskType ? DEFAULT_TASK_TYPES.find((d) => d.key === TOOLS[t].taskType) : null;
+      if (tt && tt.risk !== 'internal') assert.ok(tt.level <= 2, `${x.agentId}: ${t} must wait for the owner by default`);
+    }
+  }
 });
 
 test('agents see the business journey: stage, next step and recent revenue', async () => {
@@ -610,7 +620,7 @@ test('agents see the business journey: stage, next step and recent revenue', asy
   const task = await createTask(store, ORG, 'health-check', 'Run the health check');
   await runTask(deps, task.id);
   const sys = model.calls[0].system;
-  assert.match(sys, /Stage: Struggle/);
+  assert.match(sys, /Stage: Startup/);
   assert.match(sys, /Next step: Diagnose/);
   assert.match(sys, /2026-10: 450000 INR/);
 });
@@ -624,4 +634,27 @@ test('the Start-the-business stage agents exist, use only safe tools, and every 
     assert.ok(a!.tools.every((t) => ['recall', 'remember', 'write_note'].includes(t)), `${id} only plans and records; it never sends or spends`);
   }
   for (const s of STEPS) if (s.agentId) assert.ok(getAgent(s.agentId), `step ${s.id} agent ${s.agentId}`);
+});
+
+test('stages follow revenue: monthly gates to Success, annual for Significance and SIXXAB, rupees converted', async () => {
+  const { computeJourney } = await import('../core/journey.js');
+  const ev = (month: string, amount: number, at = `${month}-28T00:00:00Z`) => ({ id: month + amount, orgId: ORG, at, actor: 'o', action: 'revenue.recorded', taskId: null, detail: { month, amount } });
+  const usd = { name: 'X', offer: 'Y', currency: 'USD' };
+  assert.equal(computeJourney(usd, [ev('2026-09', 9999)]).stage.key, 'startup');
+  assert.equal(computeJourney(usd, [ev('2026-09', 10000)]).stage.key, 'struggle');
+  assert.equal(computeJourney(usd, [ev('2026-09', 60000)]).stage.key, 'scale');
+  assert.equal(computeJourney(usd, [ev('2026-09', 120000)]).stage.key, 'success', 'a $100K month alone is not $1M a year');
+  const year = Array.from({ length: 12 }, (_, i) => ev(`2026-${String(i + 1).padStart(2, '0')}`, 100000));
+  assert.equal(computeJourney(usd, year).stage.key, 'significance', '$1.2M in 12 months');
+  const big = Array.from({ length: 12 }, (_, i) => ev(`2026-${String(i + 1).padStart(2, '0')}`, 900000));
+  assert.equal(computeJourney(usd, big).stage.key, 'sixxab', '$10.8M in 12 months');
+  const inr = { name: 'Clinic', offer: 'Care', currency: 'INR' };
+  assert.equal(computeJourney(inr, [ev('2026-10', 450000)]).stage.key, 'startup', '₹4.5L ≈ $5.3K at 85');
+  assert.equal(computeJourney(inr, [ev('2026-10', 900000)]).stage.key, 'struggle', '₹9L ≈ $10.6K at 85');
+  assert.equal(computeJourney(inr, [ev('2026-10', 900000)], { inrPerUsd: 95 }).stage.key, 'startup', 'rate is a setting');
+  const j = computeJourney(usd, [ev('2026-09', 60000)]);
+  assert.ok(j.milestones.find((m) => m.key === 'month_10k')!.reachedAt);
+  assert.ok(j.milestones.find((m) => m.key === 'month_50k')!.reachedAt);
+  assert.equal(j.milestones.find((m) => m.key === 'month_100k')!.reachedAt, null);
+  assert.match(j.nextGate, /\$100K month/);
 });

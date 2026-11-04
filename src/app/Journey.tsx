@@ -5,19 +5,21 @@ import { BusinessProfile } from './BusinessProfile';
 import { Spinner } from './ui';
 import { useLoad } from './useLoad';
 
-interface Stage { key: string; name: string; head: string; level: string; summary: string; live: boolean }
+interface Stage { key: string; name: string; head: string; level: string; opensAt: string; summary: string; live: boolean }
 interface Step {
-  id: string; title: string; summary: string; agentId: string | null; agents: string; ownerDecides: string; output: string;
+  id: string; stage: 'Start' | 'Scale' | 'Run'; title: string; summary: string; agentId: string | null; agents: string; ownerDecides: string; output: string;
   goal: string; status: 'done' | 'ready' | 'blocked'; blockedBy: string[]; warnings: string[]; doneAt: string | null;
 }
 interface JourneyData {
   stage: Stage; nextGate: string; stages: Stage[]; steps: Step[];
-  revenue: { currency: string; months: { month: string; amount: number; currency: string }[] };
+  revenue: { currency: string; months: { month: string; amount: number; currency: string }[]; bestRecentMonthUsd: number; last12Usd: number; inrPerUsd: number };
   milestones: { key: string; title: string; reachedAt: string | null }[];
 }
 interface RunResult { status: string; output: string | null; queued: number }
 
 const RECENT_MS = 7 * 24 * 3600 * 1000;
+const HEADS = ['Start', 'Scale', 'Run'] as const;
+const usd = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
 
 export function Journey({ goApprovals }: { goApprovals: () => void }) {
   const { data, error, reload } = useLoad<{ journey: JourneyData }>('/api/journey');
@@ -37,7 +39,7 @@ export function Journey({ goApprovals }: { goApprovals: () => void }) {
           {j.stages.map((s) => (
             <li key={s.key} className={s.key === j.stage.key ? 'stage on' : s.live ? 'stage' : 'stage later'} aria-current={s.key === j.stage.key ? 'step' : undefined}>
               <strong>{s.name}</strong>
-              <span>{s.live ? `6S level ${s.level}` : 'After the pilot'}</span>
+              <span>{s.key === 'startup' ? '6S $0 · day one' : `6S ${s.level} · opens at ${s.opensAt}`}</span>
             </li>
           ))}
         </ol>
@@ -53,12 +55,21 @@ export function Journey({ goApprovals }: { goApprovals: () => void }) {
       <section className="panel glass-card">
         <h2>Your steps</h2>
         <p className="muted small">Each step unlocks when the steps it depends on are done. Notes in gold are worth doing first but never block you.</p>
-        <ol className="journey-steps">
-          {j.steps.map((s, i) => <StepCard key={s.id} n={i + 1} s={s} onChange={reload} goApprovals={goApprovals} />)}
-        </ol>
+        {HEADS.map((head) => {
+          const steps = j.steps.filter((s) => s.stage === head);
+          const done = steps.filter((s) => s.status === 'done').length;
+          return (
+            <details key={head} className="head-group" open={head === j.stage.head}>
+              <summary><strong>{head} the business</strong> <span className="muted small">{done} of {steps.length} steps done</span></summary>
+              <ol className="journey-steps">
+                {steps.map((s) => <StepCard key={s.id} n={j.steps.indexOf(s) + 1} s={s} onChange={reload} goApprovals={goApprovals} />)}
+              </ol>
+            </details>
+          );
+        })}
       </section>
 
-      <Revenue currency={j.revenue.currency} months={j.revenue.months} onSaved={reload} />
+      <Revenue currency={j.revenue.currency} months={j.revenue.months} bestUsd={j.revenue.bestRecentMonthUsd} yearUsd={j.revenue.last12Usd} rate={j.revenue.inrPerUsd} onSaved={reload} />
 
       <section className="panel glass-card">
         <h2>Milestones</h2>
@@ -141,7 +152,7 @@ function StepCard({ n, s, onChange, goApprovals }: { n: number; s: Step; onChang
   );
 }
 
-function Revenue({ currency, months, onSaved }: { currency: string; months: { month: string; amount: number }[]; onSaved: () => void }) {
+function Revenue({ currency, months, bestUsd, yearUsd, rate, onSaved }: { currency: string; months: { month: string; amount: number }[]; bestUsd: number; yearUsd: number; rate: number; onSaved: () => void }) {
   const lastMonth = new Date(Date.now() - 28 * 24 * 3600 * 1000).toISOString().slice(0, 7);
   const [month, setMonth] = useState(lastMonth);
   const [amount, setAmount] = useState('');
@@ -168,6 +179,9 @@ function Revenue({ currency, months, onSaved }: { currency: string; months: { mo
     <section className="panel glass-card">
       <h2>Revenue</h2>
       <p className="muted small">Record each month&apos;s revenue ({currency}). It moves you through the stages and shows up in every agent&apos;s plan.</p>
+      {months.length > 0 && (
+        <p className="small">Best recent month <strong>{usd(bestUsd)}</strong> · last 12 months <strong>{usd(yearUsd)}</strong>{currency === 'INR' ? <span className="muted"> (at ₹{rate} per $)</span> : null}</p>
+      )}
       <form className="revenue-form" onSubmit={save}>
         <label className="field"><span>Month</span><input type="month" value={month} onChange={(e) => setMonth(e.target.value)} required /></label>
         <label className="field"><span>Revenue ({currency})</span><input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.,]/g, ''))} required placeholder="e.g. 250000" /></label>

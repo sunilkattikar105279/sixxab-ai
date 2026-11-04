@@ -61,7 +61,14 @@ export function deps(s: SupabaseStore): RuntimeDeps {
     store: s,
     model: new AnthropicClient({ apiKey, models: modelsFromEnv(process.env) }),
     integrations: webhookIntegrations(env('N8N_WEBHOOK_URL'), env('N8N_WEBHOOK_SECRET')),
+    journey: journeyOptions(),
   };
+}
+
+/** Journey settings from the environment: INR_PER_USD converts rupee revenue for stage gates (default 85). */
+export function journeyOptions(): { inrPerUsd?: number } {
+  const rate = Number(env('INR_PER_USD'));
+  return Number.isFinite(rate) && rate > 0 ? { inrPerUsd: rate } : {};
 }
 
 /** Resolves the signed-in user and their org from the Bearer token, or throws 401. */
