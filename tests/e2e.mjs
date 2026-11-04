@@ -29,7 +29,8 @@ await check('landing renders, hydrates without errors, and its controls work', a
   page.on('pageerror', (e) => errors.push(e.message));
   await page.route(/cloudfront\.net|fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
   await page.goto(BASE + '/', { waitUntil: 'networkidle' });
-  assert.match(await page.locator('h1').first().innerText(), /Start it\. Scale it\. Run it\./);
+  assert.match(await page.locator('h1').first().innerText(), /The AI team that runs your business\./);
+  assert.equal(await page.locator('header video').count(), 0, 'hero background is a still image');
   await page.screenshot({ path: `${SHOTS}/landing-hero.png` });
   // Start your business: header tab and stage buttons lead to sign-in, and the page talks about businesses
   assert.equal(await page.getByRole('link', { name: 'Start your business' }).first().getAttribute('href'), '/login?next=start');
@@ -40,11 +41,6 @@ await check('landing renders, hydrates without errors, and its controls work', a
   assert.equal(await page.getByRole('link', { name: 'Investors' }).first().getAttribute('href'), '/investors');
   // Pricing
   await page.getByText('$20,000').first().waitFor();
-  // Ticker moves
-  const ticker = page.locator('p[aria-live="polite"] span span').first();
-  const before = await ticker.getAttribute('style');
-  await page.waitForTimeout(2700);
-  assert.notEqual(await ticker.getAttribute('style'), before, 'ticker should advance');
   // Links
   assert.equal(await page.getByRole('link', { name: 'Log in' }).first().getAttribute('href'), '/login');
   await page.locator('#pricing').scrollIntoViewIfNeeded();

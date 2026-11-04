@@ -4,20 +4,7 @@ import { DCLogic } from './dc.js';
 export class Component extends DCLogic {
   constructor(props) {
     super(props);
-    this.state = { menuOpen: false, tick: 0, snap: false };
-  }
-  componentDidMount() {
-    this.timer = setInterval(() => {
-      const next = this.state.tick + 1;
-      this.setState({ tick: next, snap: false });
-      if (next === 6) {
-        this.snapTimer = setTimeout(() => this.setState({ tick: 0, snap: true }), 700);
-      }
-    }, 2400);
-  }
-  componentWillUnmount() {
-    clearInterval(this.timer);
-    clearTimeout(this.snapTimer);
+    this.state = { menuOpen: false };
   }
   renderVals() {
     const v = this.props.veilStrength ?? 0.35;
@@ -25,7 +12,6 @@ export class Component extends DCLogic {
     const gold = '#ffe2b2', mid = '#cfe3fa', blue = '#96c4f4';
     return {
       veil: veil,
-      showVideo: this.props.showVideo ?? true,
       bookHref: (this.props.bookingUrl || '').trim() || 'mailto:sunil.kattikar@gmail.com?subject=Book%20a%20SIXXAB%20AI%20strategy%20call',
       menuOpen: this.state.menuOpen,
       toggleMenu: () => this.setState({ menuOpen: !this.state.menuOpen }),
@@ -47,9 +33,6 @@ export class Component extends DCLogic {
         'Every action recorded, with the AI cost of each task',
         'LinkedIn and Gmail today; WhatsApp, Google Business Profile and Instagram next'
       ],
-      lines: ['plans your roadmap.', 'ships your code.', 'runs your ads.', 'replies to customers.', 'closes your deals.', 'posts your tweets.', 'plans your roadmap.'],
-      tickerShift: 'translateY(' + (-1.3 * this.state.tick) + 'em)',
-      tickerEase: this.state.snap ? 'none' : 'transform .65s cubic-bezier(.16,1,.3,1)',
       heads: [
         { n: '01', href: '/login?next=start', cta: 'Start my business', name: 'Start the business', stages: 'New and small · $0 to $10K a month', promise: 'From an idea to a validated offer and your first paying customers.', color: gold, border: 'rgba(255,226,178,.35)', bg: 'linear-gradient(180deg, rgba(255,226,178,.08), rgba(255,226,178,.015))' },
         { n: '02', href: '/login?next=scale', cta: 'Scale my business', name: 'Scale the business', stages: 'Growing · $10K to $100K a month', promise: 'Repeatable growth with a built-in AI marketing agency, sales and support.', color: mid, border: 'rgba(207,227,250,.3)', bg: 'linear-gradient(180deg, rgba(207,227,250,.07), rgba(207,227,250,.015))' },
