@@ -7,11 +7,8 @@ export class Component extends DCLogic {
     this.state = { menuOpen: false };
   }
   renderVals() {
-    const v = this.props.veilStrength ?? 0.35;
-    const veil = 'radial-gradient(130% 50% at 50% 45%, rgba(6,10,18,' + (v * 1.1).toFixed(2) + ') 0%, rgba(6,10,18,' + (v * 0.5).toFixed(2) + ') 55%, rgba(6,10,18,0) 100%), linear-gradient(180deg, rgba(6,10,18,' + (v * 0.6).toFixed(2) + ') 0%, rgba(6,10,18,0) 22%, rgba(6,10,18,0) 70%, #02060f 100%)';
     const gold = '#ffe2b2', mid = '#cfe3fa', blue = '#96c4f4';
     return {
-      veil: veil,
       bookHref: (this.props.bookingUrl || '').trim() || 'mailto:sunil.kattikar@gmail.com?subject=Book%20a%20SIXXAB%20AI%20strategy%20call',
       menuOpen: this.state.menuOpen,
       toggleMenu: () => this.setState({ menuOpen: !this.state.menuOpen }),

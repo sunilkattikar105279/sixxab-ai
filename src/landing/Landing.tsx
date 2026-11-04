@@ -8,10 +8,7 @@ export default function Landing(props) {
   const v = useDC(Component, props);
   return (<>
 <div style={{"width": "100%", "minWidth": "0", "background": "#02060f", "color": "#ffffff", "fontFamily": "'Sora', system-ui, sans-serif"}}>
-<header style={{"position": "relative", "height": "88vh", "minHeight": "660px", "maxHeight": "900px", "overflow": "hidden", "display": "flex", "flexDirection": "column"}}>
-<div aria-hidden="true" style={{"position": "absolute", "inset": "0", "background": "radial-gradient(circle at 50% 47%, #ffffff 0%, #fff1d8 1.2%, rgba(255,214,150,.55) 5%, rgba(255,190,110,.16) 16%, rgba(2,6,15,0) 34%), conic-gradient(from 225deg at 50% 47%, rgba(255,196,110,.28) 0deg, rgba(2,6,15,0) 40deg, rgba(2,6,15,0) 50deg, rgba(120,170,240,.24) 90deg, rgba(2,6,15,0) 135deg, rgba(2,6,15,0) 180deg, rgba(120,170,240,.24) 225deg, rgba(2,6,15,0) 270deg, rgba(2,6,15,0) 310deg, rgba(255,196,110,.28) 360deg), radial-gradient(120% 60% at 50% 100%, #0b1a3a 0%, #03070f 70%)"}}></div>
-<div aria-hidden="true" style={{"position": "absolute", "inset": "0", "pointerEvents": "none", "background": "url(https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/130837c4-0244-4f37-9c61-8d801d93fd29.jpg) center / cover no-repeat"}}></div>
-<div aria-hidden="true" style={{"position": "absolute", "inset": "0", "pointerEvents": "none", "background": v.veil}}></div>
+<header style={{"position": "relative", "background": "#02060f", "height": "88vh", "minHeight": "660px", "maxHeight": "900px", "overflow": "hidden", "display": "flex", "flexDirection": "column"}}>
 <nav aria-label="Main" style={{"position": "relative", "zIndex": "5", "display": "flex", "alignItems": "center", "justifyContent": "space-between", "gap": "16px", "padding": "36px clamp(22px, 8vw, 120px) 0"}}>
 <a href="/" style={{"display": "flex", "alignItems": "center", "gap": "9px", "color": "#ffffff"}}>
 <svg viewBox="0 0 23 17" width="24" height="18" aria-hidden="true" style={{"fill": "#ffffff", "display": "block"}}><path d="M8.15 0.9 L4.55 0.9 L0.5 9.3 L4.1 9.3 Z" /><path d="M17.0 0 L13.4 0 L6.15 16.4 L9.75 16.4 Z" /><path d="M22.9 0 L19.3 0 L15.0 7.6 L18.6 7.6 Z" /><path d="M22.6 6.9 L19.0 6.9 L14.05 16.4 L17.65 16.4 Z" /></svg>
@@ -52,7 +49,7 @@ export default function Landing(props) {
 <p style={{"margin": "0", "maxWidth": "54ch", "fontSize": "clamp(15px, 1.2vw, 17px)", "lineHeight": "1.6", "color": "#a2a9b8"}}>You stay in charge: nothing reaches a customer or spends money without your approval.</p>
 <div style={{"display": "flex", "flexWrap": "wrap", "gap": "12px", "marginTop": "6px"}}>
 <a href="/login?next=start" style={{"display": "inline-flex", "alignItems": "center", "minHeight": "52px", "padding": "15px 28px", "borderRadius": "999px", "background": "#ffffff", "color": "#02060f", "fontSize": "17px", "fontVariationSettings": "'wght' 560"}}>Start your business</a>
-<a href="#begin" className="glass" style={{"display": "inline-flex", "alignItems": "center", "minHeight": "52px", "padding": "15px 26px", "borderRadius": "999px", "fontSize": "17px", "color": "#ffffff", "fontVariationSettings": "'wght' 497"}}>Book a strategy call</a>
+<a href="#begin" style={{"display": "inline-flex", "alignItems": "center", "minHeight": "52px", "padding": "15px 26px", "borderRadius": "999px", "border": "1.6px solid rgba(255,255,255,.6)", "fontSize": "17px", "color": "#ffffff", "fontVariationSettings": "'wght' 497"}}>Book a strategy call</a>
 </div>
 <p style={{"margin": "8px 0 0", "fontSize": "14px", "color": "#a2a9b8"}}>Live with businesses in the US and India · Human approval built in · 12-month plans</p>
 </div>
