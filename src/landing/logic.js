@@ -58,35 +58,35 @@ export class Component extends DCLogic {
     const gold = '#ffe2b2', mid = '#cfe3fa', blue = '#96c4f4';
     return [
       { n: '01', who: 'Startups & small businesses', color: gold, border: 'rgba(255,226,178,.3)', toBg: 'rgba(255,226,178,.10)',
-        title: 'Restart, scale and run your company with AI agents.',
-        from: 'Just starting, stuck, or stretched too thin', to: 'A company that runs on agents, with you in command',
-        cta: 'Start my path',
+        title: 'Restart, scale and run your business with AI agents.',
+        from: 'Just starting, stuck, or stretched too thin', to: 'A business that runs on agents, with you in command',
+        cta: 'Start my path', ctaHref: '/login?next=start',
         steps: [
           { n: 1, title: 'Diagnose', body: 'A business health check places you on the SIXXAB path and shows what is holding you back.', agents: 'Strategy Coach, CFO', out: 'Stage report and top priorities', you: 'Confirm goals and stage' },
           { n: 2, title: 'Restart', body: 'Reset the niche, offer and pricing around real demand. Stop what is not working.', agents: 'Niche Selector, CSO, CPO', out: 'A validated offer', you: 'Choose the offer to back' },
           { n: 3, title: 'Plan', body: 'One goal, a 90-day roadmap and a weekly plan that every agent works to.', agents: 'Founder Orchestrator, Roadmap', out: '90-day roadmap', you: 'Approve the roadmap' },
           { n: 4, title: 'Staff with agents', body: 'Switch on the CXO and department agents your stage needs, and connect your tools.', agents: 'CEO, CMO, CRO, CFO + departments', out: 'Your AI team, live', you: 'Pick which agents start' },
           { n: 5, title: 'Grow', body: 'The built-in marketing agency, sales and support run every day. You approve spend and messages.', agents: '50 marketing agents, Deal Closer, Support', out: 'Leads, customers, revenue', you: 'Approve spend and messages' },
-          { n: 6, title: 'Run', body: 'Morning briefings, approvals and the learning loop keep the company improving while you lead.', agents: 'Founder Orchestrator, Learning Engine', out: 'A self-improving company', you: 'Handle exceptions and big calls' }
+          { n: 6, title: 'Run', body: 'Morning briefings, approvals and the learning loop keep the business improving while you lead.', agents: 'Founder Orchestrator, Learning Engine', out: 'A self-improving business', you: 'Handle exceptions and big calls' }
         ],
         outcomes: ['Revenue before headcount', 'Founder time back', 'A clear next milestone', 'Costs that grow with you'] },
       { n: '02', who: 'Medium businesses', color: mid, border: 'rgba(207,227,250,.3)', toBg: 'rgba(207,227,250,.09)',
         title: 'Transition and scale to SIXXAB level.',
-        from: 'Growing, but limited by people and process', to: 'SIXXAB level: a $10M company, built to keep growing',
-        cta: 'Plan my transition',
+        from: 'Growing, but limited by people and process', to: 'SIXXAB level: a $10M business, built to keep growing',
+        cta: 'Plan my transition', ctaHref: '#begin',
         steps: [
           { n: 1, title: 'Assess', body: 'Map every department, process and tool. Score AI readiness and find the highest-return moves.', agents: 'COO, CIO', out: 'AI readiness map', you: 'Set the priorities' },
           { n: 2, title: 'Connect', body: 'Bring CRM, finance, support and data into one platform, with roles and approvals.', agents: 'CIO, CDO', out: 'One connected operating system', you: 'Grant access and roles' },
           { n: 3, title: 'Augment', body: 'Agents work alongside each team, taking repetitive work first. People review and approve.', agents: 'Department agents', out: 'Capacity without new hires', you: 'Review and approve agent work' },
-          { n: 4, title: 'Orchestrate', body: 'All 18 CXO agents align to one company plan, with one live view for you and your board.', agents: 'Founder Orchestrator, 18 CXO', out: 'Board-ready plan and packs', you: 'Sign off the company plan' },
+          { n: 4, title: 'Orchestrate', body: 'All 18 CXO agents align to one business plan, with one live view for you and your board.', agents: 'Founder Orchestrator, 18 CXO', out: 'Board-ready plan and packs', you: 'Sign off the business plan' },
           { n: 5, title: 'Expand', body: 'Open new markets, products and industries with Startups in a Box.', agents: 'CGO, CINO, expansion agents', out: 'New revenue lines', you: 'Choose markets to enter' },
-          { n: 6, title: 'Reach SIXXAB', body: 'Technology, data and security agents make growth durable as you pass Significance.', agents: 'CTO, CDO, CISO, CAIO', out: 'A $10M-ready company', you: 'Decide what runs autonomously' }
+          { n: 6, title: 'Reach SIXXAB', body: 'Technology, data and security agents make growth durable as you pass Significance.', agents: 'CTO, CDO, CISO, CAIO', out: 'A $10M-ready business', you: 'Decide what runs autonomously' }
         ],
         outcomes: ['Growth not capped by hiring', 'Every department measured', 'One plan, board to front line', 'New markets in parallel'] },
       { n: '03', who: 'Large businesses', color: blue, border: 'rgba(150,196,244,.35)', toBg: 'rgba(150,196,244,.10)',
-        title: 'Optimize and transform into an AI-driven company.',
+        title: 'Optimize and transform into an AI-driven business.',
         from: 'Complex, costly and slow to change', to: 'An AI-driven enterprise, with risk under control',
-        cta: 'Talk to us about transformation',
+        cta: 'Talk to us about transformation', ctaHref: '#begin',
         steps: [
           { n: 1, title: 'Discover', body: 'Review cost, processes and portfolio to find where AI moves profit and productivity most.', agents: 'CFO, COO, CAIO', out: 'AI value map and business case', you: 'Approve the business case' },
           { n: 2, title: 'Govern', body: 'Guardrails first: security, compliance, audit and stage-gates enforced by the platform.', agents: 'CISO, CLO', out: 'AI governance framework', you: 'Set risk limits and policies' },
@@ -114,7 +114,7 @@ export class Component extends DCLogic {
       }),
       cur: this.journeyData()[this.state.journey],
       loopSteps: [
-        { n: '01', who: 'Agents', k: 'Plan', v: 'Agents break the goal into tasks against the company plan.', color: '#ffe2b2', border: 'rgba(196,214,232,.14)', bg: 'rgba(2,6,15,.4)' },
+        { n: '01', who: 'Agents', k: 'Plan', v: 'Agents break the goal into tasks against the business plan.', color: '#ffe2b2', border: 'rgba(196,214,232,.14)', bg: 'rgba(2,6,15,.4)' },
         { n: '02', who: 'Agents', k: 'Act', v: 'They draft, build, publish, sell and serve within guardrails.', color: '#ffe2b2', border: 'rgba(196,214,232,.14)', bg: 'rgba(2,6,15,.4)' },
         { n: '03', who: 'Human', k: 'Review & approve', v: 'Spend, customer messages and big calls wait for your yes.', color: '#ffffff', border: 'rgba(255,255,255,.45)', bg: 'rgba(255,255,255,.07)' },
         { n: '04', who: 'Platform', k: 'Measure', v: 'Results, costs and customer replies are tracked automatically.', color: '#96c4f4', border: 'rgba(196,214,232,.14)', bg: 'rgba(2,6,15,.4)' },
@@ -138,15 +138,15 @@ export class Component extends DCLogic {
         { name: 'SIXXAB', money: '$10M', bar: blue }
       ],
       heads: [
-        { n: '01', href: '#start', name: 'Start the company', stages: 'Startup → Struggle · $0 to $10K', promise: 'From an idea to a validated offer and your first paying customers.', color: gold, border: 'rgba(255,226,178,.35)', bg: 'linear-gradient(180deg, rgba(255,226,178,.08), rgba(255,226,178,.015))' },
-        { n: '02', href: '#scale', name: 'Scale the company', stages: 'Scale → Success · $10K to $100K', promise: 'Repeatable growth with a built-in AI marketing agency, sales and support.', color: mid, border: 'rgba(207,227,250,.3)', bg: 'linear-gradient(180deg, rgba(207,227,250,.07), rgba(207,227,250,.015))' },
-        { n: '03', href: '#run', name: 'Run the company', stages: 'Significance → SIXXAB · $100K to $10M', promise: 'All 18 CXO agents on one plan, running the company while you lead.', color: blue, border: 'rgba(150,196,244,.35)', bg: 'linear-gradient(180deg, rgba(150,196,244,.08), rgba(150,196,244,.015))' }
+        { n: '01', href: '#start', name: 'Start the business', stages: 'Startup → Struggle · $0 to $10K', promise: 'From an idea to a validated offer and your first paying customers.', color: gold, border: 'rgba(255,226,178,.35)', bg: 'linear-gradient(180deg, rgba(255,226,178,.08), rgba(255,226,178,.015))' },
+        { n: '02', href: '#scale', name: 'Scale the business', stages: 'Scale → Success · $10K to $100K', promise: 'Repeatable growth with a built-in AI marketing agency, sales and support.', color: mid, border: 'rgba(207,227,250,.3)', bg: 'linear-gradient(180deg, rgba(207,227,250,.07), rgba(207,227,250,.015))' },
+        { n: '03', href: '#run', name: 'Run the business', stages: 'Significance → SIXXAB · $100K to $10M', promise: 'All 18 CXO agents on one plan, running the business while you lead.', color: blue, border: 'rgba(150,196,244,.35)', bg: 'linear-gradient(180deg, rgba(150,196,244,.08), rgba(150,196,244,.015))' }
       ],
       details: [
         { id: 'start', n: '01', stages: 'Startup & Struggle', color: gold, wash: 'radial-gradient(70% 60% at 0% 0%, rgba(255,200,120,.08), rgba(2,6,15,0) 70%)',
-          title: 'Start the company.', body: 'Most companies die before their first customer. SIXXAB gives you a strategist, a builder and a seller on day one, so you can go from idea to revenue without hiring anyone.',
+          title: 'Start the business.', body: 'Most businesses die before their first customer. SIXXAB gives you a strategist, a builder and a seller on day one, so you can go from idea to revenue without hiring anyone.',
           agents: 'Founder Orchestrator, Niche Selector, Personal Strategy Coach, Roadmap & Implementation, plus CEO, CSO, CPO, CMO, CRO and CFO agents.',
-          cta: 'Start my company',
+          cta: 'Start my business', ctaHref: '/login?next=start',
           items: [
             { tag: 'Validate', title: 'Pick the right niche', body: 'The Niche Selector tests your idea against real demand before you spend a dollar.' },
             { tag: 'Plan', title: 'Get a roadmap you can follow', body: 'Your strategy coach turns goals into a 90-day plan and a weekly to-do list.' },
@@ -154,9 +154,9 @@ export class Component extends DCLogic {
             { tag: 'Sell', title: 'Win the first customers', body: 'Lead finding, outreach and follow-up run every day until people pay.' }
           ] },
         { id: 'scale', n: '02', stages: 'Scale & Success', color: mid, wash: 'radial-gradient(70% 60% at 100% 0%, rgba(120,170,240,.10), rgba(2,6,15,0) 70%)',
-          title: 'Scale the company.', body: 'Once people pay, the job changes: make growth repeatable and keep the business healthy. SIXXAB adds a full marketing agency, a sales team, a support desk and a back office.',
+          title: 'Scale the business.', body: 'Once people pay, the job changes: make growth repeatable and keep the business healthy. SIXXAB adds a full marketing agency, a sales team, a support desk and a back office.',
           agents: 'COO, CCO, CBO, CLO and CHRO agents, the 50-agent marketing agency, and sales, support and finance department agents.',
-          cta: 'Scale my company',
+          cta: 'Scale my business', ctaHref: '/login?next=scale',
           items: [
             { tag: 'Market', title: 'AI marketing agency, built in', body: 'Content, social, ads, SEO and email, planned and published every day.' },
             { tag: 'Sell', title: 'A pipeline that follows up itself', body: 'CRM stays current, quiet deals get nudged, and the next step is always owned.' },
@@ -164,9 +164,9 @@ export class Component extends DCLogic {
             { tag: 'Operate', title: 'Books, invoices and payroll', body: 'Collections, payables, month-end close and compliance stay on track.' }
           ] },
         { id: 'run', n: '03', stages: 'Significance & SIXXAB', color: blue, wash: 'radial-gradient(70% 60% at 0% 0%, rgba(120,170,240,.10), rgba(2,6,15,0) 70%)',
-          title: 'Run the company.', body: 'At this stage you lead, and the company runs. The Founder Orchestrator keeps all 18 CXO agents working to one plan and reports to you and your board.',
+          title: 'Run the business.', body: 'At this stage you lead, and the business runs. The Founder Orchestrator keeps all 18 CXO agents working to one plan and reports to you and your board.',
           agents: 'All 18 CXO agents, including CTO, CIO, CDO, CISO, CAIO, CGO and CINO, plus technology and expansion department agents.',
-          cta: 'Run my company',
+          cta: 'Run my business', ctaHref: '/login?next=run',
           items: [
             { tag: 'Orchestrate', title: 'One plan, 18 executives', body: 'Every CXO agent works toward the same goals, with one view for you and the board.' },
             { tag: 'Build', title: 'Technology, data and security', body: 'Engineering, cloud, analytics and security agents keep the platform strong.' },
@@ -176,7 +176,7 @@ export class Component extends DCLogic {
       ],
       segments: [
         { who: 'Startups & solo founders', box: 'Start box', color: gold, border: 'rgba(255,226,178,.35)', bg: 'linear-gradient(180deg, rgba(255,226,178,.07), rgba(255,226,178,.015))',
-          body: 'A whole company team for one founder, from idea to first revenue.',
+          body: 'A whole business team for one founder, from idea to first revenue.',
           points: ['Founder agents and first six CXO agents', 'Launch-ready brand, site and offer', 'Industry playbook from day one'] },
         { who: 'Small & medium businesses', box: 'Growth box', color: mid, border: 'rgba(207,227,250,.3)', bg: 'linear-gradient(180deg, rgba(207,227,250,.06), rgba(207,227,250,.015))',
           body: 'Add an AI marketing agency, sales, support and back office to the team you already have.',
@@ -241,11 +241,11 @@ export class Component extends DCLogic {
       tiersCert: this.certTiers(this.state.market),
       certGets: ['SIXXAB platform license for your clients', 'All agents, playbooks and Startups in a Box', 'Delivery toolkit: assessments, roadmaps, board packs', 'Listing in the global consultant directory', 'Recurring revenue from client subscriptions', 'Ongoing training as the platform improves'],
       plans: [
-        { n: '01', who: 'Startups & small businesses', name: 'Founder', price: '$5,000', body: 'Restart, scale and run your company with AI agents.', cta: 'Start my path', color: gold, border: 'rgba(255,226,178,.3)', bg: 'rgba(255,255,255,.03)', btn: 'rgba(196,214,232,.72)', btnBg: 'transparent', btnInk: '#ffffff',
+        { n: '01', who: 'Startups & small businesses', name: 'Founder', price: '$5,000', body: 'Restart, scale and run your business with AI agents.', cta: 'Start my path', color: gold, border: 'rgba(255,226,178,.3)', bg: 'rgba(255,255,255,.03)', btn: 'rgba(196,214,232,.72)', btnBg: 'transparent', btnInk: '#ffffff',
           features: ['Founder agents: Niche Selector, Strategy Coach, Roadmap', 'Founder Orchestrator with core CXO agents', 'Built-in AI marketing agency', 'Sales, support and back-office agents', 'Daily briefing and approvals'] },
-        { n: '02', who: 'Medium businesses', name: 'Growth', price: '$20,000', body: 'Transition and scale your company to SIXXAB level.', cta: 'Plan my transition', color: mid, border: 'rgba(207,227,250,.45)', bg: 'linear-gradient(180deg, rgba(207,227,250,.09), rgba(207,227,250,.02))', btn: '#ffffff', btnBg: '#ffffff', btnInk: '#02060f',
+        { n: '02', who: 'Medium businesses', name: 'Growth', price: '$20,000', body: 'Transition and scale your business to SIXXAB level.', cta: 'Plan my transition', color: mid, border: 'rgba(207,227,250,.45)', bg: 'linear-gradient(180deg, rgba(207,227,250,.09), rgba(207,227,250,.02))', btn: '#ffffff', btnBg: '#ffffff', btnInk: '#02060f',
           features: ['Everything in Founder', 'All 18 CXO agents and department agents', 'Your existing systems connected', 'Done-for-you marketing agency option', 'Startups in a Box for new markets and products'] },
-        { n: '03', who: 'Large businesses', name: 'Enterprise', price: '$50,000', body: 'Optimize and transform into an AI-driven company.', cta: 'Talk to us', color: blue, border: 'rgba(150,196,244,.45)', bg: 'linear-gradient(180deg, rgba(150,196,244,.10), rgba(150,196,244,.02))', btn: 'rgba(196,214,232,.72)', btnBg: 'transparent', btnInk: '#ffffff',
+        { n: '03', who: 'Large businesses', name: 'Enterprise', price: '$50,000', body: 'Optimize and transform into an AI-driven business.', cta: 'Talk to us', color: blue, border: 'rgba(150,196,244,.45)', bg: 'linear-gradient(180deg, rgba(150,196,244,.10), rgba(150,196,244,.02))', btn: 'rgba(196,214,232,.72)', btnBg: 'transparent', btnInk: '#ffffff',
           features: ['AI value map and governance framework', 'Pilot to enterprise-wide rollout', 'CXO agents for each business unit', 'Single sign-on, audit trail, regional data options', 'AI center of excellence and talent training'] }
       ]
     };

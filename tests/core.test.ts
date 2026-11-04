@@ -496,3 +496,11 @@ test('LinkedIn comment links in the newer dashCommentUrn (fsd_comment) format ar
   });
   assert.equal(parseLinkedInComment('https://www.linkedin.com/feed/update/urn:li:activity:7523606744162516992/'), null, 'a post link alone is not a comment');
 });
+
+test('after sign-in, ?next=start|scale|run opens that part of the workspace; anything else goes to the workspace home', async () => {
+  const { afterSignInPath } = await import('../src/lib/auth.js');
+  assert.equal(afterSignInPath('?next=start'), '/app?journey=start');
+  assert.equal(afterSignInPath('?next=run'), '/app?journey=run');
+  assert.equal(afterSignInPath(''), '/app');
+  assert.equal(afterSignInPath('?next=https://evil.example'), '/app', 'never an open redirect');
+});

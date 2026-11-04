@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getConfig, getSession, isEmail, sendEmailCode, sendSmsCode, toE164, verifyEmailCode, verifySmsCode, type PublicConfig } from '../lib/auth';
+import { afterSignInPath, getConfig, getSession, isEmail, sendEmailCode, sendSmsCode, toE164, verifyEmailCode, verifySmsCode, type PublicConfig } from '../lib/auth';
 import { Brand, Spinner } from './ui';
 
 type Method = 'email' | 'mobile';
@@ -30,7 +30,7 @@ export default function Login() {
   useEffect(() => {
     getConfig().then(setCfg);
     getSession().then((s) => {
-      if (s) location.replace('/app');
+      if (s) location.replace(afterSignInPath(location.search));
     });
     try {
       if (Intl.DateTimeFormat().resolvedOptions().timeZone.startsWith('Asia/Kolkata')) setCountry('91');
@@ -76,7 +76,7 @@ export default function Login() {
     try {
       if (method === 'email') await verifyEmailCode(email, code);
       else await verifySmsCode(phone!, code);
-      location.replace('/app');
+      location.replace(afterSignInPath(location.search));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not verify the code.');
       setBusy(false);

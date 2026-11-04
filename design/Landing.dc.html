@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>SIXXAB AI — Start, Scale and Run Your Company</title>
+<title>SIXXAB AI — Start, Scale and Run Your Business</title>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -65,6 +65,7 @@ a:focus-visible,button:focus-visible{outline:2px solid #9fe0ff;outline-offset:3p
 <a href="#pricing">Pricing</a>
 </div>
 <div class="navlinks l1" style="align-items: center; gap: 24px; font-size: 14px; font-variation-settings: 'wght' 506">
+<a href="/login?next=start" style="color: #ffe2b2; font-variation-settings: 'wght' 581">Start your business</a>
 <a href="/login">Log in</a>
 <a href="#begin" style="padding: 12px 22px; border: 1.6px solid rgba(196,214,232,.72); border-radius: 999px; color: #e8ecf0; font-variation-settings: 'wght' 581">Book a strategy call</a>
 </div>
@@ -74,10 +75,11 @@ a:focus-visible,button:focus-visible{outline:2px solid #9fe0ff;outline-offset:3p
 </nav>
 <sc-if value="{{menuOpen}}" hint-placeholder-val="{{ false }}">
 <div style="position: absolute; z-index: 6; top: 96px; right: 22px; width: min(300px, 82vw); padding: 14px; border-radius: 22px; display: flex; flex-direction: column; gap: 2px; background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.045)), linear-gradient(180deg, rgba(6,12,22,.72), rgba(6,12,22,.82)); backdrop-filter: blur(26px); box-shadow: 0 14px 38px rgba(2,6,14,.45)">
+<a href="/login?next=start" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px; color: #ffe2b2">Start your business</a>
 <a href="#paths" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">Your path</a>
-<a href="#start" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">Start the company</a>
-<a href="#scale" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">Scale the company</a>
-<a href="#run" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">Run the company</a>
+<a href="#start" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">Start the business</a>
+<a href="#scale" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">Scale the business</a>
+<a href="#run" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">Run the business</a>
 <a href="#agency" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">Marketing agency</a>
 <a href="#box" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">Startups in a Box</a>
 <a href="#platform" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">Platform</a>
@@ -91,14 +93,14 @@ a:focus-visible,button:focus-visible{outline:2px solid #9fe0ff;outline-offset:3p
 <p class="l1" style="margin: 0; font-size: 14px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">You're a founder. Or you should be.</p>
 <h1 class="h1" style="margin: 0; font-size: clamp(34px, 4.4vw, 64px); line-height: 1.12; font-weight: 400; font-variation-settings: 'wght' 424; letter-spacing: -.01em">
 <span class="w1" style="display: block">Start it. Scale it. Run it.</span>
-<span class="w2" style="display: block">AI that runs your company.</span>
+<span class="w2" style="display: block">AI that runs your business.</span>
 </h1>
 <p class="l2" aria-live="polite" style="margin: 0; display: flex; justify-content: center; align-items: flex-start; gap: .32em; font-size: clamp(20px, 2vw, 28px); line-height: 1.3; font-variation-settings: 'wght' 446"><span>SIXXAB AI</span><span style="display: inline-block; height: 1.3em; overflow: hidden; text-align: left"><span style="display: flex; flex-direction: column; transform: {{tickerShift}}; transition: {{tickerEase}}"><sc-for list="{{lines}}" as="ln" hint-placeholder-count="7"><span style="display: block; height: 1.3em; white-space: nowrap; color: #ffe2b2">{{ln}}</span></sc-for></span></span></p>
 <p class="l2" style="margin: 0; max-width: 40ch; font-size: clamp(15px, 1.3vw, 18px); line-height: 1.5; color: #a2a9b8">Your first employee and your whole team, from the first idea to $10M. It never sleeps.</p>
 <div class="l3" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 12px">
-<a href="#start" class="glass" style="display: inline-flex; align-items: center; gap: 10px; padding: 15px 26px; border-radius: 999px; font-size: 17px; color: #ffffff; font-variation-settings: 'wght' 497"><span style="color: #ffe2b2">01</span> Start the company</a>
-<a href="#scale" class="glass" style="display: inline-flex; align-items: center; gap: 10px; padding: 15px 26px; border-radius: 999px; font-size: 17px; color: #ffffff; font-variation-settings: 'wght' 497"><span style="color: #cfe3fa">02</span> Scale the company</a>
-<a href="#run" class="glass" style="display: inline-flex; align-items: center; gap: 10px; padding: 15px 26px; border-radius: 999px; font-size: 17px; color: #ffffff; font-variation-settings: 'wght' 497"><span style="color: #96c4f4">03</span> Run the company</a>
+<a href="#start" class="glass" style="display: inline-flex; align-items: center; gap: 10px; padding: 15px 26px; border-radius: 999px; font-size: 17px; color: #ffffff; font-variation-settings: 'wght' 497"><span style="color: #ffe2b2">01</span> Start the business</a>
+<a href="#scale" class="glass" style="display: inline-flex; align-items: center; gap: 10px; padding: 15px 26px; border-radius: 999px; font-size: 17px; color: #ffffff; font-variation-settings: 'wght' 497"><span style="color: #cfe3fa">02</span> Scale the business</a>
+<a href="#run" class="glass" style="display: inline-flex; align-items: center; gap: 10px; padding: 15px 26px; border-radius: 999px; font-size: 17px; color: #ffffff; font-variation-settings: 'wght' 497"><span style="color: #96c4f4">03</span> Run the business</a>
 </div>
 </div>
 <p class="l4" style="position: relative; z-index: 1; margin: 0; padding: 0 24px 44px; text-align: center; font-size: 16px; color: #f4f8fd; font-variation-settings: 'wght' 521">The solo founder's standing army.</p>
@@ -106,8 +108,8 @@ a:focus-visible,button:focus-visible{outline:2px solid #9fe0ff;outline-offset:3p
 
 <section class="sec" style="padding: 120px clamp(22px, 8vw, 120px) 100px; max-width: 1440px; margin: 0 auto; box-sizing: border-box">
 <p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">Three heads. Six stages. One platform.</p>
-<h2 class="h2" style="margin: 0 0 18px; font-size: 44px; line-height: 1.15; font-weight: 400; font-variation-settings: 'wght' 424; max-width: 24ch">Wherever your company is, SIXXAB meets it there.</h2>
-<p style="margin: 0 0 56px; max-width: 60ch; font-size: 18px; line-height: 1.55; color: #a2a9b8">The SIXXAB Framework splits the journey from $0 to $10M into six stages, grouped into three jobs: start the company, scale it, then run it. The right agents switch on at each stage.</p>
+<h2 class="h2" style="margin: 0 0 18px; font-size: 44px; line-height: 1.15; font-weight: 400; font-variation-settings: 'wght' 424; max-width: 24ch">Wherever your business is, SIXXAB meets it there.</h2>
+<p style="margin: 0 0 56px; max-width: 60ch; font-size: 18px; line-height: 1.55; color: #a2a9b8">The SIXXAB Framework splits the journey from $0 to $10M into six stages, grouped into three jobs: start the business, scale it, then run it. The right agents switch on at each stage.</p>
 <div class="track" aria-hidden="true" style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; margin-bottom: 14px">
 <sc-for list="{{stages}}" as="s" hint-placeholder-count="6">
 <div style="display: flex; flex-direction: column; gap: 8px">
@@ -133,8 +135,8 @@ a:focus-visible,button:focus-visible{outline:2px solid #9fe0ff;outline-offset:3p
 <section id="paths" class="sec" style="padding: 110px clamp(22px, 8vw, 120px); background: radial-gradient(60% 50% at 50% 0%, rgba(40,70,140,.22), rgba(2,6,15,0) 70%)">
 <div style="max-width: 1240px; margin: 0 auto">
 <p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">The business case · Your path</p>
-<h2 class="h2" style="margin: 0 0 18px; font-size: 44px; line-height: 1.15; font-weight: 400; font-variation-settings: 'wght' 424; max-width: 24ch">Three paths to an AI-run company, step by step.</h2>
-<p style="margin: 0 0 40px; max-width: 60ch; font-size: 18px; line-height: 1.55; color: #a2a9b8">Pick the one that sounds like you. Each path runs end to end, from the first assessment to a company that runs on agents and keeps improving.</p>
+<h2 class="h2" style="margin: 0 0 18px; font-size: 44px; line-height: 1.15; font-weight: 400; font-variation-settings: 'wght' 424; max-width: 24ch">Three paths to an AI-run business, step by step.</h2>
+<p style="margin: 0 0 40px; max-width: 60ch; font-size: 18px; line-height: 1.55; color: #a2a9b8">Pick the one that sounds like you. Each path runs end to end, from the first assessment to a business that runs on agents and keeps improving.</p>
 <div role="group" aria-label="Choose your path" style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 40px">
 <sc-for list="{{journeys}}" as="j" hint-placeholder-count="3">
 <button type="button" aria-pressed="{{j.active}}" onClick="{{j.pick}}" style="display: inline-flex; align-items: center; gap: 10px; min-height: 48px; padding: 12px 22px; border-radius: 999px; border: 1.6px solid {{j.tabBorder}}; background: {{j.tabBg}}; color: {{j.tabInk}}; font-family: inherit; font-size: 15px; cursor: pointer; font-variation-settings: 'wght' 520"><span style="color: {{j.numInk}}">{{j.n}}</span>{{j.who}}</button>
@@ -173,7 +175,7 @@ a:focus-visible,button:focus-visible{outline:2px solid #9fe0ff;outline-offset:3p
 <span style="display: inline-flex; align-items: center; gap: 8px; padding: 9px 15px; border-radius: 999px; background: {{cur.toBg}}; font-size: 14px; color: #ffffff"><svg viewBox="0 0 14 11" width="12" height="10" aria-hidden="true" style="fill: none; stroke: {{cur.color}}; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><path d="M1 5.5 L5 9.5 L13 1.5"></path></svg>{{oc}}</span>
 </sc-for>
 </div>
-<a href="#begin" class="glass" style="display: inline-flex; align-items: center; gap: 12px; padding: 15px 26px; border-radius: 999px; font-size: 17px; color: #ffffff; font-variation-settings: 'wght' 497">{{cur.cta}}
+<a href="{{cur.ctaHref}}" class="glass" style="display: inline-flex; align-items: center; gap: 12px; padding: 15px 26px; border-radius: 999px; font-size: 17px; color: #ffffff; font-variation-settings: 'wght' 497">{{cur.cta}}
 <svg viewBox="0 0 16 11" width="16" height="11" aria-hidden="true" style="fill: none; stroke: #ffffff; stroke-width: 1.6"><path d="M0 5.5 H14.6 M10.3 1.2 L14.9 5.5 L10.3 9.8"></path></svg></a>
 </div>
 </div>
@@ -222,7 +224,7 @@ a:focus-visible,button:focus-visible{outline:2px solid #9fe0ff;outline-offset:3p
 <span style="font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: #8d96a8">Agents on duty</span>
 <span style="font-size: 15px; line-height: 1.5; color: #e2ebf5">{{d.agents}}</span>
 </div>
-<a href="#begin" class="glass" style="align-self: flex-start; display: inline-flex; align-items: center; gap: 12px; padding: 15px 26px; border-radius: 999px; font-size: 17px; color: #ffffff; font-variation-settings: 'wght' 497">{{d.cta}}
+<a href="{{d.ctaHref}}" class="glass" style="align-self: flex-start; display: inline-flex; align-items: center; gap: 12px; padding: 15px 26px; border-radius: 999px; font-size: 17px; color: #ffffff; font-variation-settings: 'wght' 497">{{d.cta}}
 <svg viewBox="0 0 16 11" width="16" height="11" aria-hidden="true" style="fill: none; stroke: #ffffff; stroke-width: 1.6"><path d="M0 5.5 H14.6 M10.3 1.2 L14.9 5.5 L10.3 9.8"></path></svg></a>
 </div>
 <div class="g2" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px">
@@ -277,7 +279,7 @@ a:focus-visible,button:focus-visible{outline:2px solid #9fe0ff;outline-offset:3p
 <section id="box" class="sec" style="padding: 120px clamp(22px, 8vw, 120px); background: radial-gradient(70% 50% at 100% 0%, rgba(120,170,240,.12), rgba(2,6,15,0) 70%)">
 <div style="max-width: 1200px; margin: 0 auto">
 <p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">Startups in a Box · Global expansion</p>
-<h2 class="h2" style="margin: 0 0 18px; font-size: 48px; line-height: 1.12; font-weight: 400; font-variation-settings: 'wght' 424; max-width: 22ch">A company in a box. Any size, any industry, any country.</h2>
+<h2 class="h2" style="margin: 0 0 18px; font-size: 48px; line-height: 1.12; font-weight: 400; font-variation-settings: 'wght' 424; max-width: 22ch">A business in a box. Any size, any industry, any country.</h2>
 <p style="margin: 0 0 56px; max-width: 62ch; font-size: 18px; line-height: 1.6; color: #a2a9b8">Each box packages the right agents, playbooks, integrations and compliance for one business size, one industry and one market, so a new business or business line is running in days, not months.</p>
 
 <div class="g3" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-bottom: 56px">
@@ -414,7 +416,7 @@ a:focus-visible,button:focus-visible{outline:2px solid #9fe0ff;outline-offset:3p
 <div style="max-width: 1200px; margin: 0 auto; text-align: center">
 <p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">Pricing</p>
 <h2 class="h2" style="margin: 0 0 18px; font-size: 44px; line-height: 1.15; font-weight: 400; font-variation-settings: 'wght' 424">One plan for each path.</h2>
-<p style="margin: 0 auto 52px; max-width: 50ch; font-size: 18px; line-height: 1.55; color: #a2a9b8">A whole AI-run company for less than a small team. Every plan is a 12-month contract.</p>
+<p style="margin: 0 auto 52px; max-width: 50ch; font-size: 18px; line-height: 1.55; color: #a2a9b8">A whole AI-run business for less than a small team. Every plan is a 12-month contract.</p>
 <div class="g3" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; text-align: left">
 <sc-for list="{{plans}}" as="p" hint-placeholder-count="3">
 <div style="padding: 36px; border-radius: 26px; border: 1px solid {{p.border}}; background: {{p.bg}}; display: flex; flex-direction: column; gap: 16px">
@@ -442,7 +444,7 @@ a:focus-visible,button:focus-visible{outline:2px solid #9fe0ff;outline-offset:3p
 <section id="begin" class="sec" style="padding: 130px 24px 120px; text-align: center; background: radial-gradient(60% 70% at 50% 100%, rgba(255,200,120,.16), rgba(2,6,15,0) 70%)">
 <p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">Strategy call</p>
 <h2 class="h2" style="margin: 0 auto 20px; max-width: 18ch; font-size: 52px; line-height: 1.1; font-weight: 400; font-variation-settings: 'wght' 424">Stop waiting for a co-founder. Hire one that never sleeps.</h2>
-<p style="margin: 0 auto 48px; max-width: 46ch; font-size: 18px; line-height: 1.55; color: #a2a9b8">Book a strategy call with Sunil Kattikar, founder of SIXXAB AI. Tell us where your company is today, and leave with the path to start, scale or run it.</p>
+<p style="margin: 0 auto 48px; max-width: 46ch; font-size: 18px; line-height: 1.55; color: #a2a9b8">Book a strategy call with Sunil Kattikar, founder of SIXXAB AI. Tell us where your business is today, and leave with the path to start, scale or run it.</p>
 <div class="split" style="max-width: 980px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 20px; text-align: left">
 <div class="glass" style="padding: 34px; border-radius: 26px; display: flex; flex-direction: column; gap: 18px">
 <div style="display: flex; align-items: center; gap: 14px">
@@ -464,9 +466,9 @@ a:focus-visible,button:focus-visible{outline:2px solid #9fe0ff;outline-offset:3p
 <svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true" style="fill: none; stroke: #96c4f4; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><rect x="3" y="5" width="18" height="14" rx="3"></rect><path d="M4 7 L12 13 L20 7"></path></svg>
 <h3 style="margin: 0; font-size: 24px; font-weight: 400; font-variation-settings: 'wght' 500">Prefer email?</h3>
 </div>
-<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #c9d2de">Send a few lines about your company, your stage and what you want to fix. Sunil replies personally.</p>
+<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #c9d2de">Send a few lines about your business, your stage and what you want to fix. Sunil replies personally.</p>
 <a href="mailto:sunil.kattikar@gmail.com" style="font-size: 18px; color: #96c4f4; word-break: break-all; font-variation-settings: 'wght' 520">sunil.kattikar@gmail.com</a>
-<a href="mailto:sunil.kattikar@gmail.com?subject=SIXXAB%20AI%20strategy%20call&amp;body=Company%3A%0AStage%20(Startup%2C%20Medium%2C%20Large)%3A%0AWhat%20I%20want%20to%20fix%3A%0A" style="margin-top: auto; display: inline-flex; align-items: center; justify-content: center; gap: 12px; min-height: 52px; padding: 16px 28px; border-radius: 999px; border: 1.6px solid rgba(196,214,232,.72); color: #ffffff; font-size: 17px; font-variation-settings: 'wght' 540">Email Sunil</a>
+<a href="mailto:sunil.kattikar@gmail.com?subject=SIXXAB%20AI%20strategy%20call&amp;body=Business%3A%0AStage%20(Startup%2C%20Medium%2C%20Large)%3A%0AWhat%20I%20want%20to%20fix%3A%0A" style="margin-top: auto; display: inline-flex; align-items: center; justify-content: center; gap: 12px; min-height: 52px; padding: 16px 28px; border-radius: 999px; border: 1.6px solid rgba(196,214,232,.72); color: #ffffff; font-size: 17px; font-variation-settings: 'wght' 540">Email Sunil</a>
 </div>
 </div>
 </section>
@@ -535,35 +537,35 @@ class Component extends DCLogic {
     const gold = '#ffe2b2', mid = '#cfe3fa', blue = '#96c4f4';
     return [
       { n: '01', who: 'Startups & small businesses', color: gold, border: 'rgba(255,226,178,.3)', toBg: 'rgba(255,226,178,.10)',
-        title: 'Restart, scale and run your company with AI agents.',
-        from: 'Just starting, stuck, or stretched too thin', to: 'A company that runs on agents, with you in command',
-        cta: 'Start my path',
+        title: 'Restart, scale and run your business with AI agents.',
+        from: 'Just starting, stuck, or stretched too thin', to: 'A business that runs on agents, with you in command',
+        cta: 'Start my path', ctaHref: '/login?next=start',
         steps: [
           { n: 1, title: 'Diagnose', body: 'A business health check places you on the SIXXAB path and shows what is holding you back.', agents: 'Strategy Coach, CFO', out: 'Stage report and top priorities', you: 'Confirm goals and stage' },
           { n: 2, title: 'Restart', body: 'Reset the niche, offer and pricing around real demand. Stop what is not working.', agents: 'Niche Selector, CSO, CPO', out: 'A validated offer', you: 'Choose the offer to back' },
           { n: 3, title: 'Plan', body: 'One goal, a 90-day roadmap and a weekly plan that every agent works to.', agents: 'Founder Orchestrator, Roadmap', out: '90-day roadmap', you: 'Approve the roadmap' },
           { n: 4, title: 'Staff with agents', body: 'Switch on the CXO and department agents your stage needs, and connect your tools.', agents: 'CEO, CMO, CRO, CFO + departments', out: 'Your AI team, live', you: 'Pick which agents start' },
           { n: 5, title: 'Grow', body: 'The built-in marketing agency, sales and support run every day. You approve spend and messages.', agents: '50 marketing agents, Deal Closer, Support', out: 'Leads, customers, revenue', you: 'Approve spend and messages' },
-          { n: 6, title: 'Run', body: 'Morning briefings, approvals and the learning loop keep the company improving while you lead.', agents: 'Founder Orchestrator, Learning Engine', out: 'A self-improving company', you: 'Handle exceptions and big calls' }
+          { n: 6, title: 'Run', body: 'Morning briefings, approvals and the learning loop keep the business improving while you lead.', agents: 'Founder Orchestrator, Learning Engine', out: 'A self-improving business', you: 'Handle exceptions and big calls' }
         ],
         outcomes: ['Revenue before headcount', 'Founder time back', 'A clear next milestone', 'Costs that grow with you'] },
       { n: '02', who: 'Medium businesses', color: mid, border: 'rgba(207,227,250,.3)', toBg: 'rgba(207,227,250,.09)',
         title: 'Transition and scale to SIXXAB level.',
-        from: 'Growing, but limited by people and process', to: 'SIXXAB level: a $10M company, built to keep growing',
-        cta: 'Plan my transition',
+        from: 'Growing, but limited by people and process', to: 'SIXXAB level: a $10M business, built to keep growing',
+        cta: 'Plan my transition', ctaHref: '#begin',
         steps: [
           { n: 1, title: 'Assess', body: 'Map every department, process and tool. Score AI readiness and find the highest-return moves.', agents: 'COO, CIO', out: 'AI readiness map', you: 'Set the priorities' },
           { n: 2, title: 'Connect', body: 'Bring CRM, finance, support and data into one platform, with roles and approvals.', agents: 'CIO, CDO', out: 'One connected operating system', you: 'Grant access and roles' },
           { n: 3, title: 'Augment', body: 'Agents work alongside each team, taking repetitive work first. People review and approve.', agents: 'Department agents', out: 'Capacity without new hires', you: 'Review and approve agent work' },
-          { n: 4, title: 'Orchestrate', body: 'All 18 CXO agents align to one company plan, with one live view for you and your board.', agents: 'Founder Orchestrator, 18 CXO', out: 'Board-ready plan and packs', you: 'Sign off the company plan' },
+          { n: 4, title: 'Orchestrate', body: 'All 18 CXO agents align to one business plan, with one live view for you and your board.', agents: 'Founder Orchestrator, 18 CXO', out: 'Board-ready plan and packs', you: 'Sign off the business plan' },
           { n: 5, title: 'Expand', body: 'Open new markets, products and industries with Startups in a Box.', agents: 'CGO, CINO, expansion agents', out: 'New revenue lines', you: 'Choose markets to enter' },
-          { n: 6, title: 'Reach SIXXAB', body: 'Technology, data and security agents make growth durable as you pass Significance.', agents: 'CTO, CDO, CISO, CAIO', out: 'A $10M-ready company', you: 'Decide what runs autonomously' }
+          { n: 6, title: 'Reach SIXXAB', body: 'Technology, data and security agents make growth durable as you pass Significance.', agents: 'CTO, CDO, CISO, CAIO', out: 'A $10M-ready business', you: 'Decide what runs autonomously' }
         ],
         outcomes: ['Growth not capped by hiring', 'Every department measured', 'One plan, board to front line', 'New markets in parallel'] },
       { n: '03', who: 'Large businesses', color: blue, border: 'rgba(150,196,244,.35)', toBg: 'rgba(150,196,244,.10)',
-        title: 'Optimize and transform into an AI-driven company.',
+        title: 'Optimize and transform into an AI-driven business.',
         from: 'Complex, costly and slow to change', to: 'An AI-driven enterprise, with risk under control',
-        cta: 'Talk to us about transformation',
+        cta: 'Talk to us about transformation', ctaHref: '#begin',
         steps: [
           { n: 1, title: 'Discover', body: 'Review cost, processes and portfolio to find where AI moves profit and productivity most.', agents: 'CFO, COO, CAIO', out: 'AI value map and business case', you: 'Approve the business case' },
           { n: 2, title: 'Govern', body: 'Guardrails first: security, compliance, audit and stage-gates enforced by the platform.', agents: 'CISO, CLO', out: 'AI governance framework', you: 'Set risk limits and policies' },
@@ -591,7 +593,7 @@ class Component extends DCLogic {
       }),
       cur: this.journeyData()[this.state.journey],
       loopSteps: [
-        { n: '01', who: 'Agents', k: 'Plan', v: 'Agents break the goal into tasks against the company plan.', color: '#ffe2b2', border: 'rgba(196,214,232,.14)', bg: 'rgba(2,6,15,.4)' },
+        { n: '01', who: 'Agents', k: 'Plan', v: 'Agents break the goal into tasks against the business plan.', color: '#ffe2b2', border: 'rgba(196,214,232,.14)', bg: 'rgba(2,6,15,.4)' },
         { n: '02', who: 'Agents', k: 'Act', v: 'They draft, build, publish, sell and serve within guardrails.', color: '#ffe2b2', border: 'rgba(196,214,232,.14)', bg: 'rgba(2,6,15,.4)' },
         { n: '03', who: 'Human', k: 'Review & approve', v: 'Spend, customer messages and big calls wait for your yes.', color: '#ffffff', border: 'rgba(255,255,255,.45)', bg: 'rgba(255,255,255,.07)' },
         { n: '04', who: 'Platform', k: 'Measure', v: 'Results, costs and customer replies are tracked automatically.', color: '#96c4f4', border: 'rgba(196,214,232,.14)', bg: 'rgba(2,6,15,.4)' },
@@ -615,15 +617,15 @@ class Component extends DCLogic {
         { name: 'SIXXAB', money: '$10M', bar: blue }
       ],
       heads: [
-        { n: '01', href: '#start', name: 'Start the company', stages: 'Startup → Struggle · $0 to $10K', promise: 'From an idea to a validated offer and your first paying customers.', color: gold, border: 'rgba(255,226,178,.35)', bg: 'linear-gradient(180deg, rgba(255,226,178,.08), rgba(255,226,178,.015))' },
-        { n: '02', href: '#scale', name: 'Scale the company', stages: 'Scale → Success · $10K to $100K', promise: 'Repeatable growth with a built-in AI marketing agency, sales and support.', color: mid, border: 'rgba(207,227,250,.3)', bg: 'linear-gradient(180deg, rgba(207,227,250,.07), rgba(207,227,250,.015))' },
-        { n: '03', href: '#run', name: 'Run the company', stages: 'Significance → SIXXAB · $100K to $10M', promise: 'All 18 CXO agents on one plan, running the company while you lead.', color: blue, border: 'rgba(150,196,244,.35)', bg: 'linear-gradient(180deg, rgba(150,196,244,.08), rgba(150,196,244,.015))' }
+        { n: '01', href: '#start', name: 'Start the business', stages: 'Startup → Struggle · $0 to $10K', promise: 'From an idea to a validated offer and your first paying customers.', color: gold, border: 'rgba(255,226,178,.35)', bg: 'linear-gradient(180deg, rgba(255,226,178,.08), rgba(255,226,178,.015))' },
+        { n: '02', href: '#scale', name: 'Scale the business', stages: 'Scale → Success · $10K to $100K', promise: 'Repeatable growth with a built-in AI marketing agency, sales and support.', color: mid, border: 'rgba(207,227,250,.3)', bg: 'linear-gradient(180deg, rgba(207,227,250,.07), rgba(207,227,250,.015))' },
+        { n: '03', href: '#run', name: 'Run the business', stages: 'Significance → SIXXAB · $100K to $10M', promise: 'All 18 CXO agents on one plan, running the business while you lead.', color: blue, border: 'rgba(150,196,244,.35)', bg: 'linear-gradient(180deg, rgba(150,196,244,.08), rgba(150,196,244,.015))' }
       ],
       details: [
         { id: 'start', n: '01', stages: 'Startup & Struggle', color: gold, wash: 'radial-gradient(70% 60% at 0% 0%, rgba(255,200,120,.08), rgba(2,6,15,0) 70%)',
-          title: 'Start the company.', body: 'Most companies die before their first customer. SIXXAB gives you a strategist, a builder and a seller on day one, so you can go from idea to revenue without hiring anyone.',
+          title: 'Start the business.', body: 'Most businesses die before their first customer. SIXXAB gives you a strategist, a builder and a seller on day one, so you can go from idea to revenue without hiring anyone.',
           agents: 'Founder Orchestrator, Niche Selector, Personal Strategy Coach, Roadmap & Implementation, plus CEO, CSO, CPO, CMO, CRO and CFO agents.',
-          cta: 'Start my company',
+          cta: 'Start my business', ctaHref: '/login?next=start',
           items: [
             { tag: 'Validate', title: 'Pick the right niche', body: 'The Niche Selector tests your idea against real demand before you spend a dollar.' },
             { tag: 'Plan', title: 'Get a roadmap you can follow', body: 'Your strategy coach turns goals into a 90-day plan and a weekly to-do list.' },
@@ -631,9 +633,9 @@ class Component extends DCLogic {
             { tag: 'Sell', title: 'Win the first customers', body: 'Lead finding, outreach and follow-up run every day until people pay.' }
           ] },
         { id: 'scale', n: '02', stages: 'Scale & Success', color: mid, wash: 'radial-gradient(70% 60% at 100% 0%, rgba(120,170,240,.10), rgba(2,6,15,0) 70%)',
-          title: 'Scale the company.', body: 'Once people pay, the job changes: make growth repeatable and keep the business healthy. SIXXAB adds a full marketing agency, a sales team, a support desk and a back office.',
+          title: 'Scale the business.', body: 'Once people pay, the job changes: make growth repeatable and keep the business healthy. SIXXAB adds a full marketing agency, a sales team, a support desk and a back office.',
           agents: 'COO, CCO, CBO, CLO and CHRO agents, the 50-agent marketing agency, and sales, support and finance department agents.',
-          cta: 'Scale my company',
+          cta: 'Scale my business', ctaHref: '/login?next=scale',
           items: [
             { tag: 'Market', title: 'AI marketing agency, built in', body: 'Content, social, ads, SEO and email, planned and published every day.' },
             { tag: 'Sell', title: 'A pipeline that follows up itself', body: 'CRM stays current, quiet deals get nudged, and the next step is always owned.' },
@@ -641,9 +643,9 @@ class Component extends DCLogic {
             { tag: 'Operate', title: 'Books, invoices and payroll', body: 'Collections, payables, month-end close and compliance stay on track.' }
           ] },
         { id: 'run', n: '03', stages: 'Significance & SIXXAB', color: blue, wash: 'radial-gradient(70% 60% at 0% 0%, rgba(120,170,240,.10), rgba(2,6,15,0) 70%)',
-          title: 'Run the company.', body: 'At this stage you lead, and the company runs. The Founder Orchestrator keeps all 18 CXO agents working to one plan and reports to you and your board.',
+          title: 'Run the business.', body: 'At this stage you lead, and the business runs. The Founder Orchestrator keeps all 18 CXO agents working to one plan and reports to you and your board.',
           agents: 'All 18 CXO agents, including CTO, CIO, CDO, CISO, CAIO, CGO and CINO, plus technology and expansion department agents.',
-          cta: 'Run my company',
+          cta: 'Run my business', ctaHref: '/login?next=run',
           items: [
             { tag: 'Orchestrate', title: 'One plan, 18 executives', body: 'Every CXO agent works toward the same goals, with one view for you and the board.' },
             { tag: 'Build', title: 'Technology, data and security', body: 'Engineering, cloud, analytics and security agents keep the platform strong.' },
@@ -653,7 +655,7 @@ class Component extends DCLogic {
       ],
       segments: [
         { who: 'Startups & solo founders', box: 'Start box', color: gold, border: 'rgba(255,226,178,.35)', bg: 'linear-gradient(180deg, rgba(255,226,178,.07), rgba(255,226,178,.015))',
-          body: 'A whole company team for one founder, from idea to first revenue.',
+          body: 'A whole business team for one founder, from idea to first revenue.',
           points: ['Founder agents and first six CXO agents', 'Launch-ready brand, site and offer', 'Industry playbook from day one'] },
         { who: 'Small & medium businesses', box: 'Growth box', color: mid, border: 'rgba(207,227,250,.3)', bg: 'linear-gradient(180deg, rgba(207,227,250,.06), rgba(207,227,250,.015))',
           body: 'Add an AI marketing agency, sales, support and back office to the team you already have.',
@@ -718,11 +720,11 @@ class Component extends DCLogic {
       tiersCert: this.certTiers(this.state.market),
       certGets: ['SIXXAB platform license for your clients', 'All agents, playbooks and Startups in a Box', 'Delivery toolkit: assessments, roadmaps, board packs', 'Listing in the global consultant directory', 'Recurring revenue from client subscriptions', 'Ongoing training as the platform improves'],
       plans: [
-        { n: '01', who: 'Startups & small businesses', name: 'Founder', price: '$5,000', body: 'Restart, scale and run your company with AI agents.', cta: 'Start my path', color: gold, border: 'rgba(255,226,178,.3)', bg: 'rgba(255,255,255,.03)', btn: 'rgba(196,214,232,.72)', btnBg: 'transparent', btnInk: '#ffffff',
+        { n: '01', who: 'Startups & small businesses', name: 'Founder', price: '$5,000', body: 'Restart, scale and run your business with AI agents.', cta: 'Start my path', color: gold, border: 'rgba(255,226,178,.3)', bg: 'rgba(255,255,255,.03)', btn: 'rgba(196,214,232,.72)', btnBg: 'transparent', btnInk: '#ffffff',
           features: ['Founder agents: Niche Selector, Strategy Coach, Roadmap', 'Founder Orchestrator with core CXO agents', 'Built-in AI marketing agency', 'Sales, support and back-office agents', 'Daily briefing and approvals'] },
-        { n: '02', who: 'Medium businesses', name: 'Growth', price: '$20,000', body: 'Transition and scale your company to SIXXAB level.', cta: 'Plan my transition', color: mid, border: 'rgba(207,227,250,.45)', bg: 'linear-gradient(180deg, rgba(207,227,250,.09), rgba(207,227,250,.02))', btn: '#ffffff', btnBg: '#ffffff', btnInk: '#02060f',
+        { n: '02', who: 'Medium businesses', name: 'Growth', price: '$20,000', body: 'Transition and scale your business to SIXXAB level.', cta: 'Plan my transition', color: mid, border: 'rgba(207,227,250,.45)', bg: 'linear-gradient(180deg, rgba(207,227,250,.09), rgba(207,227,250,.02))', btn: '#ffffff', btnBg: '#ffffff', btnInk: '#02060f',
           features: ['Everything in Founder', 'All 18 CXO agents and department agents', 'Your existing systems connected', 'Done-for-you marketing agency option', 'Startups in a Box for new markets and products'] },
-        { n: '03', who: 'Large businesses', name: 'Enterprise', price: '$50,000', body: 'Optimize and transform into an AI-driven company.', cta: 'Talk to us', color: blue, border: 'rgba(150,196,244,.45)', bg: 'linear-gradient(180deg, rgba(150,196,244,.10), rgba(150,196,244,.02))', btn: 'rgba(196,214,232,.72)', btnBg: 'transparent', btnInk: '#ffffff',
+        { n: '03', who: 'Large businesses', name: 'Enterprise', price: '$50,000', body: 'Optimize and transform into an AI-driven business.', cta: 'Talk to us', color: blue, border: 'rgba(150,196,244,.45)', bg: 'linear-gradient(180deg, rgba(150,196,244,.10), rgba(150,196,244,.02))', btn: 'rgba(196,214,232,.72)', btnBg: 'transparent', btnInk: '#ffffff',
           features: ['AI value map and governance framework', 'Pilot to enterprise-wide rollout', 'CXO agents for each business unit', 'Single sign-on, audit trail, regional data options', 'AI center of excellence and talent training'] }
       ]
     };

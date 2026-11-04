@@ -98,7 +98,7 @@ export function toE164(countryCode: string, local: string): string | null {
 }
 
 export async function sendEmailCode(email: string): Promise<void> {
-  const redirect = encodeURIComponent(`${location.origin}/app`);
+  const redirect = encodeURIComponent(`${location.origin}${afterSignInPath(location.search)}`);
   await authCall(`otp?redirect_to=${redirect}`, { email: email.trim().toLowerCase(), create_user: true });
 }
 
@@ -173,4 +173,12 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const data = (await res.json().catch(() => ({}))) as T & { error?: string };
   if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
   return data;
+}
+
+const JOURNEY_HEADS = ['start', 'scale', 'run'] as const;
+
+/** Where to go after sign-in. Only the three journey heads are honoured, so ?next can never redirect off-site. */
+export function afterSignInPath(search: string): string {
+  const next = new URLSearchParams(search).get('next');
+  return next && (JOURNEY_HEADS as readonly string[]).includes(next) ? `/app?journey=${next}` : '/app';
 }

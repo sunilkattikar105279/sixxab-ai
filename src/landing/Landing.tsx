@@ -28,6 +28,7 @@ export default function Landing(props) {
 <a href="#pricing">Pricing</a>
 </div>
 <div className="navlinks l1" style={{"alignItems": "center", "gap": "24px", "fontSize": "14px", "fontVariationSettings": "'wght' 506"}}>
+<a href="/login?next=start" style={{"color": "#ffe2b2", "fontVariationSettings": "'wght' 581"}}>Start your business</a>
 <a href="/login">Log in</a>
 <a href="#begin" style={{"padding": "12px 22px", "border": "1.6px solid rgba(196,214,232,.72)", "borderRadius": "999px", "color": "#e8ecf0", "fontVariationSettings": "'wght' 581"}}>Book a strategy call</a>
 </div>
@@ -37,10 +38,11 @@ export default function Landing(props) {
 </nav>
 {v.menuOpen ? (<>
 <div style={{"position": "absolute", "zIndex": "6", "top": "96px", "right": "22px", "width": "min(300px, 82vw)", "padding": "14px", "borderRadius": "22px", "display": "flex", "flexDirection": "column", "gap": "2px", "background": "linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.045)), linear-gradient(180deg, rgba(6,12,22,.72), rgba(6,12,22,.82))", "backdropFilter": "blur(26px)", "boxShadow": "0 14px 38px rgba(2,6,14,.45)"}}>
+<a href="/login?next=start" style={{"padding": "13px 14px", "minHeight": "44px", "boxSizing": "border-box", "fontSize": "16px", "color": "#ffe2b2"}}>Start your business</a>
 <a href="#paths" style={{"padding": "13px 14px", "minHeight": "44px", "boxSizing": "border-box", "fontSize": "16px"}}>Your path</a>
-<a href="#start" style={{"padding": "13px 14px", "minHeight": "44px", "boxSizing": "border-box", "fontSize": "16px"}}>Start the company</a>
-<a href="#scale" style={{"padding": "13px 14px", "minHeight": "44px", "boxSizing": "border-box", "fontSize": "16px"}}>Scale the company</a>
-<a href="#run" style={{"padding": "13px 14px", "minHeight": "44px", "boxSizing": "border-box", "fontSize": "16px"}}>Run the company</a>
+<a href="#start" style={{"padding": "13px 14px", "minHeight": "44px", "boxSizing": "border-box", "fontSize": "16px"}}>Start the business</a>
+<a href="#scale" style={{"padding": "13px 14px", "minHeight": "44px", "boxSizing": "border-box", "fontSize": "16px"}}>Scale the business</a>
+<a href="#run" style={{"padding": "13px 14px", "minHeight": "44px", "boxSizing": "border-box", "fontSize": "16px"}}>Run the business</a>
 <a href="#agency" style={{"padding": "13px 14px", "minHeight": "44px", "boxSizing": "border-box", "fontSize": "16px"}}>Marketing agency</a>
 <a href="#box" style={{"padding": "13px 14px", "minHeight": "44px", "boxSizing": "border-box", "fontSize": "16px"}}>Startups in a Box</a>
 <a href="#platform" style={{"padding": "13px 14px", "minHeight": "44px", "boxSizing": "border-box", "fontSize": "16px"}}>Platform</a>
@@ -53,22 +55,22 @@ export default function Landing(props) {
 <p className="l1" style={{"margin": "0", "fontSize": "14px", "letterSpacing": "3px", "textTransform": "uppercase", "color": "#ffe2b2", "fontVariationSettings": "'wght' 534"}}>You're a founder. Or you should be.</p>
 <h1 className="h1" style={{"margin": "0", "fontSize": "clamp(34px, 4.4vw, 64px)", "lineHeight": "1.12", "fontWeight": "400", "fontVariationSettings": "'wght' 424", "letterSpacing": "-.01em"}}>
 <span className="w1" style={{"display": "block"}}>Start it. Scale it. Run it.</span>
-<span className="w2" style={{"display": "block"}}>AI that runs your company.</span>
+<span className="w2" style={{"display": "block"}}>AI that runs your business.</span>
 </h1>
 <p className="l2" aria-live="polite" style={{"margin": "0", "display": "flex", "justifyContent": "center", "alignItems": "flex-start", "gap": ".32em", "fontSize": "clamp(20px, 2vw, 28px)", "lineHeight": "1.3", "fontVariationSettings": "'wght' 446"}}><span>SIXXAB AI</span><span style={{"display": "inline-block", "height": "1.3em", "overflow": "hidden", "textAlign": "left"}}><span style={{"display": "flex", "flexDirection": "column", "transform": v.tickerShift, "transition": v.tickerEase}}>{(v.lines || []).map((ln, $index) => (<React.Fragment key={$index}><span style={{"display": "block", "height": "1.3em", "whiteSpace": "nowrap", "color": "#ffe2b2"}}>{ln}</span></React.Fragment>))}</span></span></p>
 <p className="l2" style={{"margin": "0", "maxWidth": "40ch", "fontSize": "clamp(15px, 1.3vw, 18px)", "lineHeight": "1.5", "color": "#a2a9b8"}}>Your first employee and your whole team, from the first idea to $10M. It never sleeps.</p>
 <div className="l3" style={{"display": "flex", "flexWrap": "wrap", "justifyContent": "center", "gap": "12px"}}>
-<a href="#start" className="glass" style={{"display": "inline-flex", "alignItems": "center", "gap": "10px", "padding": "15px 26px", "borderRadius": "999px", "fontSize": "17px", "color": "#ffffff", "fontVariationSettings": "'wght' 497"}}><span style={{"color": "#ffe2b2"}}>01</span> Start the company</a>
-<a href="#scale" className="glass" style={{"display": "inline-flex", "alignItems": "center", "gap": "10px", "padding": "15px 26px", "borderRadius": "999px", "fontSize": "17px", "color": "#ffffff", "fontVariationSettings": "'wght' 497"}}><span style={{"color": "#cfe3fa"}}>02</span> Scale the company</a>
-<a href="#run" className="glass" style={{"display": "inline-flex", "alignItems": "center", "gap": "10px", "padding": "15px 26px", "borderRadius": "999px", "fontSize": "17px", "color": "#ffffff", "fontVariationSettings": "'wght' 497"}}><span style={{"color": "#96c4f4"}}>03</span> Run the company</a>
+<a href="#start" className="glass" style={{"display": "inline-flex", "alignItems": "center", "gap": "10px", "padding": "15px 26px", "borderRadius": "999px", "fontSize": "17px", "color": "#ffffff", "fontVariationSettings": "'wght' 497"}}><span style={{"color": "#ffe2b2"}}>01</span> Start the business</a>
+<a href="#scale" className="glass" style={{"display": "inline-flex", "alignItems": "center", "gap": "10px", "padding": "15px 26px", "borderRadius": "999px", "fontSize": "17px", "color": "#ffffff", "fontVariationSettings": "'wght' 497"}}><span style={{"color": "#cfe3fa"}}>02</span> Scale the business</a>
+<a href="#run" className="glass" style={{"display": "inline-flex", "alignItems": "center", "gap": "10px", "padding": "15px 26px", "borderRadius": "999px", "fontSize": "17px", "color": "#ffffff", "fontVariationSettings": "'wght' 497"}}><span style={{"color": "#96c4f4"}}>03</span> Run the business</a>
 </div>
 </div>
 <p className="l4" style={{"position": "relative", "zIndex": "1", "margin": "0", "padding": "0 24px 44px", "textAlign": "center", "fontSize": "16px", "color": "#f4f8fd", "fontVariationSettings": "'wght' 521"}}>The solo founder's standing army.</p>
 </header>
 <section className="sec" style={{"padding": "120px clamp(22px, 8vw, 120px) 100px", "maxWidth": "1440px", "margin": "0 auto", "boxSizing": "border-box"}}>
 <p style={{"margin": "0 0 16px", "fontSize": "13px", "letterSpacing": "3px", "textTransform": "uppercase", "color": "#ffe2b2", "fontVariationSettings": "'wght' 534"}}>Three heads. Six stages. One platform.</p>
-<h2 className="h2" style={{"margin": "0 0 18px", "fontSize": "44px", "lineHeight": "1.15", "fontWeight": "400", "fontVariationSettings": "'wght' 424", "maxWidth": "24ch"}}>Wherever your company is, SIXXAB meets it there.</h2>
-<p style={{"margin": "0 0 56px", "maxWidth": "60ch", "fontSize": "18px", "lineHeight": "1.55", "color": "#a2a9b8"}}>The SIXXAB Framework splits the journey from $0 to $10M into six stages, grouped into three jobs: start the company, scale it, then run it. The right agents switch on at each stage.</p>
+<h2 className="h2" style={{"margin": "0 0 18px", "fontSize": "44px", "lineHeight": "1.15", "fontWeight": "400", "fontVariationSettings": "'wght' 424", "maxWidth": "24ch"}}>Wherever your business is, SIXXAB meets it there.</h2>
+<p style={{"margin": "0 0 56px", "maxWidth": "60ch", "fontSize": "18px", "lineHeight": "1.55", "color": "#a2a9b8"}}>The SIXXAB Framework splits the journey from $0 to $10M into six stages, grouped into three jobs: start the business, scale it, then run it. The right agents switch on at each stage.</p>
 <div className="track" aria-hidden="true" style={{"display": "grid", "gridTemplateColumns": "repeat(6, minmax(0, 1fr))", "gap": "6px", "marginBottom": "14px"}}>
 {(v.stages || []).map((s, $index) => (<React.Fragment key={$index}>
 <div style={{"display": "flex", "flexDirection": "column", "gap": "8px"}}>
@@ -93,8 +95,8 @@ export default function Landing(props) {
 <section id="paths" className="sec" style={{"padding": "110px clamp(22px, 8vw, 120px)", "background": "radial-gradient(60% 50% at 50% 0%, rgba(40,70,140,.22), rgba(2,6,15,0) 70%)"}}>
 <div style={{"maxWidth": "1240px", "margin": "0 auto"}}>
 <p style={{"margin": "0 0 16px", "fontSize": "13px", "letterSpacing": "3px", "textTransform": "uppercase", "color": "#ffe2b2", "fontVariationSettings": "'wght' 534"}}>The business case · Your path</p>
-<h2 className="h2" style={{"margin": "0 0 18px", "fontSize": "44px", "lineHeight": "1.15", "fontWeight": "400", "fontVariationSettings": "'wght' 424", "maxWidth": "24ch"}}>Three paths to an AI-run company, step by step.</h2>
-<p style={{"margin": "0 0 40px", "maxWidth": "60ch", "fontSize": "18px", "lineHeight": "1.55", "color": "#a2a9b8"}}>Pick the one that sounds like you. Each path runs end to end, from the first assessment to a company that runs on agents and keeps improving.</p>
+<h2 className="h2" style={{"margin": "0 0 18px", "fontSize": "44px", "lineHeight": "1.15", "fontWeight": "400", "fontVariationSettings": "'wght' 424", "maxWidth": "24ch"}}>Three paths to an AI-run business, step by step.</h2>
+<p style={{"margin": "0 0 40px", "maxWidth": "60ch", "fontSize": "18px", "lineHeight": "1.55", "color": "#a2a9b8"}}>Pick the one that sounds like you. Each path runs end to end, from the first assessment to a business that runs on agents and keeps improving.</p>
 <div role="group" aria-label="Choose your path" style={{"display": "flex", "flexWrap": "wrap", "gap": "10px", "marginBottom": "40px"}}>
 {(v.journeys || []).map((j, $index) => (<React.Fragment key={$index}>
 <button type="button" aria-pressed={j.active} onClick={j.pick} style={{"display": "inline-flex", "alignItems": "center", "gap": "10px", "minHeight": "48px", "padding": "12px 22px", "borderRadius": "999px", "border": `1.6px solid ${j.tabBorder}`, "background": j.tabBg, "color": j.tabInk, "fontFamily": "inherit", "fontSize": "15px", "cursor": "pointer", "fontVariationSettings": "'wght' 520"}}><span style={{"color": j.numInk}}>{j.n}</span>{j.who}</button>
@@ -133,7 +135,7 @@ export default function Landing(props) {
 <span style={{"display": "inline-flex", "alignItems": "center", "gap": "8px", "padding": "9px 15px", "borderRadius": "999px", "background": v.cur.toBg, "fontSize": "14px", "color": "#ffffff"}}><svg viewBox="0 0 14 11" width="12" height="10" aria-hidden="true" style={{"fill": "none", "stroke": v.cur.color, "strokeWidth": "1.8", "strokeLinecap": "round", "strokeLinejoin": "round"}}><path d="M1 5.5 L5 9.5 L13 1.5" /></svg>{oc}</span>
 </React.Fragment>))}
 </div>
-<a href="#begin" className="glass" style={{"display": "inline-flex", "alignItems": "center", "gap": "12px", "padding": "15px 26px", "borderRadius": "999px", "fontSize": "17px", "color": "#ffffff", "fontVariationSettings": "'wght' 497"}}>{v.cur.cta}
+<a href={v.cur.ctaHref} className="glass" style={{"display": "inline-flex", "alignItems": "center", "gap": "12px", "padding": "15px 26px", "borderRadius": "999px", "fontSize": "17px", "color": "#ffffff", "fontVariationSettings": "'wght' 497"}}>{v.cur.cta}
 <svg viewBox="0 0 16 11" width="16" height="11" aria-hidden="true" style={{"fill": "none", "stroke": "#ffffff", "strokeWidth": "1.6"}}><path d="M0 5.5 H14.6 M10.3 1.2 L14.9 5.5 L10.3 9.8" /></svg></a>
 </div>
 </div>
@@ -180,7 +182,7 @@ export default function Landing(props) {
 <span style={{"fontSize": "11px", "letterSpacing": "1.5px", "textTransform": "uppercase", "color": "#8d96a8"}}>Agents on duty</span>
 <span style={{"fontSize": "15px", "lineHeight": "1.5", "color": "#e2ebf5"}}>{d.agents}</span>
 </div>
-<a href="#begin" className="glass" style={{"alignSelf": "flex-start", "display": "inline-flex", "alignItems": "center", "gap": "12px", "padding": "15px 26px", "borderRadius": "999px", "fontSize": "17px", "color": "#ffffff", "fontVariationSettings": "'wght' 497"}}>{d.cta}
+<a href={d.ctaHref} className="glass" style={{"alignSelf": "flex-start", "display": "inline-flex", "alignItems": "center", "gap": "12px", "padding": "15px 26px", "borderRadius": "999px", "fontSize": "17px", "color": "#ffffff", "fontVariationSettings": "'wght' 497"}}>{d.cta}
 <svg viewBox="0 0 16 11" width="16" height="11" aria-hidden="true" style={{"fill": "none", "stroke": "#ffffff", "strokeWidth": "1.6"}}><path d="M0 5.5 H14.6 M10.3 1.2 L14.9 5.5 L10.3 9.8" /></svg></a>
 </div>
 <div className="g2" style={{"display": "grid", "gridTemplateColumns": "repeat(2, minmax(0, 1fr))", "gap": "14px"}}>
@@ -233,7 +235,7 @@ export default function Landing(props) {
 <section id="box" className="sec" style={{"padding": "120px clamp(22px, 8vw, 120px)", "background": "radial-gradient(70% 50% at 100% 0%, rgba(120,170,240,.12), rgba(2,6,15,0) 70%)"}}>
 <div style={{"maxWidth": "1200px", "margin": "0 auto"}}>
 <p style={{"margin": "0 0 16px", "fontSize": "13px", "letterSpacing": "3px", "textTransform": "uppercase", "color": "#ffe2b2", "fontVariationSettings": "'wght' 534"}}>Startups in a Box · Global expansion</p>
-<h2 className="h2" style={{"margin": "0 0 18px", "fontSize": "48px", "lineHeight": "1.12", "fontWeight": "400", "fontVariationSettings": "'wght' 424", "maxWidth": "22ch"}}>A company in a box. Any size, any industry, any country.</h2>
+<h2 className="h2" style={{"margin": "0 0 18px", "fontSize": "48px", "lineHeight": "1.12", "fontWeight": "400", "fontVariationSettings": "'wght' 424", "maxWidth": "22ch"}}>A business in a box. Any size, any industry, any country.</h2>
 <p style={{"margin": "0 0 56px", "maxWidth": "62ch", "fontSize": "18px", "lineHeight": "1.6", "color": "#a2a9b8"}}>Each box packages the right agents, playbooks, integrations and compliance for one business size, one industry and one market, so a new business or business line is running in days, not months.</p>
 <div className="g3" style={{"display": "grid", "gridTemplateColumns": "repeat(3, minmax(0, 1fr))", "gap": "18px", "marginBottom": "56px"}}>
 {(v.segments || []).map((sg, $index) => (<React.Fragment key={$index}>
@@ -364,7 +366,7 @@ export default function Landing(props) {
 <div style={{"maxWidth": "1200px", "margin": "0 auto", "textAlign": "center"}}>
 <p style={{"margin": "0 0 16px", "fontSize": "13px", "letterSpacing": "3px", "textTransform": "uppercase", "color": "#ffe2b2", "fontVariationSettings": "'wght' 534"}}>Pricing</p>
 <h2 className="h2" style={{"margin": "0 0 18px", "fontSize": "44px", "lineHeight": "1.15", "fontWeight": "400", "fontVariationSettings": "'wght' 424"}}>One plan for each path.</h2>
-<p style={{"margin": "0 auto 52px", "maxWidth": "50ch", "fontSize": "18px", "lineHeight": "1.55", "color": "#a2a9b8"}}>A whole AI-run company for less than a small team. Every plan is a 12-month contract.</p>
+<p style={{"margin": "0 auto 52px", "maxWidth": "50ch", "fontSize": "18px", "lineHeight": "1.55", "color": "#a2a9b8"}}>A whole AI-run business for less than a small team. Every plan is a 12-month contract.</p>
 <div className="g3" style={{"display": "grid", "gridTemplateColumns": "repeat(3, minmax(0, 1fr))", "gap": "20px", "textAlign": "left"}}>
 {(v.plans || []).map((p, $index) => (<React.Fragment key={$index}>
 <div style={{"padding": "36px", "borderRadius": "26px", "border": `1px solid ${p.border}`, "background": p.bg, "display": "flex", "flexDirection": "column", "gap": "16px"}}>
@@ -391,7 +393,7 @@ export default function Landing(props) {
 <section id="begin" className="sec" style={{"padding": "130px 24px 120px", "textAlign": "center", "background": "radial-gradient(60% 70% at 50% 100%, rgba(255,200,120,.16), rgba(2,6,15,0) 70%)"}}>
 <p style={{"margin": "0 0 16px", "fontSize": "13px", "letterSpacing": "3px", "textTransform": "uppercase", "color": "#ffe2b2", "fontVariationSettings": "'wght' 534"}}>Strategy call</p>
 <h2 className="h2" style={{"margin": "0 auto 20px", "maxWidth": "18ch", "fontSize": "52px", "lineHeight": "1.1", "fontWeight": "400", "fontVariationSettings": "'wght' 424"}}>Stop waiting for a co-founder. Hire one that never sleeps.</h2>
-<p style={{"margin": "0 auto 48px", "maxWidth": "46ch", "fontSize": "18px", "lineHeight": "1.55", "color": "#a2a9b8"}}>Book a strategy call with Sunil Kattikar, founder of SIXXAB AI. Tell us where your company is today, and leave with the path to start, scale or run it.</p>
+<p style={{"margin": "0 auto 48px", "maxWidth": "46ch", "fontSize": "18px", "lineHeight": "1.55", "color": "#a2a9b8"}}>Book a strategy call with Sunil Kattikar, founder of SIXXAB AI. Tell us where your business is today, and leave with the path to start, scale or run it.</p>
 <div className="split" style={{"maxWidth": "980px", "margin": "0 auto", "display": "grid", "gridTemplateColumns": "minmax(0, 1.2fr) minmax(0, 1fr)", "gap": "20px", "textAlign": "left"}}>
 <div className="glass" style={{"padding": "34px", "borderRadius": "26px", "display": "flex", "flexDirection": "column", "gap": "18px"}}>
 <div style={{"display": "flex", "alignItems": "center", "gap": "14px"}}>
@@ -413,9 +415,9 @@ export default function Landing(props) {
 <svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true" style={{"fill": "none", "stroke": "#96c4f4", "strokeWidth": "1.6", "strokeLinecap": "round", "strokeLinejoin": "round"}}><rect x="3" y="5" width="18" height="14" rx="3" /><path d="M4 7 L12 13 L20 7" /></svg>
 <h3 style={{"margin": "0", "fontSize": "24px", "fontWeight": "400", "fontVariationSettings": "'wght' 500"}}>Prefer email?</h3>
 </div>
-<p style={{"margin": "0", "fontSize": "15px", "lineHeight": "1.6", "color": "#c9d2de"}}>Send a few lines about your company, your stage and what you want to fix. Sunil replies personally.</p>
+<p style={{"margin": "0", "fontSize": "15px", "lineHeight": "1.6", "color": "#c9d2de"}}>Send a few lines about your business, your stage and what you want to fix. Sunil replies personally.</p>
 <a href="mailto:sunil.kattikar@gmail.com" style={{"fontSize": "18px", "color": "#96c4f4", "wordBreak": "break-all", "fontVariationSettings": "'wght' 520"}}>sunil.kattikar@gmail.com</a>
-<a href="mailto:sunil.kattikar@gmail.com?subject=SIXXAB%20AI%20strategy%20call&body=Company%3A%0AStage%20(Startup%2C%20Medium%2C%20Large)%3A%0AWhat%20I%20want%20to%20fix%3A%0A" style={{"marginTop": "auto", "display": "inline-flex", "alignItems": "center", "justifyContent": "center", "gap": "12px", "minHeight": "52px", "padding": "16px 28px", "borderRadius": "999px", "border": "1.6px solid rgba(196,214,232,.72)", "color": "#ffffff", "fontSize": "17px", "fontVariationSettings": "'wght' 540"}}>Email Sunil</a>
+<a href="mailto:sunil.kattikar@gmail.com?subject=SIXXAB%20AI%20strategy%20call&body=Business%3A%0AStage%20(Startup%2C%20Medium%2C%20Large)%3A%0AWhat%20I%20want%20to%20fix%3A%0A" style={{"marginTop": "auto", "display": "inline-flex", "alignItems": "center", "justifyContent": "center", "gap": "12px", "minHeight": "52px", "padding": "16px 28px", "borderRadius": "999px", "border": "1.6px solid rgba(196,214,232,.72)", "color": "#ffffff", "fontSize": "17px", "fontVariationSettings": "'wght' 540"}}>Email Sunil</a>
 </div>
 </div>
 </section>

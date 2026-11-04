@@ -31,6 +31,11 @@ await check('landing renders, hydrates without errors, and its controls work', a
   await page.goto(BASE + '/', { waitUntil: 'networkidle' });
   assert.match(await page.locator('h1').first().innerText(), /Start it\. Scale it\. Run it\./);
   await page.screenshot({ path: `${SHOTS}/landing-hero.png` });
+  // Start your business: header tab and stage buttons lead to sign-in, and the page talks about businesses
+  assert.equal(await page.getByRole('link', { name: 'Start your business' }).first().getAttribute('href'), '/login?next=start');
+  assert.equal(await page.getByRole('link', { name: /Start my business/ }).first().getAttribute('href'), '/login?next=start');
+  assert.equal(await page.getByRole('link', { name: /Run my business/ }).first().getAttribute('href'), '/login?next=run');
+  assert.ok(!/\bcompan(y|ies)\b/i.test(await page.locator('body').innerText()), 'no "company" left on the page');
   // Path tabs
   await page.getByRole('button', { name: /Medium businesses/ }).click();
   await page.getByText('Transition and scale to SIXXAB level.').first().waitFor();
