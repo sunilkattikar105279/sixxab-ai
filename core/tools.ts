@@ -59,9 +59,15 @@ export function parseLinkedInComment(input: string): { threadUrn: string; commen
     /* not URL-encoded; use as is */
   }
   const m = text.match(/urn:li:comment:\((?:urn:li:)?(activity|ugcPost|share):(\d+),(\d+)\)/);
-  if (!m) return null;
-  const threadUrn = `urn:li:${m[1]}:${m[2]}`;
-  return { threadUrn, commentUrn: `urn:li:comment:(${threadUrn},${m[3]})` };
+  if (m) {
+    const threadUrn = `urn:li:${m[1]}:${m[2]}`;
+    return { threadUrn, commentUrn: `urn:li:comment:(${threadUrn},${m[3]})` };
+  }
+  // Newer links: ?dashCommentUrn=urn:li:fsd_comment:(<commentId>,urn:li:activity:<postId>)
+  const d = text.match(/urn:li:fsd_comment:\((\d+),urn:li:(activity|ugcPost|share):(\d+)\)/);
+  if (!d) return null;
+  const threadUrn = `urn:li:${d[2]}:${d[3]}`;
+  return { threadUrn, commentUrn: `urn:li:comment:(${threadUrn},${d[1]})` };
 }
 
 export const TOOLS: Record<string, Tool> = {

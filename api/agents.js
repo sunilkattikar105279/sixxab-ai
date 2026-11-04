@@ -236,9 +236,14 @@ function parseLinkedInComment(input) {
   } catch {
   }
   const m = text.match(/urn:li:comment:\((?:urn:li:)?(activity|ugcPost|share):(\d+),(\d+)\)/);
-  if (!m) return null;
-  const threadUrn = `urn:li:${m[1]}:${m[2]}`;
-  return { threadUrn, commentUrn: `urn:li:comment:(${threadUrn},${m[3]})` };
+  if (m) {
+    const threadUrn2 = `urn:li:${m[1]}:${m[2]}`;
+    return { threadUrn: threadUrn2, commentUrn: `urn:li:comment:(${threadUrn2},${m[3]})` };
+  }
+  const d = text.match(/urn:li:fsd_comment:\((\d+),urn:li:(activity|ugcPost|share):(\d+)\)/);
+  if (!d) return null;
+  const threadUrn = `urn:li:${d[2]}:${d[3]}`;
+  return { threadUrn, commentUrn: `urn:li:comment:(${threadUrn},${d[1]})` };
 }
 var TOOLS = {
   write_note: {

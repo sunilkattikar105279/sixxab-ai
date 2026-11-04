@@ -486,3 +486,13 @@ test('existing companies are given any default action types they are missing', a
   assert.ok(!JSON.parse(String(insert.init.body)).some((r: { key: string }) => r.key === 'publish_post'), 'never overwrites an existing level');
 });
 
+
+test('LinkedIn comment links in the newer dashCommentUrn (fsd_comment) format are understood', async () => {
+  const { parseLinkedInComment } = await import('../core/tools.js');
+  const url = 'https://www.linkedin.com/feed/update/urn:li:activity:7523606744162516992/?dashCommentUrn=urn%3Ali%3Afsd_comment%3A%287523744406617763841%2Curn%3Ali%3Aactivity%3A7523606744162516992%29';
+  assert.deepEqual(parseLinkedInComment(url), {
+    threadUrn: 'urn:li:activity:7523606744162516992',
+    commentUrn: 'urn:li:comment:(urn:li:activity:7523606744162516992,7523744406617763841)',
+  });
+  assert.equal(parseLinkedInComment('https://www.linkedin.com/feed/update/urn:li:activity:7523606744162516992/'), null, 'a post link alone is not a comment');
+});
