@@ -157,6 +157,9 @@ fs.writeFileSync(path.join(dist, 'sitemap.xml'), `<?xml version="1.0" encoding="
 
 // 6. API functions: one bundled ESM file per route, no node_modules needed at runtime.
 const routes = fs.readdirSync('server/api').filter((f) => f.endsWith('.ts'));
+// Vercel Hobby allows at most 12 functions per deployment; fail here rather than at deploy time.
+const MAX_FUNCTIONS = 12;
+if (routes.length > MAX_FUNCTIONS) throw new Error(`server/api has ${routes.length} routes; Vercel Hobby allows ${MAX_FUNCTIONS}. Add new endpoints to server/api/platform.ts instead.`);
 await esbuild.build({
   entryPoints: routes.map((f) => path.join('server/api', f)),
   outdir: apiOut,

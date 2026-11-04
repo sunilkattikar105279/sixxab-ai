@@ -31,7 +31,9 @@ function resolveStatic(p) {
 http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${port}`);
   if (url.pathname.startsWith('/api/')) {
-    const name = url.pathname.slice(5).replace(/\/$/, '');
+    let name = url.pathname.slice(5).replace(/\/$/, '');
+    // Mirror vercel.json: the account and admin endpoints share one function.
+    if (['me', 'admin', 'governance', 'billing'].includes(name)) { url.searchParams.set('route', name); name = 'platform'; }
     const file = path.join(root, 'api', `${name}.js`);
     if (!/^[a-z-]+$/.test(name) || !fs.existsSync(file)) { res.writeHead(404).end('{"error":"not found"}'); return; }
     const mod = await import(pathToFileURL(file).href);
