@@ -17,6 +17,8 @@ export interface Store {
 
   audit(e: AuditEvent): Promise<void>;
   listAudit(orgId: string, sinceIso?: string): Promise<AuditEvent[]>;
+  /** Events of these kinds, oldest first (journey progress, revenue, milestones). */
+  listAuditByActions(orgId: string, actions: string[]): Promise<AuditEvent[]>;
 
   addFeedback(f: Feedback): Promise<void>;
   listFeedback(orgId: string, taskType?: string): Promise<Feedback[]>;
@@ -97,6 +99,9 @@ export class MemoryStore implements Store {
   }
   async listAudit(orgId: string, sinceIso?: string) {
     return this.auditLog.filter((e) => e.orgId === orgId && (!sinceIso || e.at >= sinceIso));
+  }
+  async listAuditByActions(orgId: string, actions: string[]) {
+    return this.auditLog.filter((e) => e.orgId === orgId && actions.includes(e.action)).sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
   }
   async addFeedback(f: Feedback) {
     this.feedback.push({ ...f });

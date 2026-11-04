@@ -5,6 +5,7 @@ import { newId, nowIso, type Store } from './store.js';
 import { NOT_SENT_PREFIX, toolForTaskType, toolsFor, TOOLS, type Integrations, type Tool } from './tools.js';
 import { recordDecision } from './learning.js';
 import { PROFILE_PREFIX, profileForPrompt } from './profile.js';
+import { journeyForPrompt } from './journey.js';
 import type {
   Approval, ChatMessage, ModelClient, PromotionProposal, RoleCard, Task, TaskType, TextBlock,
   ToolResultBlock, ToolUseBlock,
@@ -36,10 +37,10 @@ function textOf(content: ChatMessage['content']): string {
 }
 
 async function systemPrompt(store: Store, agent: RoleCard, task: Task): Promise<string> {
-  const [profile, memories] = await Promise.all([profileForPrompt(store, task.orgId), store.recall(task.orgId, task.goal, 5)]);
-  const relevant = memories.filter((m) => !m.text.startsWith(PROFILE_PREFIX));
-  const memo = relevant.length ? `\n\nRelevant company memory:\n${relevant.map((m) => `- ${m.text.slice(0, 1500)}`).join('\n')}` : '';
-  return `${agent.instructions}\n\nYour role: ${agent.name}. ${agent.job}${profile}${memo}`;
+  const [profile, journey, memories] = await Promise.all([profileForPrompt(store, task.orgId), journeyForPrompt(store, task.orgId), store.recall(task.orgId, task.goal, 5)]);
+  const relevant = memories.filter((m) => !m.text.startsWith(PROFILE_PREFIX) && !m.text.startsWith('Company profile'));
+  const memo = relevant.length ? `\n\nRelevant business memory:\n${relevant.map((m) => `- ${m.text.slice(0, 1500)}`).join('\n')}` : '';
+  return `${agent.instructions}\n\nYour role: ${agent.name}. ${agent.job}${profile}${journey}${memo}`;
 }
 
 export async function createTask(store: Store, orgId: string, agentId: string, goal: string, parentTaskId: string | null = null): Promise<Task> {

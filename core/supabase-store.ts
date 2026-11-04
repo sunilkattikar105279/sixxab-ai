@@ -97,6 +97,10 @@ export class SupabaseStore implements Store {
     const since = sinceIso ? `&at=gte.${encodeURIComponent(sinceIso)}` : '';
     return (await this.req(`audit_log?org_id=eq.${orgId}${since}&order=at.desc&limit=500`)).map((r) => fromRow<AuditEvent>(r));
   }
+  async listAuditByActions(orgId: string, actions: string[]) {
+    const list = actions.map((a) => `"${a.replace(/[^a-z_.]/gi, '')}"`).join(',');
+    return (await this.req(`audit_log?org_id=eq.${orgId}&action=in.(${encodeURIComponent(list)})&order=at.asc&limit=2000`)).map((r) => fromRow<AuditEvent>(r));
+  }
   async addFeedback(f: Feedback) {
     await this.req('feedback', { method: 'POST', body: JSON.stringify(toRow(f)), headers: { prefer: 'return=minimal' } });
   }

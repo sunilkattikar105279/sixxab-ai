@@ -548,3 +548,80 @@ test('choices outside the allowed options are refused', async () => {
   assert.throws(() => validateProfileInput({ name: 'X' }), /What you sell/);
   assert.equal(validateProfileInput({ name: ' X ', offer: 'Y', currency: 'INR' }).name, 'X');
 });
+
+// ---------- journey: stages, steps with hard/soft dependencies, revenue, milestones ----------
+
+test('journey steps unlock only when their hard dependencies are done; soft ones only warn', async () => {
+  const { loadJourney, completeStep } = await import('../core/journey.js');
+  const { saveBusinessProfile } = await import('../core/profile.js');
+  const { store } = setup([]);
+  let j = await loadJourney(store, ORG);
+  assert.equal(j.stage.key, 'startup');
+  assert.equal(j.steps.find((s) => s.id === 'onboard')!.status, 'ready');
+  assert.equal(j.steps.find((s) => s.id === 'diagnose')!.status, 'blocked');
+  assert.deepEqual(j.steps.find((s) => s.id === 'diagnose')!.blockedBy, ['Onboard']);
+  await assert.rejects(completeStep(store, ORG, 'diagnose', 'sunil'), /Finish first: Onboard/);
+
+  await saveBusinessProfile(store, ORG, { name: 'More Laboratory', offer: 'Pathology tests', industry: 'Healthcare: laboratory or diagnostics', businessStage: 'Paying customers' }, 'sunil');
+  j = await loadJourney(store, ORG);
+  assert.equal(j.steps.find((s) => s.id === 'onboard')!.status, 'done', 'a saved profile completes onboarding');
+  assert.equal(j.stage.key, 'struggle', 'paying customers place the business in Struggle');
+  const diagnose = j.steps.find((s) => s.id === 'diagnose')!;
+  assert.equal(diagnose.status, 'ready');
+  assert.ok(diagnose.warnings.includes('Record last month’s revenue'), 'soft dependency warns');
+  await completeStep(store, ORG, 'diagnose', 'sunil');
+  j = await loadJourney(store, ORG);
+  assert.equal(j.steps.find((s) => s.id === 'diagnose')!.status, 'done');
+  assert.equal(j.steps.find((s) => s.id === 'restart')!.status, 'ready');
+  assert.ok(store.auditLog.some((e) => e.action === 'journey.step_done' && e.detail.step === 'diagnose'));
+});
+
+test('revenue is recorded per month, the first paying customer moves Startup to Struggle, and milestones are celebrated once', async () => {
+  const { loadJourney, recordRevenue } = await import('../core/journey.js');
+  const { saveBusinessProfile } = await import('../core/profile.js');
+  const { store } = setup([]);
+  await saveBusinessProfile(store, ORG, { name: 'New Co', offer: 'Coaching', businessStage: 'Launched, no paying customers yet', currency: 'USD' }, 'sunil');
+  assert.equal((await loadJourney(store, ORG)).stage.key, 'startup');
+  await recordRevenue(store, ORG, { month: '2026-10', amount: 1200, note: 'First two clients' }, 'sunil');
+  await recordRevenue(store, ORG, { month: '2026-10', amount: 1500 }, 'sunil');
+  const j = await loadJourney(store, ORG);
+  assert.equal(j.stage.key, 'struggle');
+  assert.deepEqual(j.revenue.months, [{ month: '2026-10', amount: 1500, currency: 'USD' }], 'the latest entry for a month wins');
+  const first = j.milestones.find((m) => m.key === 'first_customer')!;
+  assert.ok(first.reachedAt, 'first paying customer reached');
+  await loadJourney(store, ORG);
+  assert.equal(store.auditLog.filter((e) => e.action === 'milestone.reached' && e.detail.key === 'first_customer').length, 1, 'celebrated once');
+  await assert.rejects(recordRevenue(store, ORG, { month: '2026-13', amount: 5 }, 'sunil'), /month/);
+  await assert.rejects(recordRevenue(store, ORG, { month: '2026-10', amount: -5 }, 'sunil'), /amount/);
+});
+
+test('the six stages are listed with Start live and later stages marked after launch', async () => {
+  const { STAGES } = await import('../core/journey.js');
+  assert.deepEqual(STAGES.map((s) => s.key), ['startup', 'struggle', 'scale', 'success', 'significance', 'sixxab']);
+  assert.deepEqual(STAGES.filter((s) => s.live).map((s) => s.key), ['startup', 'struggle']);
+});
+
+test('agents see the business journey: stage, next step and recent revenue', async () => {
+  const { recordRevenue } = await import('../core/journey.js');
+  const { saveBusinessProfile } = await import('../core/profile.js');
+  const { store, model, deps } = setup([[{ type: 'text', text: 'ok' }]]);
+  await saveBusinessProfile(store, ORG, { name: 'Radhakrishna Ortho', offer: 'Orthopaedic care', currency: 'INR' }, 'sunil');
+  await recordRevenue(store, ORG, { month: '2026-10', amount: 450000 }, 'sunil');
+  const task = await createTask(store, ORG, 'health-check', 'Run the health check');
+  await runTask(deps, task.id);
+  const sys = model.calls[0].system;
+  assert.match(sys, /Stage: Struggle/);
+  assert.match(sys, /Next step: Diagnose/);
+  assert.match(sys, /2026-10: 450000 INR/);
+});
+
+test('the Start-the-business stage agents exist, use only safe tools, and every journey step agent is real', async () => {
+  const { getAgent } = await import('../core/agents.js');
+  const { STEPS } = await import('../core/journey.js');
+  for (const id of ['onboarding-guide', 'health-check', 'niche-offer', 'roadmap-planner', 'milestone-tracker']) {
+    const a = getAgent(id);
+    assert.ok(a?.usesModel, id);
+    assert.ok(a!.tools.every((t) => ['recall', 'remember', 'write_note'].includes(t)), `${id} only plans and records; it never sends or spends`);
+  }
+  for (const s of STEPS) if (s.agentId) assert.ok(getAgent(s.agentId), `step ${s.id} agent ${s.agentId}`);
+});

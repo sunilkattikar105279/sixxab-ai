@@ -3,9 +3,10 @@ import { api, getSession, sessionFromRedirect, signOut, type Session } from '../
 import type { Approval, AuditEvent, Briefing, RoleCard, TaskType } from '../../core/types';
 import { Brand, Spinner } from './ui';
 import { BusinessProfile } from './BusinessProfile';
+import { Journey } from './Journey';
 import { useLoad } from './useLoad';
 
-type Tab = 'today' | 'approvals' | 'agents' | 'activity';
+type Tab = 'journey' | 'today' | 'approvals' | 'agents' | 'activity';
 type AgentInfo = Omit<RoleCard, 'instructions'>;
 interface TaskRow { id: string; agentId: string; goal: string; status: string; output: string | null; updatedAt: string; createdAt: string; parentTaskId: string | null }
 
@@ -17,7 +18,7 @@ const STATUS: Record<string, string> = {
 export default function Dashboard() {
   const [session, setSession] = useState<Session | null>(null);
   const [checked, setChecked] = useState(false);
-  const [tab, setTab] = useState<Tab>('today');
+  const [tab, setTab] = useState<Tab>('journey');
   const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
@@ -45,13 +46,14 @@ export default function Dashboard() {
         </div>
       </header>
       <nav className="app-tabs" aria-label="Workspace">
-        {(['today', 'approvals', 'agents', 'activity'] as Tab[]).map((t) => (
+        {(['journey', 'today', 'approvals', 'agents', 'activity'] as Tab[]).map((t) => (
           <button key={t} type="button" className={tab === t ? 'app-tab on' : 'app-tab'} aria-current={tab === t ? 'page' : undefined} onClick={() => setTab(t)}>
-            {t === 'today' ? 'Today' : t === 'approvals' ? `Approvals${pendingCount ? ` (${pendingCount})` : ''}` : t === 'agents' ? 'Agents' : 'Activity'}
+            {t === 'journey' ? 'Journey' : t === 'today' ? 'Today' : t === 'approvals' ? `Approvals${pendingCount ? ` (${pendingCount})` : ''}` : t === 'agents' ? 'Agents' : 'Activity'}
           </button>
         ))}
       </nav>
       <main className="app-main">
+        {tab === 'journey' && <Journey goApprovals={() => setTab('approvals')} />}
         {tab === 'today' && <Today onPending={setPendingCount} goApprovals={() => setTab('approvals')} />}
         {tab === 'approvals' && <Approvals onCount={setPendingCount} />}
         {tab === 'agents' && <Agents />}
@@ -63,11 +65,6 @@ export default function Dashboard() {
 
 
 interface Step { taskId: string; agentId: string; goal: string; status: string; output?: string | null; queued?: number }
-
-/** ?journey=start|scale|run, set after signing in from the landing page. */
-function journeyFromUrl(): string | null {
-  return new URLSearchParams(location.search).get('journey');
-}
 
 function Today({ onPending, goApprovals }: { onPending: (n: number) => void; goApprovals: () => void }) {
   const brief = useLoad<{ briefing: Briefing }>('/api/briefing');
@@ -144,7 +141,7 @@ function Today({ onPending, goApprovals }: { onPending: (n: number) => void; goA
   const b = brief.data?.briefing;
   return (
     <div className="stack">
-      <BusinessProfile startOpen={journeyFromUrl() === 'start'} />
+      <BusinessProfile />
       <section className="panel glass-card">
         <h2>What should your business get done?</h2>
         <form onSubmit={submit} className="goal-form">

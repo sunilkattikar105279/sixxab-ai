@@ -103,6 +103,31 @@ async function mockServices(ctx, state) {
     }
     return r.fulfill({ json: { agents: [{ id: 'cmo', name: 'CMO agent', layer: 'cxo', job: 'Owns marketing' }], taskTypes: [{ key: 'publish_post', label: 'Publish a social post', level: 2, maxLevel: 3 }], progress: [{ taskType: 'publish_post', level: 2, maxLevel: 3, streak: 12, needed: 15, proposal: null }], tasks: state.leftover ?? [] } });
   });
+  await ctx.route('**/api/journey', async (r) => {
+    const onboarded = Boolean(state.profile);
+    state.journeyDone = state.journeyDone ?? [];
+    if (r.request().method() === 'POST') {
+      const b = r.request().postDataJSON();
+      (state.journeyPosts = state.journeyPosts ?? []).push(b);
+      if (b.action === 'complete') state.journeyDone.push(b.step);
+      if (b.action === 'revenue') state.revenue = [{ month: b.month, amount: Number(b.amount), currency: 'INR' }];
+    }
+    const step = (id, title, agentId, hard) => {
+      const done = id === 'onboard' ? onboarded : state.journeyDone.includes(id);
+      const blocked = hard && !(hard === 'onboard' ? onboarded : state.journeyDone.includes(hard));
+      return { id, title, summary: `${title} summary`, agentId, agents: 'Agent', ownerDecides: 'You decide', output: 'Output', goal: `${title} goal`,
+        status: done ? 'done' : blocked ? 'blocked' : 'ready', blockedBy: blocked ? [hard === 'onboard' ? 'Onboard' : 'Diagnose'] : [], warnings: id === 'diagnose' && !state.revenue ? ['Record last month\u2019s revenue'] : [], doneAt: done ? new Date().toISOString() : null };
+    };
+    const journey = {
+      stage: { key: 'struggle', name: 'Struggle', head: 'Start', level: '$10K', summary: 'First customers to repeatable revenue', live: true },
+      nextGate: 'Next gate: the Scale level.',
+      stages: [{ key: 'startup', name: 'Startup', head: 'Start', level: '$0', summary: '', live: true }, { key: 'struggle', name: 'Struggle', head: 'Start', level: '$10K', summary: '', live: true }, { key: 'scale', name: 'Scale', head: 'Scale', level: '$50K', summary: '', live: false }],
+      steps: [step('onboard', 'Onboard', null, null), step('diagnose', 'Diagnose', 'health-check', 'onboard'), step('restart', 'Restart', 'niche-offer', 'diagnose')],
+      revenue: { currency: 'INR', months: state.revenue ?? [] },
+      milestones: [{ key: 'profile_saved', title: 'Business profile saved', reachedAt: onboarded ? new Date().toISOString() : null }, { key: 'first_customer', title: 'First paying customer', reachedAt: null }],
+    };
+    return r.fulfill({ json: { journey } });
+  });
   await ctx.route('**/api/profile', async (r) => {
     const sections = [
       { title: 'Basics', fields: [{ key: 'name', label: 'Business name', kind: 'text', required: true }, { key: 'industry', label: 'Industry', kind: 'choice', options: ['Healthcare: hospital or clinic', 'Technology or software'] }] },
@@ -135,6 +160,8 @@ await check('email sign-in: wrong code is refused, right code opens the workspac
   await page.getByLabel('Sign-in code').fill('123456');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.waitForURL('**/app');
+  await page.getByText('Your steps').waitFor();
+  await page.getByRole('button', { name: 'Today', exact: true }).click();
   await page.getByText('What should your business get done?').waitFor();
   await page.screenshot({ path: `${SHOTS}/app-today.png` });
   await ctx.close();
@@ -172,10 +199,23 @@ await check('workspace: run a goal, edit and approve, see agents and activity', 
   await page.getByRole('button', { name: 'Next' }).click();
   await page.getByLabel(/What you sell/).fill('AI agents that run your business');
   await page.getByRole('button', { name: 'Save profile' }).click();
-  await page.getByText('About your business').waitFor();
-  await page.getByText('Profile 75% complete').waitFor();
   assert.equal(state.profile.name, 'SIXXAB AI');
   assert.equal(state.profile.industry, 'Technology or software');
+  // Journey: onboarding done unlocks Diagnose; Restart stays blocked until Diagnose is done
+  await page.getByText('Milestone reached:').waitFor();
+  await page.getByText('Finish first: Diagnose').waitFor();
+  await page.getByText('Record last month\u2019s revenue').waitFor();
+  await page.screenshot({ path: `${SHOTS}/app-journey.png`, fullPage: true });
+  await page.getByRole('button', { name: 'Mark done' }).first().click();
+  await page.getByText('Finish first: Diagnose').waitFor({ state: 'detached' });
+  assert.deepEqual(state.journeyPosts.at(-1), { action: 'complete', step: 'diagnose' });
+  await page.getByLabel(/Revenue \(INR\)/).fill('450000');
+  await page.getByRole('button', { name: 'Save revenue' }).click();
+  await page.getByText('₹4,50,000').waitFor();
+  assert.equal(state.journeyPosts.at(-1).action, 'revenue');
+  await page.getByRole('button', { name: 'Today', exact: true }).click();
+  await page.getByText('About your business').waitFor();
+  await page.getByText('Profile 75% complete').waitFor();
   await page.getByLabel('Goal').fill('Plan our launch week');
   await page.getByRole('button', { name: 'Hand it to the agents' }).click();
   await page.getByText('Plan saved.').waitFor();
@@ -212,6 +252,7 @@ await check('planned steps that never ran can be continued from the Today tab', 
   await ctx.addInitScript(() => localStorage.setItem('sixxab.session', JSON.stringify({ accessToken: 'at', refreshToken: 'rt', expiresAt: Math.floor(Date.now() / 1000) + 3600, user: { id: 'u1', email: 'founder@acme.com' } })));
   const page = await ctx.newPage();
   await page.goto(BASE + '/app');
+  await page.getByRole('button', { name: 'Today', exact: true }).click();
   await page.getByText("2 planned steps from an earlier goal haven't run yet.").waitFor();
   state.leftover = [];
   await page.getByRole('button', { name: 'Run all 2 now' }).click();
