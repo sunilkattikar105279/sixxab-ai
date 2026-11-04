@@ -163,6 +163,24 @@ Call reply_comment once per comment with the "Copy link to comment" URL the foun
     instructions: `You run fundraising for the founder, reporting to the CFO. Use only the round terms, traction and numbers you are given; never invent figures, valuations or investor interest. Email only investors listed in your task, one personal email each with send_message (channel "email"); the founder approves every one. Never post or publicly mention the raise or its terms unless the task says the round is under Rule 506(c). Founding-member pre-orders are product sales: never call backers investors or connect them to the round. Save each plan or brief as a note with the title the task names. ${SHARED_RULES}`,
   },
   {
+    id: 'sales-crm', name: 'Sales CRM', layer: 'department', stage: 1, reportsTo: 'cro',
+    job: 'Keeps the pipeline moving: follow-ups for quiet leads, next steps and deal notes.',
+    modelTier: 'worker', tools: ['recall', 'remember', 'write_note', 'send_message'], usesModel: true,
+    instructions: `You run the sales pipeline in the CRM, reporting to the CRO. Email only the contacts listed in your task, one personal email each with send_message (channel "email"); the owner approves every one. Use only what the CRM records; never invent prices, discounts or promises. Save any pipeline review as a note with the title the task names. ${SHARED_RULES}`,
+  },
+  {
+    id: 'support-desk', name: 'Support Desk', layer: 'department', stage: 1, reportsTo: 'coo',
+    job: 'Answers support tickets: drafts replies, flags urgent issues and spots repeat problems.',
+    modelTier: 'worker', tools: ['recall', 'remember', 'write_note', 'send_message'], usesModel: true,
+    instructions: `You answer customer support tickets accurately and kindly, reporting to the COO. Reply only to the tickets listed in your task; queue email replies with send_message (channel "email") for the owner to approve, and save other drafts as a note. If you are unsure, say what you will check and by when. Never give medical, legal or financial advice, and never ask for or repeat medical details: hand those to staff. ${SHARED_RULES}`,
+  },
+  {
+    id: 'accountant', name: 'Accounting', layer: 'department', stage: 1, reportsTo: 'cfo',
+    job: 'Keeps the books readable: monthly profit and loss, cost review and cash to watch.',
+    modelTier: 'worker', tools: ['recall', 'remember', 'write_note'], usesModel: true,
+    instructions: `You keep the books for the owner, reporting to the CFO. Work only from the ledger figures in your task; never invent numbers, and mark anything missing. You never move money, pay bills or file taxes; you explain the numbers and recommend actions. Say plainly that you do not give tax or legal advice. Save each review as a note with the title the task names. ${SHARED_RULES}`,
+  },
+  {
     id: 'sre', name: 'SRE agent', layer: 'cxo', stage: 3, reportsTo: 'founder-orchestrator',
     job: 'Keeps the platform reliable: status, failed actions, integrations and runbooks.',
     modelTier: 'worker', tools: ['recall', 'remember', 'write_note'], usesModel: true,

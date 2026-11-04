@@ -410,6 +410,52 @@ await check('fundraising: set a priced round and a founding-member campaign', as
   await ctx.close();
 });
 
+await check('business tabs: add a CRM contact, open a support ticket, record income', async () => {
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const state = { otp: [], decisions: [], pending: [], profile: { name: 'SIXXAB AI', offer: 'Agents' }, admin: [] };
+  await mockServices(ctx, state);
+  const posts = { crm: [], support: [], accounts: [] };
+  const crm = { contacts: [], pipeline: { lead: 0 }, totals: { open: 0, openValue: 0, won: 0, wonValue: 0, winRate: null, followUps: 0 }, followUpGoal: '' };
+  const support = { tickets: [], totals: { open: 0, waiting: 0, resolved: 0, urgent: 0, medianHoursToResolve: null }, replyGoal: '' };
+  const month = { month: '2026-11', income: 0, expenses: 0, profit: 0, margin: null };
+  const accounts = { currency: 'USD', entries: [], months: [], thisMonth: month, expensesByCategory: [], reviewGoal: '' };
+  await ctx.route(/\/api\/(crm|support|accounts)$/, async (route) => {
+    const name = new URL(route.request().url()).pathname.split('/').pop();
+    if (route.request().method() === 'POST') {
+      const b = JSON.parse(route.request().postData() || '{}');
+      posts[name].push(b);
+      if (name === 'crm') { crm.contacts.push({ id: 'c1', ...b.contact, value: Number(b.contact.value), stage: 'lead', lastTouch: null, createdAt: new Date().toISOString(), notes: '' }); crm.totals = { ...crm.totals, open: 1, openValue: Number(b.contact.value) }; }
+      if (name === 'support') { support.tickets.push({ id: 't1', number: 1001, ...b.ticket, status: 'open', createdAt: new Date().toISOString(), notes: [{ at: new Date().toISOString(), by: b.ticket.customer, text: b.ticket.message }] }); support.totals = { ...support.totals, open: 1 }; }
+      if (name === 'accounts') { Object.assign(accounts.thisMonth, { income: Number(b.entry.amount), profit: Number(b.entry.amount), margin: 100 }); }
+    }
+    await route.fulfill({ json: { [name]: name === 'crm' ? crm : name === 'support' ? support : accounts } });
+  });
+  await ctx.addInitScript(() => localStorage.setItem('sixxab.session', JSON.stringify({ accessToken: 'at', refreshToken: 'rt', expiresAt: Math.floor(Date.now() / 1000) + 3600, user: { id: 'u1', email: 'founder@example.com' } })));
+  const page = await ctx.newPage();
+  await page.goto(BASE + '/app');
+  await page.getByRole('button', { name: 'CRM', exact: true }).click();
+  await page.getByText('No open deal with an email has gone quiet for a week.').waitFor();
+  await page.getByLabel('Name').fill('Asha Rao');
+  await page.getByLabel('Email').fill('asha@example.com');
+  await page.getByLabel('Deal value').fill('5000');
+  await page.getByRole('button', { name: 'Add contact' }).click();
+  await page.getByText('$5,000 in play').waitFor();
+  assert.equal(posts.crm[0].contact.name, 'Asha Rao');
+  await page.getByRole('button', { name: 'Support', exact: true }).click();
+  await page.getByLabel('Customer').fill('Meera');
+  await page.getByLabel('Subject').fill('Opening hours');
+  await page.getByLabel('Their message').fill('Are you open on Sunday?');
+  await page.getByRole('button', { name: 'Open ticket' }).click();
+  await page.getByText('#1001 Opening hours').waitFor();
+  await page.getByRole('button', { name: 'Accounts', exact: true }).click();
+  await page.getByLabel('Amount (USD)').fill('1200');
+  await page.getByRole('button', { name: 'Record' }).click();
+  await page.getByText('100% margin').waitFor();
+  assert.equal(posts.accounts[0].entry.kind, 'income');
+  await page.screenshot({ path: `${SHOTS}/app-accounts.png`, fullPage: true });
+  await ctx.close();
+});
+
 await browser.close();
 for (const r of results) console.log(r.join('  '));
 const failed = results.filter((r) => r[0] === 'FAIL').length;

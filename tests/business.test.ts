@@ -1,0 +1,88 @@
+// CRM, Support desk and Accounting: validation, derived state and the goals handed to their agents.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { MemoryStore } from '../core/store.js';
+import { getAgent } from '../core/agents.js';
+
+const ORG = 'org-1';
+
+test('CRM: contacts are validated, move through stages and roll up into the pipeline', async () => {
+  const { upsertContact, setDealStage, loadCrm, removeContact } = await import('../core/crm.js');
+  const s = new MemoryStore();
+  await assert.rejects(upsertContact(s, ORG, { name: '' }, 'f'), /name/);
+  await assert.rejects(upsertContact(s, ORG, { name: 'A', email: 'nope' }, 'f'), /email/);
+  await assert.rejects(upsertContact(s, ORG, { name: 'A', value: -5 }, 'f'), /value/);
+  let crm = await upsertContact(s, ORG, { name: 'Asha Rao', email: 'asha@example.com', value: '5,000', source: 'referral' }, 'f');
+  const asha = crm.contacts[0];
+  assert.equal(asha.value, 5000);
+  assert.equal(asha.stage, 'lead');
+  crm = await upsertContact(s, ORG, { name: 'Ravi', value: 2000 }, 'f');
+  const ravi = crm.contacts.find((c) => c.name === 'Ravi')!;
+  await setDealStage(s, ORG, asha.id, 'won', 'f');
+  crm = await setDealStage(s, ORG, ravi.id, 'lost', 'f');
+  assert.equal(crm.totals.won, 1);
+  assert.equal(crm.totals.wonValue, 5000);
+  assert.equal(crm.totals.winRate, 50);
+  await assert.rejects(setDealStage(s, ORG, asha.id, 'maybe' as never, 'f'), /stage/);
+  crm = await removeContact(s, ORG, ravi.id, 'f');
+  assert.equal(crm.contacts.length, 1);
+});
+
+test('CRM: only quiet open deals with an email get a follow-up, and the agent can send email', async () => {
+  const { computeCrm } = await import('../core/crm.js');
+  const ev = (action: string, at: string, detail: Record<string, unknown>) => ({ id: at + action, orgId: ORG, at, actor: 'f', action, taskId: null, detail });
+  const base = { company: '', phone: '', source: 'other', value: 0, nextStep: '', notes: '' };
+  const events = [
+    ev('crm.contact', '2026-10-01T00:00:00Z', { contact: { ...base, id: 'c-quiet1', name: 'Quiet', email: 'q@example.com' } }),
+    ev('crm.contact', '2026-10-01T00:00:00Z', { contact: { ...base, id: 'c-fresh1', name: 'Fresh', email: 'f@example.com' } }),
+    ev('crm.touch', '2026-11-03T00:00:00Z', { contactId: 'c-fresh1' }),
+    ev('crm.contact', '2026-10-01T00:00:00Z', { contact: { ...base, id: 'c-nomail', name: 'No email', email: '' } }),
+  ];
+  const crm = computeCrm(events, Date.parse('2026-11-04T00:00:00Z'));
+  assert.equal(crm.totals.followUps, 1);
+  assert.match(crm.followUpGoal, /Quiet <q@example.com>/);
+  assert.doesNotMatch(crm.followUpGoal, /Fresh|No email/);
+  assert.ok(getAgent('sales-crm')?.tools.includes('send_message'));
+});
+
+test('Support: tickets are numbered, sorted by priority and resolved with a time to resolve', async () => {
+  const { openTicket, setTicketStatus, addTicketNote, loadSupport } = await import('../core/support.js');
+  const s = new MemoryStore();
+  await assert.rejects(openTicket(s, ORG, { subject: '', customer: 'x', message: 'y' }, 'f'), /subject/);
+  let st = await openTicket(s, ORG, { subject: 'Opening hours', customer: 'Meera', contact: 'meera@example.com', message: 'Are you open Sunday?' }, 'f');
+  st = await openTicket(s, ORG, { subject: 'Report not received', customer: 'Om', priority: 'urgent', channel: 'whatsapp', message: 'Where is my report?' }, 'f');
+  assert.deepEqual(st.tickets.map((t) => t.number), [1002, 1001], 'urgent first');
+  assert.equal(st.totals.urgent, 1);
+  assert.match(st.replyGoal, /#1002 \[urgent\]/);
+  assert.match(st.replyGoal, /never ask for or repeat medical details/);
+  const id = st.tickets[1].id;
+  await addTicketNote(s, ORG, id, 'Open 9 to 1 on Sundays', 'owner');
+  st = await setTicketStatus(s, ORG, id, 'resolved', 'owner');
+  const done = st.tickets.find((t) => t.id === id)!;
+  assert.equal(done.status, 'resolved');
+  assert.equal(done.notes.length, 2);
+  assert.equal(st.totals.resolved, 1);
+  assert.notEqual(st.totals.medianHoursToResolve, null);
+  assert.ok(getAgent('support-desk'));
+});
+
+test('Accounting: entries are validated and roll up into a monthly profit and loss; the agent cannot send or spend', async () => {
+  const { addEntry, loadAccounts, removeEntry } = await import('../core/accounting.js');
+  const s = new MemoryStore();
+  await assert.rejects(addEntry(s, ORG, { kind: 'income', date: '04/11/2026', amount: 10, category: 'sales' }, 'f'), /date/);
+  await assert.rejects(addEntry(s, ORG, { kind: 'expense', date: '2026-11-01', amount: 0, category: 'rent' }, 'f'), /amount/);
+  await addEntry(s, ORG, { kind: 'income', date: '2026-11-02', amount: '1,00,000', category: 'services' }, 'f', 'INR');
+  await addEntry(s, ORG, { kind: 'expense', date: '2026-11-03', amount: 30000, category: 'rent' }, 'f', 'INR');
+  let a = await addEntry(s, ORG, { kind: 'expense', date: '2026-10-15', amount: 5000, category: 'unknown-cat' }, 'f', 'INR');
+  const nov = a.months.find((m) => m.month === '2026-11')!;
+  assert.deepEqual([nov.income, nov.expenses, nov.profit, nov.margin], [100000, 30000, 70000, 70]);
+  assert.equal(a.entries.find((e) => e.date === '2026-10-15')?.category, 'other', 'unknown categories fall back');
+  a = await loadAccounts(s, ORG, 'INR', new Date('2026-11-20T00:00:00Z'));
+  assert.equal(a.thisMonth.profit, 70000);
+  assert.deepEqual(a.expensesByCategory, [{ category: 'rent', amount: 30000 }]);
+  assert.match(a.reviewGoal, /2026-11: income 100000, expenses 30000, profit 70000/);
+  a = await removeEntry(s, ORG, a.entries[0].id, 'f', 'INR');
+  assert.equal(a.entries.length, 2);
+  const tools = getAgent('accountant')!.tools;
+  assert.ok(!tools.includes('send_message') && !tools.includes('spend_money'));
+});

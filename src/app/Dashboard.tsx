@@ -5,13 +5,16 @@ import { Brand, Spinner } from './ui';
 import { BusinessProfile } from './BusinessProfile';
 import { Journey } from './Journey';
 import { Raise } from './Raise';
+import { Crm } from './Crm';
+import { Support } from './Support';
+import { Accounts } from './Accounts';
 import { Rate } from './Rate';
 import { AdminPanel } from './AdminPanel';
 import { Governance } from './Governance';
 import { Billing } from './Billing';
 import { useLoad } from './useLoad';
 
-type Tab = 'journey' | 'today' | 'approvals' | 'raise' | 'agents' | 'activity' | 'governance' | 'billing';
+type Tab = 'journey' | 'today' | 'approvals' | 'crm' | 'support' | 'accounts' | 'raise' | 'agents' | 'activity' | 'governance' | 'billing';
 type AgentInfo = Omit<RoleCard, 'instructions'>;
 interface TaskRow { id: string; agentId: string; goal: string; status: string; output: string | null; updatedAt: string; createdAt: string; parentTaskId: string | null }
 
@@ -53,14 +56,17 @@ export default function Dashboard() {
         </div>
       </header>
       <nav className="app-tabs" aria-label="Workspace">
-        {([...(['journey', 'today', 'approvals', 'raise', 'agents', 'activity'] as Tab[]), ...(admin ? (['governance', 'billing'] as Tab[]) : [])]).map((t) => (
+        {([...(['journey', 'today', 'approvals', 'crm', 'support', 'accounts', 'raise', 'agents', 'activity'] as Tab[]), ...(admin ? (['governance', 'billing'] as Tab[]) : [])]).map((t) => (
           <button key={t} type="button" className={tab === t ? 'app-tab on' : 'app-tab'} aria-current={tab === t ? 'page' : undefined} onClick={() => setTab(t)}>
-            {t === 'journey' ? 'Journey' : t === 'today' ? 'Today' : t === 'approvals' ? `Approvals${pendingCount ? ` (${pendingCount})` : ''}` : t === 'raise' ? 'Fundraising' : t === 'agents' ? 'Agents' : t === 'activity' ? 'Activity' : t === 'governance' ? 'Governance' : 'Billing'}
+            {t === 'journey' ? 'Journey' : t === 'today' ? 'Today' : t === 'approvals' ? `Approvals${pendingCount ? ` (${pendingCount})` : ''}` : t === 'crm' ? 'CRM' : t === 'support' ? 'Support' : t === 'accounts' ? 'Accounts' : t === 'raise' ? 'Fundraising' : t === 'agents' ? 'Agents' : t === 'activity' ? 'Activity' : t === 'governance' ? 'Governance' : 'Billing'}
           </button>
         ))}
       </nav>
       <main className="app-main">
         {tab === 'journey' && <Journey goApprovals={() => setTab('approvals')} />}
+        {tab === 'crm' && <Crm goApprovals={() => setTab('approvals')} />}
+        {tab === 'support' && <Support goApprovals={() => setTab('approvals')} />}
+        {tab === 'accounts' && <Accounts goApprovals={() => setTab('approvals')} />}
         {tab === 'raise' && <Raise goApprovals={() => setTab('approvals')} />}
         {tab === 'today' && <Today onPending={setPendingCount} goApprovals={() => setTab('approvals')} />}
         {tab === 'approvals' && <Approvals onCount={setPendingCount} />}

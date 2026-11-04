@@ -139,9 +139,9 @@ function profileText(p) {
   }).filter(Boolean);
   return [PROFILE_PREFIX, ...lines].join("\n");
 }
-function parseProfile(text2) {
+function parseProfile(text5) {
   const out = {};
-  for (const line of text2.split("\n").slice(1)) {
+  for (const line of text5.split("\n").slice(1)) {
     const i = line.indexOf(": ");
     if (i < 0) continue;
     const label = line.slice(0, i);
@@ -290,8 +290,8 @@ var SupabaseStore = class {
       }
     });
     if (!res.ok) throw new Error(`Supabase ${res.status} on ${path.split("?")[0]}: ${(await res.text()).slice(0, 300)}`);
-    const text2 = await res.text();
-    return text2 ? JSON.parse(text2) : [];
+    const text5 = await res.text();
+    return text5 ? JSON.parse(text5) : [];
   }
   one(rows, what) {
     if (!rows[0]) throw new Error(`${what} not found`);
@@ -454,17 +454,17 @@ var field = (input, name, max = 4e3) => {
   return t.slice(0, max);
 };
 function parseLinkedInComment(input) {
-  let text2 = input.trim();
+  let text5 = input.trim();
   try {
-    text2 = decodeURIComponent(text2);
+    text5 = decodeURIComponent(text5);
   } catch {
   }
-  const m = text2.match(/urn:li:comment:\((?:urn:li:)?(activity|ugcPost|share):(\d+),(\d+)\)/);
+  const m = text5.match(/urn:li:comment:\((?:urn:li:)?(activity|ugcPost|share):(\d+),(\d+)\)/);
   if (m) {
     const threadUrn2 = `urn:li:${m[1]}:${m[2]}`;
     return { threadUrn: threadUrn2, commentUrn: `urn:li:comment:(${threadUrn2},${m[3]})` };
   }
-  const d = text2.match(/urn:li:fsd_comment:\((\d+),urn:li:(activity|ugcPost|share):(\d+)\)/);
+  const d = text5.match(/urn:li:fsd_comment:\((\d+),urn:li:(activity|ugcPost|share):(\d+)\)/);
   if (!d) return null;
   const threadUrn = `urn:li:${d[2]}:${d[3]}`;
   return { threadUrn, commentUrn: `urn:li:comment:(${threadUrn},${d[1]})` };
@@ -609,9 +609,9 @@ function toolsFor(agent) {
 }
 var WEBHOOK_TIMEOUT_MS = 3e4;
 var RECEIPT_MAX = 500;
-function parseReceipt(text2) {
+function parseReceipt(text5) {
   try {
-    const body = JSON.parse(text2);
+    const body = JSON.parse(text5);
     if (!body || typeof body !== "object") return void 0;
     const { ok, message } = body;
     return {
@@ -710,10 +710,10 @@ async function requireUser(request) {
   return { userId: user.id, orgId, label, store: s };
 }
 async function readJson(request, maxBytes = 64e3) {
-  const text2 = await request.text();
-  if (text2.length > maxBytes) throw new HttpError(413, "Request too large");
+  const text5 = await request.text();
+  if (text5.length > maxBytes) throw new HttpError(413, "Request too large");
   try {
-    return JSON.parse(text2 || "{}");
+    return JSON.parse(text5 || "{}");
   } catch {
     throw new HttpError(400, "Invalid JSON");
   }
@@ -1174,6 +1174,42 @@ Call reply_comment once per comment with the "Copy link to comment" URL the foun
     tools: ["recall", "remember", "write_note", "send_message"],
     usesModel: true,
     instructions: `You run fundraising for the founder, reporting to the CFO. Use only the round terms, traction and numbers you are given; never invent figures, valuations or investor interest. Email only investors listed in your task, one personal email each with send_message (channel "email"); the founder approves every one. Never post or publicly mention the raise or its terms unless the task says the round is under Rule 506(c). Founding-member pre-orders are product sales: never call backers investors or connect them to the round. Save each plan or brief as a note with the title the task names. ${SHARED_RULES}`
+  },
+  {
+    id: "sales-crm",
+    name: "Sales CRM",
+    layer: "department",
+    stage: 1,
+    reportsTo: "cro",
+    job: "Keeps the pipeline moving: follow-ups for quiet leads, next steps and deal notes.",
+    modelTier: "worker",
+    tools: ["recall", "remember", "write_note", "send_message"],
+    usesModel: true,
+    instructions: `You run the sales pipeline in the CRM, reporting to the CRO. Email only the contacts listed in your task, one personal email each with send_message (channel "email"); the owner approves every one. Use only what the CRM records; never invent prices, discounts or promises. Save any pipeline review as a note with the title the task names. ${SHARED_RULES}`
+  },
+  {
+    id: "support-desk",
+    name: "Support Desk",
+    layer: "department",
+    stage: 1,
+    reportsTo: "coo",
+    job: "Answers support tickets: drafts replies, flags urgent issues and spots repeat problems.",
+    modelTier: "worker",
+    tools: ["recall", "remember", "write_note", "send_message"],
+    usesModel: true,
+    instructions: `You answer customer support tickets accurately and kindly, reporting to the COO. Reply only to the tickets listed in your task; queue email replies with send_message (channel "email") for the owner to approve, and save other drafts as a note. If you are unsure, say what you will check and by when. Never give medical, legal or financial advice, and never ask for or repeat medical details: hand those to staff. ${SHARED_RULES}`
+  },
+  {
+    id: "accountant",
+    name: "Accounting",
+    layer: "department",
+    stage: 1,
+    reportsTo: "cfo",
+    job: "Keeps the books readable: monthly profit and loss, cost review and cash to watch.",
+    modelTier: "worker",
+    tools: ["recall", "remember", "write_note"],
+    usesModel: true,
+    instructions: `You keep the books for the owner, reporting to the CFO. Work only from the ledger figures in your task; never invent numbers, and mark anything missing. You never move money, pay bills or file taxes; you explain the numbers and recommend actions. Say plainly that you do not give tax or legal advice. Save each review as a note with the title the task names. ${SHARED_RULES}`
   },
   {
     id: "sre",
@@ -1932,11 +1968,11 @@ function computeGovernance(input) {
 
 // server/build-info.ts
 var BUILD_INFO = {
-  "builtAt": "2026-11-04T19:09:30.213Z",
-  "files": 65,
-  "lines": 6401,
-  "tests": 82,
-  "e2e": 10,
+  "builtAt": "2026-11-04T19:50:23.597Z",
+  "files": 75,
+  "lines": 7184,
+  "tests": 86,
+  "e2e": 11,
   "rlsTables": 9,
   "cspHeader": true,
   "apiRoutes": 12
@@ -1947,9 +1983,9 @@ var TIMEOUT_MS = 5e3;
 async function probe(url, headers) {
   try {
     const res = await fetch(url, { headers, signal: AbortSignal.timeout(TIMEOUT_MS) });
-    const text2 = await res.text();
+    const text5 = await res.text();
     try {
-      return { ok: res.ok, body: JSON.parse(text2) };
+      return { ok: res.ok, body: JSON.parse(text5) };
     } catch {
       return { ok: res.ok, body: null };
     }
@@ -2304,7 +2340,7 @@ var oneOf = (list, v, label) => {
 var fmt = (n) => n.toLocaleString("en-US", { maximumFractionDigits: 0 });
 var record = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
 async function setRound(store2, orgId, r, by) {
-  const round2 = {
+  const round3 = {
     name: text(r.name, 60) || "Pre-seed",
     instrument: oneOf(INSTRUMENTS, r.instrument, "instrument"),
     exemption: oneOf(EXEMPTIONS, r.exemption, "exemption"),
@@ -2315,8 +2351,8 @@ async function setRound(store2, orgId, r, by) {
     minCheck: money(r.minCheck, "The minimum cheque"),
     currency: "USD"
   };
-  if (round2.discount !== void 0 && !(round2.discount >= 0 && round2.discount <= 50)) throw new Error("The discount must be between 0 and 50 percent");
-  await record(store2, orgId, by, "raise.round", { ...round2, summary: `Round set: ${round2.name}, $${fmt(round2.target)} (${round2.instrument}, ${round2.exemption})${round2.preMoney ? ` at $${fmt(round2.preMoney)} pre-money` : ""}` });
+  if (round3.discount !== void 0 && !(round3.discount >= 0 && round3.discount <= 50)) throw new Error("The discount must be between 0 and 50 percent");
+  await record(store2, orgId, by, "raise.round", { ...round3, summary: `Round set: ${round3.name}, $${fmt(round3.target)} (${round3.instrument}, ${round3.exemption})${round3.preMoney ? ` at $${fmt(round3.preMoney)} pre-money` : ""}` });
   return loadRaise(store2, orgId);
 }
 function cleanInvestor(i) {
@@ -2436,13 +2472,13 @@ function investorWarnings(inv, exemption) {
   return { canEmail, warnings };
 }
 function computeRaise(events) {
-  let round2 = null;
+  let round3 = null;
   let campaign = null;
   const investors = /* @__PURE__ */ new Map();
   const done = /* @__PURE__ */ new Set();
   for (const e of events) {
     const d = e.detail;
-    if (e.action === "raise.round") round2 = { ...d, setAt: e.at };
+    if (e.action === "raise.round") round3 = { ...d, setAt: e.at };
     else if (e.action === "raise.campaign") campaign = { ...d, setAt: e.at };
     else if (e.action === "raise.investor") {
       const inv = d.investor;
@@ -2454,15 +2490,15 @@ function computeRaise(events) {
     } else if (e.action === "raise.investor_removed") investors.delete(String(d.investorId));
     else if (e.action === "raise.step") d.done ? done.add(String(d.step)) : done.delete(String(d.step));
   }
-  const list = [...investors.values()].map((i) => ({ ...i, ...investorWarnings(i, round2?.exemption) })).sort((a, b) => STAGES2.indexOf(b.stage) - STAGES2.indexOf(a.stage) || a.name.localeCompare(b.name));
+  const list = [...investors.values()].map((i) => ({ ...i, ...investorWarnings(i, round3?.exemption) })).sort((a, b) => STAGES2.indexOf(b.stage) - STAGES2.indexOf(a.stage) || a.name.localeCompare(b.name));
   const pipeline = Object.fromEntries(STAGES2.map((s) => [s, list.filter((i) => i.stage === s).length]));
   const preorders = campaign && campaign.stage !== "cancelled" ? Number(campaign.pledged ?? 0) : 0;
   const committed = list.filter((i) => COMMITTED.includes(i.stage)).reduce((s, i) => s + i.amount, 0);
   const funded = list.filter((i) => i.stage === "funded").reduce((s, i) => s + i.amount, 0);
-  const target = round2?.target ?? 0;
-  const cap = round2?.cap ?? 0;
-  const pre = round2?.preMoney ?? 0;
-  const dilution = round2?.instrument === "priced" ? pre ? committed / (pre + committed) : null : !cap ? null : round2?.instrument === "safe-post" ? committed / cap : committed / (cap + committed);
+  const target = round3?.target ?? 0;
+  const cap = round3?.cap ?? 0;
+  const pre = round3?.preMoney ?? 0;
+  const dilution = round3?.instrument === "priced" ? pre ? committed / (pre + committed) : null : !cap ? null : round3?.instrument === "safe-post" ? committed / cap : committed / (cap + committed);
   const totals = {
     target,
     committed,
@@ -2470,9 +2506,9 @@ function computeRaise(events) {
     preorders,
     pctCommitted: target ? Math.round(committed / target * 1e3) / 10 : 0,
     dilutionPct: dilution === null ? null : Math.round(dilution * 1e4) / 100,
-    postMoney: round2?.instrument === "priced" && pre ? pre + target : null
+    postMoney: round3?.instrument === "priced" && pre ? pre + target : null
   };
-  const state = { round: round2, investors: list, campaign, steps: [], pipeline, totals };
+  const state = { round: round3, investors: list, campaign, steps: [], pipeline, totals };
   const context = raiseForPrompt(state);
   const preorderContext = raiseForPrompt({ ...state, round: null }).replace(/^Raise: No round[^\n]*\n?/, "") || "No pre-order campaign is recorded yet.";
   state.steps = RAISE_STEPS.map((s) => {
@@ -2582,8 +2618,368 @@ var POST4 = handle(async (request) => {
   return json({ raise: await loadRaise(store2, orgId) });
 });
 
+// server/routes/crm.ts
+var crm_exports = {};
+__export(crm_exports, {
+  GET: () => GET6,
+  POST: () => POST5
+});
+
+// core/crm.ts
+var DEAL_STAGES = ["lead", "contacted", "qualified", "proposal", "won", "lost"];
+var SOURCES = ["website", "referral", "linkedin", "whatsapp", "walk-in", "event", "other"];
+var CRM_EVENTS = ["crm.contact", "crm.stage", "crm.touch", "crm.removed"];
+var EMAIL_RE2 = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+var PHONE_RE = /^\+?[\d\s()-]{7,20}$/;
+var STALE_DAYS = 7;
+var OPEN = ["lead", "contacted", "qualified", "proposal"];
+var text2 = (v, max) => String(v ?? "").trim().slice(0, max);
+var record2 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
+function clean(i) {
+  const name = text2(i.name, 120);
+  if (!name) throw new Error("A contact needs a name");
+  const email = text2(i.email, 200);
+  if (email && !EMAIL_RE2.test(email)) throw new Error("That email address does not look right");
+  const phone = text2(i.phone, 20);
+  if (phone && !PHONE_RE.test(phone)) throw new Error("That phone number does not look right");
+  const value = i.value === void 0 || i.value === "" ? 0 : Number(String(i.value).replace(/[,$₹\s]/g, ""));
+  if (!Number.isFinite(value) || value < 0) throw new Error("Deal value must be zero or more");
+  const source = SOURCES.includes(String(i.source)) ? String(i.source) : "other";
+  return { id: i.id && /^[\w-]{6,64}$/.test(i.id) ? i.id : newId(), name, company: text2(i.company, 120), email, phone, source, value, nextStep: text2(i.nextStep, 200), notes: text2(i.notes, 2e3) };
+}
+async function upsertContact(store2, orgId, input, by) {
+  const c = clean(input);
+  await record2(store2, orgId, by, "crm.contact", { contact: c, summary: `Contact saved: ${c.name}` });
+  return loadCrm(store2, orgId);
+}
+async function setDealStage(store2, orgId, id, stage, by) {
+  if (!DEAL_STAGES.includes(stage)) throw new Error(`stage must be one of: ${DEAL_STAGES.join(", ")}`);
+  const c = (await loadCrm(store2, orgId)).contacts.find((x) => x.id === id);
+  if (!c) throw new Error("Contact not found");
+  await record2(store2, orgId, by, "crm.stage", { contactId: id, stage, summary: `${c.name}: ${stage}` });
+  return loadCrm(store2, orgId);
+}
+async function logTouch(store2, orgId, id, note, by) {
+  const c = (await loadCrm(store2, orgId)).contacts.find((x) => x.id === id);
+  if (!c) throw new Error("Contact not found");
+  await record2(store2, orgId, by, "crm.touch", { contactId: id, note: text2(note, 500), summary: `Touched base with ${c.name}` });
+  return loadCrm(store2, orgId);
+}
+async function removeContact(store2, orgId, id, by) {
+  await record2(store2, orgId, by, "crm.removed", { contactId: id, summary: "Contact removed" });
+  return loadCrm(store2, orgId);
+}
+async function importContacts(store2, orgId, csv, by) {
+  const rows = String(csv ?? "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (rows[0] && /^name\s*,/i.test(rows[0])) rows.shift();
+  let added = 0;
+  let skipped = 0;
+  for (const row of rows.slice(0, 500)) {
+    const [name, company, email, phone, source, value] = row.split(",").map((x) => x.trim());
+    try {
+      const c = clean({ name, company, email, phone, source, value });
+      await record2(store2, orgId, by, "crm.contact", { contact: c, summary: `Contact imported: ${c.name}` });
+      added++;
+    } catch {
+      skipped++;
+    }
+  }
+  return { added, skipped };
+}
+async function loadCrm(store2, orgId, now = Date.now()) {
+  return computeCrm(await store2.listAuditByActions(orgId, CRM_EVENTS), now);
+}
+function computeCrm(events, now = Date.now()) {
+  const map = /* @__PURE__ */ new Map();
+  for (const e of events) {
+    const d = e.detail;
+    if (e.action === "crm.contact") {
+      const c = d.contact;
+      const prev = map.get(c.id);
+      map.set(c.id, { ...c, stage: prev?.stage ?? "lead", createdAt: prev?.createdAt ?? e.at, updatedAt: e.at, lastTouch: prev?.lastTouch ?? null });
+    } else {
+      const prev = map.get(String(d.contactId));
+      if (!prev) continue;
+      if (e.action === "crm.stage") map.set(prev.id, { ...prev, stage: d.stage, updatedAt: e.at, lastTouch: e.at });
+      else if (e.action === "crm.touch") map.set(prev.id, { ...prev, updatedAt: e.at, lastTouch: e.at });
+      else if (e.action === "crm.removed") map.delete(prev.id);
+    }
+  }
+  const contacts = [...map.values()].sort((a, b) => DEAL_STAGES.indexOf(a.stage) - DEAL_STAGES.indexOf(b.stage) || b.updatedAt.localeCompare(a.updatedAt));
+  const pipeline = Object.fromEntries(DEAL_STAGES.map((s) => [s, contacts.filter((c) => c.stage === s).length]));
+  const open = contacts.filter((c) => OPEN.includes(c.stage));
+  const won = contacts.filter((c) => c.stage === "won");
+  const closed = won.length + pipeline.lost;
+  const stale = open.filter((c) => c.email && now - Date.parse(c.lastTouch ?? c.createdAt) >= STALE_DAYS * 864e5);
+  return {
+    contacts,
+    pipeline,
+    totals: {
+      open: open.length,
+      openValue: open.reduce((s, c) => s + c.value, 0),
+      won: won.length,
+      wonValue: won.reduce((s, c) => s + c.value, 0),
+      winRate: closed ? Math.round(won.length / closed * 100) : null,
+      followUps: stale.length
+    },
+    followUpGoal: followUpGoal(stale.slice(0, 10))
+  };
+}
+function followUpGoal(list) {
+  if (!list.length) return "";
+  return `Draft a short, personal follow-up email to each contact below and queue each with send_message (channel "email"). Mention where we left off, offer one clear next step, and keep it under 120 words. Each email waits for the owner's approval.
+${list.map((c) => `- ${c.name}${c.company ? ` (${c.company})` : ""} <${c.email}>, stage ${c.stage}${c.nextStep ? `, next step: ${c.nextStep}` : ""}${c.notes ? `, notes: ${c.notes.slice(0, 200)}` : ""}`).join("\n")}`;
+}
+
+// server/routes/crm.ts
+var GET6 = handle(async (request) => {
+  const { orgId, store: store2 } = await requireUser(request);
+  return json({ crm: await loadCrm(store2, orgId) });
+});
+var POST5 = handle(async (request) => {
+  const { orgId, label, store: store2 } = await requireUser(request);
+  const b = await readJson(request, 2e5);
+  const id = String(b.contactId ?? "");
+  try {
+    switch (b.action) {
+      case "contact":
+        return json({ crm: await upsertContact(store2, orgId, b.contact ?? {}, label) });
+      case "stage":
+        return json({ crm: await setDealStage(store2, orgId, id, b.stage, label) });
+      case "touch":
+        return json({ crm: await logTouch(store2, orgId, id, String(b.note ?? ""), label) });
+      case "remove":
+        return json({ crm: await removeContact(store2, orgId, id, label) });
+      case "import":
+        return json({ ...await importContacts(store2, orgId, String(b.csv ?? ""), label), crm: await loadCrm(store2, orgId) });
+      default:
+        throw new HttpError(400, "Unknown action");
+    }
+  } catch (e) {
+    if (e instanceof HttpError) throw e;
+    throw new HttpError(400, e instanceof Error ? e.message : "Could not update the CRM");
+  }
+});
+
+// server/routes/support.ts
+var support_exports = {};
+__export(support_exports, {
+  GET: () => GET7,
+  POST: () => POST6
+});
+
+// core/support.ts
+var TICKET_STATUSES = ["open", "waiting", "resolved"];
+var PRIORITIES = ["low", "normal", "high", "urgent"];
+var CHANNELS2 = ["email", "whatsapp", "phone", "website", "walk-in"];
+var SUPPORT_EVENTS = ["support.ticket", "support.status", "support.note"];
+var SLA_ORDER = ["urgent", "high", "normal", "low"];
+var text3 = (v, max) => String(v ?? "").trim().slice(0, max);
+var oneOf2 = (list, v, fallback) => list.includes(String(v)) ? String(v) : fallback;
+var record3 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
+async function openTicket(store2, orgId, input, by) {
+  const subject = text3(input.subject, 160);
+  const customer = text3(input.customer, 120);
+  const message = text3(input.message, 4e3);
+  if (!subject || !customer || !message) throw new Error("A ticket needs a subject, a customer and their message");
+  const number = (await loadSupport(store2, orgId)).tickets.reduce((m, t) => Math.max(m, t.number), 1e3) + 1;
+  const ticket = {
+    id: newId(),
+    number,
+    subject,
+    customer,
+    contact: text3(input.contact, 200),
+    channel: oneOf2(CHANNELS2, input.channel, "email"),
+    priority: oneOf2(PRIORITIES, input.priority, "normal"),
+    message
+  };
+  await record3(store2, orgId, by, "support.ticket", { ticket, summary: `Ticket #${number} opened: ${subject}` });
+  return loadSupport(store2, orgId);
+}
+async function setTicketStatus(store2, orgId, id, status, by) {
+  if (!TICKET_STATUSES.includes(status)) throw new Error(`status must be one of: ${TICKET_STATUSES.join(", ")}`);
+  const t = (await loadSupport(store2, orgId)).tickets.find((x) => x.id === id);
+  if (!t) throw new Error("Ticket not found");
+  await record3(store2, orgId, by, "support.status", { ticketId: id, status, summary: `Ticket #${t.number} ${status}` });
+  return loadSupport(store2, orgId);
+}
+async function addTicketNote(store2, orgId, id, note, by) {
+  const t = (await loadSupport(store2, orgId)).tickets.find((x) => x.id === id);
+  if (!t) throw new Error("Ticket not found");
+  const body = text3(note, 4e3);
+  if (!body) throw new Error("Write a note first");
+  await record3(store2, orgId, by, "support.note", { ticketId: id, text: body, summary: `Note on ticket #${t.number}` });
+  return loadSupport(store2, orgId);
+}
+async function loadSupport(store2, orgId) {
+  return computeSupport(await store2.listAuditByActions(orgId, SUPPORT_EVENTS));
+}
+function computeSupport(events) {
+  const map = /* @__PURE__ */ new Map();
+  for (const e of events) {
+    const d = e.detail;
+    if (e.action === "support.ticket") {
+      const t = d.ticket;
+      const { message, ...rest } = t;
+      map.set(t.id, { ...rest, status: "open", createdAt: e.at, updatedAt: e.at, resolvedAt: null, notes: [{ at: e.at, by: t.customer, text: message }] });
+      continue;
+    }
+    const prev = map.get(String(d.ticketId));
+    if (!prev) continue;
+    if (e.action === "support.status") {
+      const status = d.status;
+      map.set(prev.id, { ...prev, status, updatedAt: e.at, resolvedAt: status === "resolved" ? e.at : null });
+    } else if (e.action === "support.note") {
+      map.set(prev.id, { ...prev, updatedAt: e.at, notes: [...prev.notes, { at: e.at, by: e.actor, text: String(d.text) }] });
+    }
+  }
+  const tickets = [...map.values()].sort((a, b) => (a.status === "resolved" ? 1 : 0) - (b.status === "resolved" ? 1 : 0) || SLA_ORDER.indexOf(a.priority) - SLA_ORDER.indexOf(b.priority) || a.createdAt.localeCompare(b.createdAt));
+  const hours = tickets.filter((t) => t.resolvedAt).map((t) => (Date.parse(t.resolvedAt) - Date.parse(t.createdAt)) / 36e5).sort((a, b) => a - b);
+  const open = tickets.filter((t) => t.status === "open");
+  return {
+    tickets,
+    totals: {
+      open: open.length,
+      waiting: tickets.filter((t) => t.status === "waiting").length,
+      resolved: tickets.filter((t) => t.status === "resolved").length,
+      urgent: open.filter((t) => t.priority === "urgent" || t.priority === "high").length,
+      medianHoursToResolve: hours.length ? Math.round(hours[Math.floor(hours.length / 2)] * 10) / 10 : null
+    },
+    replyGoal: replyGoal(open.slice(0, 8))
+  };
+}
+function replyGoal(open) {
+  const emailable = open.filter((t) => t.channel === "email" && /@/.test(t.contact));
+  if (!open.length) return "";
+  const lines = open.map((t) => `- #${t.number} [${t.priority}] ${t.subject}, from ${t.customer}${t.contact ? ` <${t.contact}>` : ""} via ${t.channel}: "${t.notes.at(-1)?.text.slice(0, 400) ?? ""}"`);
+  return `Draft a reply for each open ticket below: answer the question accurately and kindly, say what happens next, and never guess. For tickets that arrived by email with an address, queue the reply with send_message (channel "email"); each waits for the owner's approval. For the rest, save the drafts as one note titled "Support: reply drafts". Never give medical, legal or financial advice, and never ask for or repeat medical details: hand those to staff.${emailable.length ? "" : " None of these can be emailed directly."}
+${lines.join("\n")}`;
+}
+
+// server/routes/support.ts
+var GET7 = handle(async (request) => {
+  const { orgId, store: store2 } = await requireUser(request);
+  return json({ support: await loadSupport(store2, orgId) });
+});
+var POST6 = handle(async (request) => {
+  const { orgId, label, store: store2 } = await requireUser(request);
+  const b = await readJson(request, 5e4);
+  const id = String(b.ticketId ?? "");
+  try {
+    switch (b.action) {
+      case "open":
+        return json({ support: await openTicket(store2, orgId, b.ticket ?? {}, label) });
+      case "status":
+        return json({ support: await setTicketStatus(store2, orgId, id, b.status, label) });
+      case "note":
+        return json({ support: await addTicketNote(store2, orgId, id, String(b.note ?? ""), label) });
+      default:
+        throw new HttpError(400, "Unknown action");
+    }
+  } catch (e) {
+    if (e instanceof HttpError) throw e;
+    throw new HttpError(400, e instanceof Error ? e.message : "Could not update the ticket");
+  }
+});
+
+// server/routes/accounts.ts
+var accounts_exports = {};
+__export(accounts_exports, {
+  GET: () => GET8,
+  POST: () => POST7
+});
+
+// core/accounting.ts
+var INCOME_CATEGORIES = ["sales", "services", "subscriptions", "other income"];
+var EXPENSE_CATEGORIES = ["salaries", "rent", "marketing", "software", "supplies", "travel", "professional fees", "taxes", "other"];
+var ACCOUNT_EVENTS = ["acct.entry", "acct.removed"];
+var DATE_RE2 = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+var MAX_AMOUNT = 1e11;
+var round2 = (n) => Math.round(n * 100) / 100;
+var text4 = (v, max) => String(v ?? "").trim().slice(0, max);
+var record4 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
+async function addEntry(store2, orgId, input, by, currency = "USD") {
+  if (input.kind !== "income" && input.kind !== "expense") throw new Error("kind must be income or expense");
+  const date = text4(input.date, 10);
+  if (!DATE_RE2.test(date)) throw new Error("date must look like 2026-11-04");
+  const amount = Number(String(input.amount).replace(/[,$₹\s]/g, ""));
+  if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_AMOUNT) throw new Error("amount must be more than zero");
+  const cats = input.kind === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+  const category = cats.includes(input.category) ? input.category : input.kind === "income" ? "other income" : "other";
+  const entry = { id: newId(), kind: input.kind, date, amount: round2(amount), category, party: text4(input.party, 120), note: text4(input.note, 300) };
+  await record4(store2, orgId, by, "acct.entry", { entry, summary: `${input.kind === "income" ? "Income" : "Expense"} recorded: ${entry.amount} ${currency} (${category})` });
+  return loadAccounts(store2, orgId, currency);
+}
+async function removeEntry(store2, orgId, id, by, currency = "USD") {
+  await record4(store2, orgId, by, "acct.removed", { entryId: id, summary: "Ledger entry removed" });
+  return loadAccounts(store2, orgId, currency);
+}
+async function loadAccounts(store2, orgId, currency = "USD", today = /* @__PURE__ */ new Date()) {
+  return computeAccounts(await store2.listAuditByActions(orgId, ACCOUNT_EVENTS), currency, today);
+}
+function computeAccounts(events, currency = "USD", today = /* @__PURE__ */ new Date()) {
+  const map = /* @__PURE__ */ new Map();
+  for (const e of events) {
+    if (e.action === "acct.entry") {
+      const en = e.detail.entry;
+      map.set(en.id, { ...en, recordedAt: e.at });
+    } else if (e.action === "acct.removed") map.delete(String(e.detail.entryId));
+  }
+  const entries = [...map.values()].sort((a, b) => b.date.localeCompare(a.date) || b.recordedAt.localeCompare(a.recordedAt));
+  const byMonth = /* @__PURE__ */ new Map();
+  for (const en of entries) {
+    const m = en.date.slice(0, 7);
+    const cur = byMonth.get(m) ?? { income: 0, expenses: 0 };
+    if (en.kind === "income") cur.income += en.amount;
+    else cur.expenses += en.amount;
+    byMonth.set(m, cur);
+  }
+  const pnl = (month) => {
+    const v = byMonth.get(month) ?? { income: 0, expenses: 0 };
+    const profit = round2(v.income - v.expenses);
+    return { month, income: round2(v.income), expenses: round2(v.expenses), profit, margin: v.income ? Math.round(profit / v.income * 100) : null };
+  };
+  const months = [...byMonth.keys()].sort().reverse().slice(0, 12).map(pnl);
+  const current = today.toISOString().slice(0, 7);
+  const cats = /* @__PURE__ */ new Map();
+  for (const en of entries) if (en.kind === "expense" && en.date.startsWith(current)) cats.set(en.category, (cats.get(en.category) ?? 0) + en.amount);
+  const expensesByCategory = [...cats.entries()].map(([category, amount]) => ({ category, amount: round2(amount) })).sort((a, b) => b.amount - a.amount);
+  return { currency, entries, months, thisMonth: pnl(current), expensesByCategory, reviewGoal: reviewGoal(months, currency) };
+}
+function reviewGoal(months, currency) {
+  if (!months.length) return "";
+  const lines = months.slice(0, 6).map((m) => `- ${m.month}: income ${m.income}, expenses ${m.expenses}, profit ${m.profit}${m.margin === null ? "" : ` (${m.margin}% margin)`}`);
+  return `Write this month's finance review for the owner from the recorded ledger below (amounts in ${currency}): profit and loss, the trend against earlier months, the three biggest costs and whether each is worth it, cash to watch, and two concrete actions. Use only these numbers; mark anything missing. This is not tax or legal advice. Save it as a note titled "Finance: monthly review".
+${lines.join("\n")}`;
+}
+
+// server/routes/accounts.ts
+var GET8 = handle(async (request) => {
+  const { orgId, store: store2 } = await requireUser(request);
+  const currency = (await loadBusinessProfile(store2, orgId))?.currency ?? "USD";
+  return json({ accounts: await loadAccounts(store2, orgId, currency) });
+});
+var POST7 = handle(async (request) => {
+  const { orgId, label, store: store2 } = await requireUser(request);
+  const b = await readJson(request, 2e4);
+  const currency = (await loadBusinessProfile(store2, orgId))?.currency ?? "USD";
+  try {
+    switch (b.action) {
+      case "entry":
+        return json({ accounts: await addEntry(store2, orgId, b.entry ?? {}, label, currency) });
+      case "remove":
+        return json({ accounts: await removeEntry(store2, orgId, String(b.entryId ?? ""), label, currency) });
+      default:
+        throw new HttpError(400, "Unknown action");
+    }
+  } catch (e) {
+    if (e instanceof HttpError) throw e;
+    throw new HttpError(400, e instanceof Error ? e.message : "Could not update the books");
+  }
+});
+
 // server/api/platform.ts
-var ROUTES = { admin: admin_exports, billing: billing_exports, governance: governance_exports, me: me_exports, raise: raise_exports };
+var ROUTES = { admin: admin_exports, billing: billing_exports, governance: governance_exports, me: me_exports, raise: raise_exports, crm: crm_exports, support: support_exports, accounts: accounts_exports };
 function dispatch(method) {
   return async (request) => {
     const url = new URL(request.url);
@@ -2595,9 +2991,9 @@ function dispatch(method) {
     return handler(request);
   };
 }
-var GET6 = dispatch("GET");
-var POST5 = dispatch("POST");
+var GET9 = dispatch("GET");
+var POST8 = dispatch("POST");
 export {
-  GET6 as GET,
-  POST5 as POST
+  GET9 as GET,
+  POST8 as POST
 };
