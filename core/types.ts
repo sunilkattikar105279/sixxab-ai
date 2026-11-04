@@ -171,6 +171,10 @@ export interface ModelRequest {
 export interface ModelResponse {
   content: ContentBlock[];
   stopReason: 'end_turn' | 'tool_use' | 'max_tokens' | 'stop_sequence' | string;
+  /** The model that answered, when the API reports it. */
+  model?: string;
+  /** Tokens billed for this call, when the API reports them. */
+  usage?: { inputTokens: number; outputTokens: number };
 }
 
 export interface ModelClient {

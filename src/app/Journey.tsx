@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { api } from '../lib/auth';
 import { BusinessProfile } from './BusinessProfile';
+import { Rate } from './Rate';
 import { Spinner } from './ui';
 import { useLoad } from './useLoad';
 
@@ -15,7 +16,7 @@ interface JourneyData {
   revenue: { currency: string; months: { month: string; amount: number; currency: string }[]; bestRecentMonthUsd: number; last12Usd: number; inrPerUsd: number };
   milestones: { key: string; title: string; reachedAt: string | null }[];
 }
-interface RunResult { status: string; output: string | null; queued: number }
+interface RunResult { taskId: string; status: string; output: string | null; queued: number }
 
 const RECENT_MS = 7 * 24 * 3600 * 1000;
 const HEADS = ['Start', 'Scale', 'Run'] as const;
@@ -144,6 +145,7 @@ function StepCard({ n, s, onChange, goApprovals }: { n: number; s: Step; onChang
       {run && (
         <div className="notice" role="status">
           {run.output && <p className="output">{run.output}</p>}
+          {run.output && run.status === 'done' && <Rate taskId={run.taskId} />}
           {run.queued > 0 && <button type="button" className="btn-primary" onClick={goApprovals}>Review {run.queued} item{run.queued === 1 ? '' : 's'} waiting for your yes</button>}
         </div>
       )}

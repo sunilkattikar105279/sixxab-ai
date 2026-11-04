@@ -1149,6 +1149,71 @@ async function journeyForPrompt(store2, orgId, opts = {}) {
   ].join("\n");
 }
 
+// core/cost.ts
+var PRICES = {
+  "claude-haiku-5-5": { in: 0.1, out: 0.5, longIn: 0.5, longOut: 2.5, longOver: 1e5 },
+  "claude-sonnet-5-5": { in: 2, out: 10 },
+  "claude-opus-5-5": { in: 4, out: 20 }
+};
+var round = (n) => Math.round(n * 1e6) / 1e6;
+function costUsd(model, inputTokens, outputTokens) {
+  const key = Object.keys(PRICES).find((k) => model === k || model.startsWith(`${k}-`));
+  if (!key) return null;
+  const p = PRICES[key];
+  const long = p.longOver !== void 0 && inputTokens > p.longOver;
+  return round((inputTokens * (long ? p.longIn : p.in) + outputTokens * (long ? p.longOut : p.out)) / 1e6);
+}
+async function recordUsage(store2, orgId, taskId, agentId, resp) {
+  if (!resp.usage) return;
+  const model = resp.model ?? "unknown";
+  const { inputTokens, outputTokens } = resp.usage;
+  await store2.audit({
+    id: newId(),
+    orgId,
+    at: nowIso(),
+    actor: agentId,
+    action: "model.usage",
+    taskId,
+    detail: { model, inputTokens, outputTokens, costUsd: costUsd(model, inputTokens, outputTokens) }
+  });
+}
+async function costSummary(store2, orgId, now = /* @__PURE__ */ new Date()) {
+  const since = new Date(now.getTime() - 30 * 24 * 3600 * 1e3).toISOString();
+  const events = (await store2.listAuditByActions(orgId, ["model.usage"])).filter((e) => e.at >= since && e.at <= now.toISOString());
+  const agents = /* @__PURE__ */ new Map();
+  const tasks = /* @__PURE__ */ new Set();
+  let cost = 0, inTok = 0, outTok = 0;
+  for (const e of events) {
+    const c = Number(e.detail.costUsd ?? 0);
+    cost += c;
+    inTok += Number(e.detail.inputTokens ?? 0);
+    outTok += Number(e.detail.outputTokens ?? 0);
+    const key = e.taskId ?? e.id;
+    tasks.add(key);
+    const a = agents.get(e.actor) ?? { costUsd: 0, tasks: /* @__PURE__ */ new Set() };
+    a.costUsd += c;
+    a.tasks.add(key);
+    agents.set(e.actor, a);
+  }
+  return {
+    last30Days: { costUsd: round(cost), tasks: tasks.size, avgPerTaskUsd: tasks.size ? round(cost / tasks.size) : 0, inputTokens: inTok, outputTokens: outTok },
+    byAgent: [...agents.entries()].map(([agentId, a]) => ({ agentId, costUsd: round(a.costUsd), tasks: a.tasks.size })).sort((x, y) => y.costUsd - x.costUsd)
+  };
+}
+
+// core/feedback.ts
+var LESSONS = 5;
+async function feedbackForPrompt(store2, orgId, agentId) {
+  const rated = (await store2.listAuditByActions(orgId, ["task.rated"])).filter((e) => e.detail.agentId === agentId && e.detail.reason);
+  const recent = rated.slice(-LESSONS).reverse();
+  if (!recent.length) return "";
+  const lines = recent.map((e) => `- ${e.detail.rating === "up" ? "Keep doing" : "Change"}: ${String(e.detail.reason)}`);
+  return `
+
+The owner's feedback on your recent work (follow it):
+${lines.join("\n")}`;
+}
+
 // core/runtime.ts
 async function audit(store2, orgId, actor, action, taskId, detail = {}) {
   await store2.audit({ id: newId(), orgId, at: nowIso(), actor, action, taskId, detail });
@@ -1158,7 +1223,12 @@ function textOf(content) {
   return content.filter((b) => b.type === "text").map((b) => b.text).join("\n").trim();
 }
 async function systemPrompt(store2, agent, task, journeyOpts = {}) {
-  const [profile, journey, memories] = await Promise.all([profileForPrompt(store2, task.orgId), journeyForPrompt(store2, task.orgId, journeyOpts), store2.recall(task.orgId, task.goal, 5)]);
+  const [profile, journey, lessons, memories] = await Promise.all([
+    profileForPrompt(store2, task.orgId),
+    journeyForPrompt(store2, task.orgId, journeyOpts),
+    feedbackForPrompt(store2, task.orgId, agent.id),
+    store2.recall(task.orgId, task.goal, 5)
+  ]);
   const relevant = memories.filter((m) => !m.text.startsWith(PROFILE_PREFIX) && !m.text.startsWith("Company profile"));
   const memo = relevant.length ? `
 
@@ -1166,7 +1236,7 @@ Relevant business memory:
 ${relevant.map((m) => `- ${m.text.slice(0, 1500)}`).join("\n")}` : "";
   return `${agent.instructions}
 
-Your role: ${agent.name}. ${agent.job}${profile}${journey}${memo}`;
+Your role: ${agent.name}. ${agent.job}${profile}${journey}${lessons}${memo}`;
 }
 async function createTask(store2, orgId, agentId, goal, parentTaskId = null) {
   const agent = getAgent(agentId);
@@ -1286,6 +1356,7 @@ async function runTask(deps2, taskId) {
       tools,
       maxTokens: MAX_TOKENS[agent.modelTier]
     });
+    await recordUsage(deps2.store, task.orgId, task.id, agent.id, resp);
     const transcript = [...task.transcript, { role: "assistant", content: resp.content }];
     const uses = resp.content.filter((b) => b.type === "tool_use");
     if (uses.length === 0) {
@@ -1340,6 +1411,7 @@ Reply with JSON only: {"steps":[{"agentId":"...","goal":"..."}]}. At most ${MAX_
     messages: [{ role: "user", content: goal }],
     maxTokens: 2048
   });
+  await recordUsage(deps2.store, orgId, parent.id, lead.id, resp);
   const text = resp.content.filter((b) => b.type === "text").map((b) => b.text).join("\n");
   let plan = parsePlan(text);
   if (plan.length === 0) plan = [{ agentId: "strategy-coach", goal }];
@@ -1401,7 +1473,8 @@ var AnthropicClient = class {
       throw new Error(`Claude API ${res.status}: ${body.slice(0, 300)}`);
     }
     const json2 = await res.json();
-    return { content: json2.content, stopReason: json2.stop_reason };
+    const usage = json2.usage ? { inputTokens: Number(json2.usage.input_tokens ?? 0), outputTokens: Number(json2.usage.output_tokens ?? 0) } : void 0;
+    return { content: json2.content, stopReason: json2.stop_reason, model: json2.model ?? this.models[req.tier], usage };
   }
 };
 function modelsFromEnv(env2) {
@@ -1667,11 +1740,12 @@ function handle(fn) {
 // server/api/agents.ts
 var GET = handle(async (request) => {
   const { orgId, store: store2 } = await requireUser(request);
-  const [taskTypes, tasks, progress] = await Promise.all([store2.getTaskTypes(orgId), store2.listTasks(orgId), autonomyProgress(store2, orgId)]);
+  const [taskTypes, tasks, progress, cost] = await Promise.all([store2.getTaskTypes(orgId), store2.listTasks(orgId), autonomyProgress(store2, orgId), costSummary(store2, orgId)]);
   return json({
     agents: AGENTS.map(({ instructions: _i, ...a }) => a),
     taskTypes,
     progress,
+    cost,
     tasks: tasks.slice(0, 50).map(({ transcript: _t, ...t }) => t)
   });
 });

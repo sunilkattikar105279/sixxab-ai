@@ -112,7 +112,8 @@ var AnthropicClient = class {
       throw new Error(`Claude API ${res.status}: ${body.slice(0, 300)}`);
     }
     const json2 = await res.json();
-    return { content: json2.content, stopReason: json2.stop_reason };
+    const usage = json2.usage ? { inputTokens: Number(json2.usage.input_tokens ?? 0), outputTokens: Number(json2.usage.output_tokens ?? 0) } : void 0;
+    return { content: json2.content, stopReason: json2.stop_reason, model: json2.model ?? this.models[req.tier], usage };
   }
 };
 function modelsFromEnv(env2) {

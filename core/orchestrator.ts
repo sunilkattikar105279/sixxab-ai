@@ -4,6 +4,7 @@ import { createTask, runTask, type RuntimeDeps } from './runtime.js';
 import { nowIso } from './store.js';
 import type { Task, TextBlock } from './types.js';
 import { profileForPrompt } from './profile.js';
+import { recordUsage } from './cost.js';
 
 export interface PlanStep {
   agentId: string;
@@ -55,6 +56,7 @@ export async function planGoal(deps: RuntimeDeps, orgId: string, goal: string): 
     messages: [{ role: 'user', content: goal }],
     maxTokens: 2048,
   });
+  await recordUsage(deps.store, orgId, parent.id, lead.id, resp);
   const text = resp.content.filter((b): b is TextBlock => b.type === 'text').map((b) => b.text).join('\n');
   let plan = parsePlan(text);
   if (plan.length === 0) plan = [{ agentId: 'strategy-coach', goal }];

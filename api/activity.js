@@ -241,9 +241,10 @@ function handle(fn) {
 }
 
 // server/api/activity.ts
+var HIDDEN = /* @__PURE__ */ new Set(["model.usage"]);
 var GET = handle(async (request) => {
   const { orgId, store: store2 } = await requireUser(request);
-  const events = await store2.listAudit(orgId);
+  const events = (await store2.listAudit(orgId)).filter((e) => !HIDDEN.has(e.action));
   return json({ events: events.slice(0, 100) });
 });
 export {

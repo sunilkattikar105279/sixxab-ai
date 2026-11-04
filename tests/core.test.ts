@@ -658,3 +658,51 @@ test('stages follow revenue: monthly gates to Success, annual for Significance a
   assert.equal(j.milestones.find((m) => m.key === 'month_100k')!.reachedAt, null);
   assert.match(j.nextGate, /\$100K month/);
 });
+
+// ---------- cost per task and owner feedback ----------
+
+test('the Claude client returns token usage and the model that answered', async () => {
+  const fakeFetch = (async () => new Response(JSON.stringify({ model: 'claude-sonnet-5-5', content: [{ type: 'text', text: 'hi' }], stop_reason: 'end_turn', usage: { input_tokens: 1200, output_tokens: 300 } }), { status: 200 })) as unknown as typeof fetch;
+  const c = new AnthropicClient({ apiKey: 'k', fetchImpl: fakeFetch, models: { worker: 'claude-sonnet-5-5' } });
+  const r = await c.complete({ tier: 'worker', system: 's', messages: [{ role: 'user', content: 'x' }] });
+  assert.deepEqual(r.usage, { inputTokens: 1200, outputTokens: 300 });
+  assert.equal(r.model, 'claude-sonnet-5-5');
+});
+
+test('model cost uses published per-million-token prices, including the Haiku long-prompt tier', async () => {
+  const { costUsd } = await import('../core/cost.js');
+  assert.equal(costUsd('claude-sonnet-5-5', 1_000_000, 100_000), 3);
+  assert.equal(costUsd('claude-opus-5-5', 500_000, 50_000), 3);
+  assert.equal(costUsd('claude-haiku-5-5', 100_000, 10_000), 0.015);
+  assert.equal(costUsd('claude-haiku-5-5', 200_000, 10_000), 0.125, 'prompts over 100K tokens use the higher tier');
+  assert.equal(costUsd('unknown-model', 1000, 1000), null);
+});
+
+test('every model call is costed per task, and the cost summary adds up by agent', async () => {
+  const { costSummary } = await import('../core/cost.js');
+  const store = new MemoryStore({ orgId: ORG, taskTypes: DEFAULT_TASK_TYPES });
+  const model = { async complete(): Promise<ModelResponse> { return { content: [{ type: 'text', text: 'Done.' }], stopReason: 'end_turn', model: 'claude-sonnet-5-5', usage: { inputTokens: 100_000, outputTokens: 10_000 } }; } };
+  const deps = { store, model, integrations: new RecordingIntegrations() };
+  for (const agent of ['social-poster', 'social-poster', 'health-check']) await runTask(deps, (await createTask(store, ORG, agent, 'Work')).id);
+  const usage = store.auditLog.filter((e) => e.action === 'model.usage');
+  assert.equal(usage.length, 3);
+  assert.equal(usage[0].detail.costUsd, 0.3);
+  const s = await costSummary(store, ORG, new Date(Date.now() + 1000));
+  assert.equal(s.last30Days.costUsd, 0.9);
+  assert.equal(s.last30Days.tasks, 3);
+  assert.deepEqual(s.byAgent.map((a) => [a.agentId, a.costUsd, a.tasks]), [['social-poster', 0.6, 2], ['health-check', 0.3, 1]]);
+});
+
+test('owner feedback on a result is recorded and taught to that agent in its next run', async () => {
+  const { rateTask } = await import('../core/feedback.js');
+  const { store, model, deps } = setup([[{ type: 'text', text: 'first' }], [{ type: 'text', text: 'second' }]]);
+  const t1 = await createTask(store, ORG, 'social-poster', 'Draft a post');
+  await runTask(deps, t1.id);
+  await rateTask(store, ORG, t1.id, { rating: 'down', reason: 'Too salesy; no prices in posts' }, 'sunil');
+  const t2 = await createTask(store, ORG, 'social-poster', 'Draft another post');
+  await runTask(deps, t2.id);
+  assert.match(model.calls[1].system, /Too salesy; no prices in posts/);
+  assert.ok(store.auditLog.some((e) => e.action === 'task.rated' && e.detail.rating === 'down'));
+  await assert.rejects(rateTask(store, ORG, t1.id, { rating: 'meh' as 'up', reason: '' }, 'sunil'), /rating/);
+  await assert.rejects(rateTask(store, 'other-org', t1.id, { rating: 'up' }, 'sunil'), /not found/i);
+});

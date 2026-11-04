@@ -6,6 +6,8 @@ import { NOT_SENT_PREFIX, toolForTaskType, toolsFor, TOOLS, type Integrations, t
 import { recordDecision } from './learning.js';
 import { PROFILE_PREFIX, profileForPrompt } from './profile.js';
 import { journeyForPrompt, type JourneyOptions } from './journey.js';
+import { recordUsage } from './cost.js';
+import { feedbackForPrompt } from './feedback.js';
 import type {
   Approval, ChatMessage, ModelClient, PromotionProposal, RoleCard, Task, TaskType, TextBlock,
   ToolResultBlock, ToolUseBlock,
@@ -39,10 +41,12 @@ function textOf(content: ChatMessage['content']): string {
 }
 
 async function systemPrompt(store: Store, agent: RoleCard, task: Task, journeyOpts: JourneyOptions = {}): Promise<string> {
-  const [profile, journey, memories] = await Promise.all([profileForPrompt(store, task.orgId), journeyForPrompt(store, task.orgId, journeyOpts), store.recall(task.orgId, task.goal, 5)]);
+  const [profile, journey, lessons, memories] = await Promise.all([
+    profileForPrompt(store, task.orgId), journeyForPrompt(store, task.orgId, journeyOpts), feedbackForPrompt(store, task.orgId, agent.id), store.recall(task.orgId, task.goal, 5),
+  ]);
   const relevant = memories.filter((m) => !m.text.startsWith(PROFILE_PREFIX) && !m.text.startsWith('Company profile'));
   const memo = relevant.length ? `\n\nRelevant business memory:\n${relevant.map((m) => `- ${m.text.slice(0, 1500)}`).join('\n')}` : '';
-  return `${agent.instructions}\n\nYour role: ${agent.name}. ${agent.job}${profile}${journey}${memo}`;
+  return `${agent.instructions}\n\nYour role: ${agent.name}. ${agent.job}${profile}${journey}${lessons}${memo}`;
 }
 
 export async function createTask(store: Store, orgId: string, agentId: string, goal: string, parentTaskId: string | null = null): Promise<Task> {
@@ -160,6 +164,7 @@ export async function runTask(deps: RuntimeDeps, taskId: string): Promise<RunRes
     const resp = await deps.model.complete({
       tier: agent.modelTier, system: await systemPrompt(deps.store, agent, task, deps.journey), messages: task.transcript, tools, maxTokens: MAX_TOKENS[agent.modelTier],
     });
+    await recordUsage(deps.store, task.orgId, task.id, agent.id, resp);
     const transcript: ChatMessage[] = [...task.transcript, { role: 'assistant', content: resp.content }];
     const uses = resp.content.filter((b): b is ToolUseBlock => b.type === 'tool_use');
     if (uses.length === 0) {

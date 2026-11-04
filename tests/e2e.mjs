@@ -101,8 +101,9 @@ async function mockServices(ctx, state) {
       state.ran = [...(state.ran ?? []), body.taskId];
       return r.fulfill({ json: body.taskId === 't1' ? { status: 'done', output: 'Plan saved.', queued: 0 } : { status: 'done', output: 'Post queued.', queued: 1 } });
     }
-    return r.fulfill({ json: { agents: [{ id: 'cmo', name: 'CMO agent', layer: 'cxo', job: 'Owns marketing' }], taskTypes: [{ key: 'publish_post', label: 'Publish a social post', level: 2, maxLevel: 3 }], progress: [{ taskType: 'publish_post', level: 2, maxLevel: 3, streak: 12, needed: 15, proposal: null }], tasks: state.leftover ?? [] } });
+    return r.fulfill({ json: { agents: [{ id: 'cmo', name: 'CMO agent', layer: 'cxo', job: 'Owns marketing' }], taskTypes: [{ key: 'publish_post', label: 'Publish a social post', level: 2, maxLevel: 3 }], progress: [{ taskType: 'publish_post', level: 2, maxLevel: 3, streak: 12, needed: 15, proposal: null }], cost: { last30Days: { costUsd: 0.42, tasks: 6, avgPerTaskUsd: 0.07, inputTokens: 120000, outputTokens: 18000 }, byAgent: [{ agentId: 'social-poster', costUsd: 0.3, tasks: 4 }] }, tasks: state.leftover ?? [] } });
   });
+  await ctx.route('**/api/feedback', async (r) => { (state.feedback = state.feedback ?? []).push(r.request().postDataJSON()); return r.fulfill({ json: { ok: true } }); });
   await ctx.route('**/api/journey', async (r) => {
     const onboarded = Boolean(state.profile);
     state.journeyDone = state.journeyDone ?? [];
@@ -222,6 +223,12 @@ await check('workspace: run a goal, edit and approve, see agents and activity', 
   await page.getByText('Plan saved.').waitFor();
   await page.getByText('Post queued.').waitFor();
   assert.deepEqual(state.ran, ['t1', 't2'], 'each step runs as its own request, in order');
+  // Feedback on a result goes back to the agent
+  await page.getByRole('button', { name: 'Needs work' }).first().click();
+  await page.getByPlaceholder('What should change next time?').fill('Shorter, and mention Tasgaon');
+  await page.getByRole('button', { name: 'Send' }).click();
+  await page.getByText('Thanks. The agent will use this next time.').waitFor();
+  assert.deepEqual(state.feedback[0], { taskId: 't1', rating: 'down', reason: 'Shorter, and mention Tasgaon' });
   await page.getByRole('button', { name: /Review 1 item waiting for your yes/ }).waitFor();
   await page.getByRole('button', { name: /^Approvals/ }).click();
   await page.getByLabel('text').fill('We are live! Book a call at sixxab.ai');
@@ -231,6 +238,8 @@ await check('workspace: run a goal, edit and approve, see agents and activity', 
   assert.equal(state.decisions[0].edited.text, 'We are live! Book a call at sixxab.ai');
   await page.getByRole('button', { name: 'Agents' }).click();
   await page.getByText('12 of 15 approvals with no edits').waitFor();
+  await page.getByRole('heading', { name: 'Cost' }).waitFor();
+  await page.getByText('$0.420').waitFor();
   await page.getByText('L2 Approve').waitFor();
   await page.screenshot({ path: `${SHOTS}/app-agents.png` });
   await page.getByRole('button', { name: 'Activity' }).click();

@@ -47,8 +47,9 @@ export class AnthropicClient implements ModelClient {
       const body = await res.text();
       throw new Error(`Claude API ${res.status}: ${body.slice(0, 300)}`);
     }
-    const json = (await res.json()) as { content: ModelResponse['content']; stop_reason: string };
-    return { content: json.content, stopReason: json.stop_reason };
+    const json = (await res.json()) as { content: ModelResponse['content']; stop_reason: string; model?: string; usage?: { input_tokens?: number; output_tokens?: number } };
+    const usage = json.usage ? { inputTokens: Number(json.usage.input_tokens ?? 0), outputTokens: Number(json.usage.output_tokens ?? 0) } : undefined;
+    return { content: json.content, stopReason: json.stop_reason, model: json.model ?? this.models[req.tier], usage };
   }
 }
 

@@ -4,6 +4,7 @@ import type { Approval, AuditEvent, Briefing, RoleCard, TaskType } from '../../c
 import { Brand, Spinner } from './ui';
 import { BusinessProfile } from './BusinessProfile';
 import { Journey } from './Journey';
+import { Rate } from './Rate';
 import { useLoad } from './useLoad';
 
 type Tab = 'journey' | 'today' | 'approvals' | 'agents' | 'activity';
@@ -164,6 +165,7 @@ function Today({ onPending, goApprovals }: { onPending: (n: number) => void; goA
                 {!!s.queued && <span className="pill pill-awaiting_approval">{s.queued} for your approval</span>}
                 <div className="muted small">{s.goal}</div>
                 {s.output && <p className="output">{s.output}</p>}
+                {s.output && s.status === 'done' && <Rate taskId={s.taskId} />}
               </li>
             ))}
           </ol>
@@ -285,6 +287,34 @@ function ApprovalCard({ a, onDone }: { a: Approval; onDone: () => void }) {
   );
 }
 
+interface Cost { last30Days: { costUsd: number; tasks: number; avgPerTaskUsd: number; inputTokens: number; outputTokens: number }; byAgent: { agentId: string; costUsd: number; tasks: number }[] }
+const money = (n: number) => `$${n < 1 ? n.toFixed(3) : n.toFixed(2)}`;
+
+function CostPanel({ cost }: { cost?: Cost }) {
+  if (!cost) return null;
+  const c = cost.last30Days;
+  return (
+    <section className="panel glass-card">
+      <h2>Cost</h2>
+      <p className="muted small">What your agents cost in AI model usage over the last 30 days.</p>
+      <div className="cost-tiles">
+        <div><span className="muted small">Total</span><strong>{money(c.costUsd)}</strong></div>
+        <div><span className="muted small">Tasks</span><strong>{c.tasks}</strong></div>
+        <div><span className="muted small">Per task</span><strong>{money(c.avgPerTaskUsd)}</strong></div>
+        <div><span className="muted small">Tokens in / out</span><strong>{c.inputTokens.toLocaleString()} / {c.outputTokens.toLocaleString()}</strong></div>
+      </div>
+      {cost.byAgent.length > 0 && (
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th>Agent</th><th>Tasks</th><th>Cost</th></tr></thead>
+            <tbody>{cost.byAgent.map((a) => <tr key={a.agentId}><td>{a.agentId}</td><td>{a.tasks}</td><td>{money(a.costUsd)}</td></tr>)}</tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
 interface Progress { taskType: string; level: number; maxLevel: number; streak: number; needed: number | null; proposal: { to: number; because: string } | null }
 
 /** "12 of 15 clean approvals", or a clear prompt once the next level is earned. */
@@ -296,7 +326,7 @@ function EarnedCell({ p }: { p?: Progress }) {
 }
 
 function Agents() {
-  const { data, error, reload } = useLoad<{ agents: AgentInfo[]; taskTypes: TaskType[]; tasks: TaskRow[]; progress?: Progress[] }>('/api/agents');
+  const { data, error, reload } = useLoad<{ agents: AgentInfo[]; taskTypes: TaskType[]; tasks: TaskRow[]; progress?: Progress[]; cost?: Cost }>('/api/agents');
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   if (error) return <p className="error">{error}</p>;
@@ -340,6 +370,7 @@ function Agents() {
         </div>
         {msg && <p className="error">{msg}</p>}
       </section>
+      <CostPanel cost={data.cost} />
       <section className="panel glass-card">
         <h2>Your agents</h2>
         <div className="grid2">
@@ -356,7 +387,12 @@ function Agents() {
         {data.tasks.length ? (
           <ul className="plain">
             {data.tasks.map((t) => (
-              <li key={t.id}><span className={`pill pill-${t.status}`}>{STATUS[t.status] ?? t.status}</span> <strong>{t.agentId}</strong>: {t.goal}</li>
+              <li key={t.id}>
+                <span className={`pill pill-${t.status}`}>{STATUS[t.status] ?? t.status}</span> <strong>{t.agentId}</strong>: {t.goal}
+                {t.output && t.status === 'done' && (
+                  <details className="task-output"><summary className="muted small">Result</summary><p className="output">{t.output}</p><Rate taskId={t.id} /></details>
+                )}
+              </li>
             ))}
           </ul>
         ) : <p className="muted">No tasks yet. Give the agents a goal on the Today tab.</p>}

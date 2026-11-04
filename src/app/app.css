@@ -155,3 +155,15 @@ th { color: var(--sub); font-weight: 500; font-size: 12px; text-transform: upper
 .head-group > summary::-webkit-details-marker { display: none; }
 .head-group > summary::before { content: '›'; color: var(--gold); transition: transform .15s; display: inline-block; }
 .head-group[open] > summary::before { transform: rotate(90deg); }
+/* Feedback and cost */
+.rate { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.rate .btn-mini { margin-left: 0; }
+.rate-form { display: flex; gap: 6px; flex: 1; min-width: 240px; }
+.rate-form input { flex: 1; min-height: 36px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: rgba(255,255,255,0.04); color: #fff; font: inherit; font-size: 13px; }
+.rate-done { margin: 8px 0 0; }
+.task-output { margin: 6px 0 4px; }
+.task-output > summary { cursor: pointer; min-height: 32px; display: inline-flex; align-items: center; }
+.cost-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 12px 0; }
+.cost-tiles div { display: flex; flex-direction: column; gap: 4px; padding: 12px; border-radius: 14px; border: 1px solid var(--line); }
+.cost-tiles strong { font-size: 18px; font-weight: 500; }
+@media (max-width: 640px) { .cost-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
