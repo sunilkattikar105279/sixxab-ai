@@ -1,7 +1,7 @@
 // Founder Orchestrator: one goal in, one plan out, each step run by the right agent.
 import { getAgent, runnableAgents } from './agents.js';
 import { createTask, runTask, type RuntimeDeps } from './runtime.js';
-import { nowIso } from './store.js';
+import { newId, nowIso } from './store.js';
 import type { Task, TextBlock } from './types.js';
 import { profileForPrompt } from './profile.js';
 import { recordUsage } from './cost.js';
@@ -64,6 +64,7 @@ export async function planGoal(deps: RuntimeDeps, orgId: string, goal: string): 
   const steps: PlannedGoal['steps'] = [];
   for (const step of plan) steps.push({ step, task: await createTask(deps.store, orgId, step.agentId, step.goal, parent.id) });
   parent = await deps.store.updateTask(parent.id, { output: `Plan of ${steps.length} step(s): ${steps.map((s) => s.step.agentId).join(', ')}` });
+  await deps.store.audit({ id: newId(), orgId, at: nowIso(), actor: lead.id, action: 'plan.created', taskId: parent.id, detail: { steps: steps.length, agents: steps.map((s) => s.step.agentId) } });
   return { parent, steps };
 }
 

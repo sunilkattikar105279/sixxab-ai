@@ -4,6 +4,8 @@ import React, { useRef, useState } from 'react';
 import { api } from '../lib/auth';
 import { Spinner } from './ui';
 
+const ORCHESTRATOR = 'founder-orchestrator';
+
 export interface AgentProofRow { id: string; name: string; group: string; layer: string; job: string; runs: number; lastRunAt: string | null; proven: boolean; evidence: string; proofGoal: string | null }
 interface RunResult { taskId: string; status: string; output: string | null; queued: number }
 
@@ -22,6 +24,12 @@ export function AgentProof({ agents, onDone }: { agents: AgentProofRow[]; onDone
   async function prove(a: AgentProofRow): Promise<void> {
     setRunning(a.id);
     try {
+      if (a.id === ORCHESTRATOR) {
+        // The orchestrator proves itself by planning: it assigns steps but runs none of them.
+        const p = await api<{ steps: unknown[] }>('/api/agents', { method: 'POST', body: JSON.stringify({ goal: a.proofGoal }) });
+        setResults((x) => ({ ...x, [a.id]: `Done; planned ${p.steps.length} step${p.steps.length === 1 ? '' : 's'} (on Today, not run)` }));
+        return;
+      }
       const r = await api<RunResult>('/api/agents', { method: 'POST', body: JSON.stringify({ goal: a.proofGoal, agentId: a.id }) });
       setResults((x) => ({ ...x, [a.id]: r.status === 'done' ? `Done${r.queued ? `; ${r.queued} waiting in Approvals` : ''}` : `Ended: ${r.status}` }));
     } catch (e) {

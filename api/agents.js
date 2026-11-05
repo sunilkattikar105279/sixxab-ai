@@ -19,7 +19,8 @@ var AGENTS = [
     modelTier: "planner",
     tools: ["recall", "remember", "write_note"],
     usesModel: true,
-    instructions: `You are the Founder Orchestrator. Break the founder's goal into a short plan and assign each step to the best agent. ${SHARED_RULES}`
+    instructions: `You are the Founder Orchestrator. Break the founder's goal into a short plan and assign each step to the best agent. ${SHARED_RULES}`,
+    starter: "Plan the first week of running this business on SIXXAB, in at most three steps."
   },
   {
     id: "shared-memory",
@@ -1712,6 +1713,7 @@ Reply with JSON only: {"steps":[{"agentId":"...","goal":"..."}]}. At most ${MAX_
   const steps = [];
   for (const step of plan) steps.push({ step, task: await createTask(deps.store, orgId, step.agentId, step.goal, parent.id) });
   parent = await deps.store.updateTask(parent.id, { output: `Plan of ${steps.length} step(s): ${steps.map((s) => s.step.agentId).join(", ")}` });
+  await deps.store.audit({ id: newId(), orgId, at: nowIso(), actor: lead.id, action: "plan.created", taskId: parent.id, detail: { steps: steps.length, agents: steps.map((s) => s.step.agentId) } });
   return { parent, steps };
 }
 async function settleParent(deps, parentId) {

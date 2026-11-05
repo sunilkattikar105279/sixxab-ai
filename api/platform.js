@@ -882,7 +882,8 @@ var AGENTS = [
     modelTier: "planner",
     tools: ["recall", "remember", "write_note"],
     usesModel: true,
-    instructions: `You are the Founder Orchestrator. Break the founder's goal into a short plan and assign each step to the best agent. ${SHARED_RULES}`
+    instructions: `You are the Founder Orchestrator. Break the founder's goal into a short plan and assign each step to the best agent. ${SHARED_RULES}`,
+    starter: "Plan the first week of running this business on SIXXAB, in at most three steps."
   },
   {
     id: "shared-memory",
@@ -2106,7 +2107,7 @@ async function runTask(deps, taskId) {
 }
 
 // core/proof.ts
-var PROOF_EVENTS = ["task.done", "task.rated", "approval.approved", "approval.rejected"];
+var PROOF_EVENTS = ["task.done", "plan.created", "task.rated", "approval.approved", "approval.rejected"];
 var PROOF_PREFIX = "Proof run for the SIXXAB build plan. Do not send, post, publish or spend anything in this run; if your job normally sends messages, write the draft into a note instead.";
 var STAGE_NAME = { 1: "S1 Startup", 2: "S2 Struggle", 3: "S3 Scale", 4: "S4 Success", 5: "S5 Significance", 6: "S6 SIXXAB" };
 function starterFor(a) {
@@ -2124,9 +2125,11 @@ function computeAgentProof(events, counts, agents = AGENTS) {
     const cur = done.get(e.actor) ?? { runs: 0, last: "" };
     done.set(e.actor, { runs: cur.runs + 1, last: e.at > cur.last ? e.at : cur.last });
   }
+  const plans = events.filter((e) => e.action === "plan.created" && e.actor === "founder-orchestrator").length;
   const decided = events.filter((e) => e.action === "approval.approved" || e.action === "approval.rejected").length;
   const rated = events.filter((e) => e.action === "task.rated").length;
   const service = {
+    "founder-orchestrator": [plans > 0, `${plans} plan${plans === 1 ? "" : "s"} made`],
     "shared-memory": [(counts.memories ?? 0) > 0, `${Math.max(0, counts.memories ?? 0)} memories saved`],
     "learning-engine": [decided + rated > 0, `${decided} approval decisions and ${rated} ratings learned from`],
     "approvals-guardrails": [decided > 0, `${decided} approvals decided`],
@@ -2253,9 +2256,9 @@ function computeGovernance(input) {
 
 // server/build-info.ts
 var BUILD_INFO = {
-  "builtAt": "2026-11-05T04:14:46.127Z",
+  "builtAt": "2026-11-05T05:05:05.021Z",
   "files": 81,
-  "lines": 7985,
+  "lines": 7997,
   "tests": 97,
   "e2e": 11,
   "rlsTables": 9,

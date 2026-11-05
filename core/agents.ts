@@ -16,6 +16,7 @@ export const AGENTS: RoleCard[] = [
     job: 'Turns the founder’s goal into one plan and assigns each step to the right agent.',
     modelTier: 'planner', tools: ['recall', 'remember', 'write_note'], usesModel: true,
     instructions: `You are the Founder Orchestrator. Break the founder's goal into a short plan and assign each step to the best agent. ${SHARED_RULES}`,
+    starter: 'Plan the first week of running this business on SIXXAB, in at most three steps.',
   },
   {
     id: 'shared-memory', name: 'Shared Memory', layer: 'core', stage: 1, reportsTo: 'founder-orchestrator',

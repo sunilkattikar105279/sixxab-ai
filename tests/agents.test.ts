@@ -86,4 +86,8 @@ test('agent proof: model agents need a finished task; platform services prove th
   assert.equal(by('shared-memory').proofGoal, null, 'platform services have no proof run');
   assert.equal(by('ceo').group, 'S1 Startup');
   assert.equal(by('audit-log').group, 'Always on');
+  assert.equal(by('founder-orchestrator').proven, false);
+  assert.ok(by('founder-orchestrator').proofGoal, 'the orchestrator has a proof run (it plans; nothing runs)');
+  const planned = computeAgentProof([ev('plan.created', 'founder-orchestrator')], {}).find((r) => r.id === 'founder-orchestrator')!;
+  assert.deepEqual([planned.proven, planned.evidence], [true, '1 plan made']);
 });

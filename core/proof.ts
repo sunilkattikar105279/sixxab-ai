@@ -4,7 +4,7 @@
 import { AGENTS } from './agents.js';
 import type { AuditEvent, RoleCard } from './types.js';
 
-export const PROOF_EVENTS = ['task.done', 'task.rated', 'approval.approved', 'approval.rejected'];
+export const PROOF_EVENTS = ['task.done', 'plan.created', 'task.rated', 'approval.approved', 'approval.rejected'];
 export const PROOF_PREFIX = 'Proof run for the SIXXAB build plan. Do not send, post, publish or spend anything in this run; if your job normally sends messages, write the draft into a note instead.';
 const STAGE_NAME: Record<number, string> = { 1: 'S1 Startup', 2: 'S2 Struggle', 3: 'S3 Scale', 4: 'S4 Success', 5: 'S5 Significance', 6: 'S6 SIXXAB' };
 
@@ -31,9 +31,11 @@ export function computeAgentProof(events: AuditEvent[], counts: Record<string, n
     const cur = done.get(e.actor) ?? { runs: 0, last: '' };
     done.set(e.actor, { runs: cur.runs + 1, last: e.at > cur.last ? e.at : cur.last });
   }
+  const plans = events.filter((e) => e.action === 'plan.created' && e.actor === 'founder-orchestrator').length;
   const decided = events.filter((e) => e.action === 'approval.approved' || e.action === 'approval.rejected').length;
   const rated = events.filter((e) => e.action === 'task.rated').length;
   const service: Record<string, [boolean, string]> = {
+    'founder-orchestrator': [plans > 0, `${plans} plan${plans === 1 ? '' : 's'} made`],
     'shared-memory': [(counts.memories ?? 0) > 0, `${Math.max(0, counts.memories ?? 0)} memories saved`],
     'learning-engine': [decided + rated > 0, `${decided} approval decisions and ${rated} ratings learned from`],
     'approvals-guardrails': [decided > 0, `${decided} approvals decided`],

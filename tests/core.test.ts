@@ -316,6 +316,8 @@ test('a goal is planned first, then each step runs on its own, then the goal set
   const planned = await planGoal(deps, ORG, 'Launch this week');
   assert.equal(planned.steps.length, 2);
   assert.ok(planned.steps.every((s) => s.task.status === 'planned'));
+  const planEv = (await store.listAudit(ORG)).filter((e) => e.action === 'plan.created');
+  assert.deepEqual(planEv.map((e) => [e.actor, e.detail.steps]), [['founder-orchestrator', 2]], 'planning is audited as the orchestrator\'s work');
   assert.equal((await settleParent(deps, planned.parent.id))!.status, 'running', 'not settled while steps remain');
   for (const s of planned.steps) await runTask(deps, s.task.id);
   const parent = await settleParent(deps, planned.parent.id);
