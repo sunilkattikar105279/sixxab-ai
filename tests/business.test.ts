@@ -169,6 +169,9 @@ test('Apollo: filters are validated, people parsed, imports de-duplicated, and e
   assert.deepEqual(r.people, [{ apolloId: 'a'.repeat(24), name: 'Asha R***', title: 'Founder', company: 'Rao Clinic', domain: 'raoclinic.in', location: 'Pune, India', linkedin: '' }]);
   assert.equal((calls[0].init.headers as Record<string, string>)['x-api-key'], 'key', 'the key goes in a header, never the URL');
   await assert.rejects(apolloSearch('', { titles: 'Founder' }, fake), /not connected/);
+  const status = (code: number, error: string) => (async () => new Response(JSON.stringify({ error }), { status: code })) as unknown as typeof fetch;
+  await assert.rejects(apolloSearch('k', { titles: 'Founder' }, status(401, 'Invalid access credentials.')), /not recognised.*Invalid access credentials/);
+  await assert.rejects(apolloSearch('k', { titles: 'Founder' }, status(403, 'api/v1/mixed_people/api_search is not accessible with this api_key')), /master key.*not accessible/);
   const s = new MemoryStore();
   assert.deepEqual(await importApolloPeople(s, ORG, [...r.people, ...r.people], 'f'), { added: 1, skipped: 1 });
   assert.deepEqual(await importApolloPeople(s, ORG, r.people, 'f'), { added: 0, skipped: 1 }, 'already imported');

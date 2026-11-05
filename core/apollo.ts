@@ -49,6 +49,19 @@ export function parsePerson(p: Raw): ApolloPerson | null {
   };
 }
 
+/** Apollo's own error text, short and stripped of markup, so the owner sees exactly what it said. */
+async function apolloReason(res: Response): Promise<string> {
+  try {
+    const text = await res.text();
+    let msg = text;
+    try { const j = JSON.parse(text) as Raw; msg = str(j.error) || str(j.message) || text; } catch { /* plain text */ }
+    msg = msg.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().slice(0, 200);
+    return msg ? ` Apollo said: "${msg}"` : '';
+  } catch {
+    return '';
+  }
+}
+
 async function call(apiKey: string, path: string, body: Record<string, unknown>, fetchImpl: typeof fetch): Promise<Raw> {
   if (!apiKey) throw new Error('Apollo is not connected: add APOLLO_API_KEY in Vercel');
   const res = await fetchImpl(`${APOLLO_BASE}${path}`, {
@@ -57,9 +70,13 @@ async function call(apiKey: string, path: string, body: Record<string, unknown>,
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
-  if (res.status === 401 || res.status === 403) throw new Error('Apollo refused the key: check APOLLO_API_KEY and that your plan includes API access');
-  if (res.status === 429) throw new Error('Apollo rate limit reached: try again in a minute');
-  if (!res.ok) throw new Error(`Apollo error ${res.status}`);
+  if (!res.ok) {
+    const why = await apolloReason(res);
+    if (res.status === 401) throw new Error(`Apollo key not recognised: re-copy it into APOLLO_API_KEY (Production) and redeploy.${why}`);
+    if (res.status === 403) throw new Error(`Apollo accepted the key but refused this search: in Apollo, turn on "Set as master key" for the key (or give it People Search and People Enrichment), and check your plan includes API access.${why}`);
+    if (res.status === 429) throw new Error('Apollo rate limit reached: try again in a minute');
+    throw new Error(`Apollo error ${res.status}.${why}`);
+  }
   return (await res.json()) as Raw;
 }
 
