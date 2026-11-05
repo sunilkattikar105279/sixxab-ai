@@ -1188,6 +1188,66 @@ Call reply_comment once per comment with the "Copy link to comment" URL the foun
     instructions: `You run the sales pipeline in the CRM, reporting to the CRO. Email only the contacts listed in your task, one personal email each with send_message (channel "email"); the owner approves every one. Use only what the CRM records; never invent prices, discounts or promises. Save any pipeline review as a note with the title the task names. ${SHARED_RULES}`
   },
   {
+    id: "head-of-gtm",
+    name: "Head of GTM",
+    layer: "department",
+    stage: 2,
+    reportsTo: "cro",
+    job: "Runs the go-to-market loop: weekly pipeline review, focus deals and coaching for the sales agents.",
+    modelTier: "planner",
+    tools: ["recall", "remember", "write_note"],
+    usesModel: true,
+    instructions: `You lead go-to-market for the owner, reporting to the CRO, and coordinate the Call Prepper, Deal Qualifier, Follow-up Writer, Objection Handler and Sales CRM agents. Work only from the pipeline figures in your task; weight forecasts by each deal's MEDDIC score and say so. Recommend; never contact anyone yourself. Save each review as a note with the title the task names. ${SHARED_RULES}`
+  },
+  {
+    id: "call-prepper",
+    name: "Call Prepper",
+    layer: "department",
+    stage: 2,
+    reportsTo: "head-of-gtm",
+    job: "Writes a one-page brief before each sales call: hypotheses, discovery questions, likely objections, the ask.",
+    modelTier: "worker",
+    tools: ["recall", "remember", "write_note"],
+    usesModel: true,
+    instructions: `You prepare the owner for sales calls. Aim the questions at the deal's MEDDIC gaps. Never invent facts about a person or company; mark unknowns. Save the brief as a note with the title the task names. ${SHARED_RULES}`
+  },
+  {
+    id: "deal-qualifier",
+    name: "Deal Qualifier",
+    layer: "department",
+    stage: 2,
+    reportsTo: "head-of-gtm",
+    job: "Turns call notes into a MEDDIC scorecard with evidence, gaps, red flags and the next questions.",
+    modelTier: "worker",
+    tools: ["recall", "remember", "write_note"],
+    usesModel: true,
+    instructions: `You qualify deals with MEDDIC (Metrics, Economic buyer, Decision criteria, Decision process, Identified pain, Champion). Mark an element confirmed only when the notes show it in the buyer's own words; quote them. Be candid about weak deals. Save the scorecard as a note with the title the task names. ${SHARED_RULES}`
+  },
+  {
+    id: "follow-up-writer",
+    name: "Follow-up Writer",
+    layer: "department",
+    stage: 2,
+    reportsTo: "head-of-gtm",
+    job: "Sends the recap after a call with a mutual action plan: owners, dates and the next meeting.",
+    modelTier: "worker",
+    tools: ["recall", "remember", "write_note", "send_message"],
+    usesModel: true,
+    instructions: `You write the follow-up after sales calls: a short recap in the buyer's words and a mutual action plan. Email only the address in your task, once, with send_message (channel "email"); the owner approves every email. No pressure tactics and no promises the notes do not support. ${SHARED_RULES}`
+  },
+  {
+    id: "objection-handler",
+    name: "Objection Handler",
+    layer: "department",
+    stage: 2,
+    reportsTo: "head-of-gtm",
+    job: "Prepares answers to a buyer objection: acknowledge, ask, reframe, prove, next step.",
+    modelTier: "worker",
+    tools: ["recall", "remember", "write_note"],
+    usesModel: true,
+    instructions: `You help the owner answer buyer objections honestly. Offer proof only from facts in your task or memory; never invent customers, numbers or guarantees. Say plainly when an objection is a real blocker. Save the answers as a note with the title the task names. ${SHARED_RULES}`
+  },
+  {
     id: "support-desk",
     name: "Support Desk",
     layer: "department",
@@ -1968,10 +2028,10 @@ function computeGovernance(input) {
 
 // server/build-info.ts
 var BUILD_INFO = {
-  "builtAt": "2026-11-04T19:50:23.597Z",
-  "files": 75,
-  "lines": 7184,
-  "tests": 86,
+  "builtAt": "2026-11-05T02:25:43.722Z",
+  "files": 77,
+  "lines": 7382,
+  "tests": 88,
   "e2e": 11,
   "rlsTables": 9,
   "cspHeader": true,
@@ -2625,10 +2685,32 @@ __export(crm_exports, {
   POST: () => POST5
 });
 
+// core/gtm.ts
+var MEDDIC = [
+  { key: "metrics", letter: "M", name: "Metrics", question: "What measurable result does the buyer expect, and have they said the number?" },
+  { key: "economic_buyer", letter: "E", name: "Economic buyer", question: "Who can say yes with budget they control, and have we spoken to them?" },
+  { key: "decision_criteria", letter: "D", name: "Decision criteria", question: "What will they judge us on, in their words?" },
+  { key: "decision_process", letter: "D", name: "Decision process", question: "What steps, who signs, and by when?" },
+  { key: "pain", letter: "I", name: "Identified pain", question: "What breaks today, what does it cost, and who feels it?" },
+  { key: "champion", letter: "C", name: "Champion", question: "Who inside wants this, has influence and will sell for us?" }
+];
+var EVIDENCE = ["unknown", "partial", "confirmed"];
+var EMPTY_MEDDIC = { metrics: "unknown", economic_buyer: "unknown", decision_criteria: "unknown", decision_process: "unknown", pain: "unknown", champion: "unknown" };
+function scoreMeddic(m) {
+  const v = { ...EMPTY_MEDDIC, ...m ?? {} };
+  const points = MEDDIC.reduce((s, e) => s + (v[e.key] === "confirmed" ? 2 : v[e.key] === "partial" ? 1 : 0), 0);
+  const score = Math.round(points / (MEDDIC.length * 2) * 100);
+  return { score, verdict: score >= 75 ? "Qualified" : score >= 40 ? "Developing" : "Early", gaps: MEDDIC.filter((e) => v[e.key] !== "confirmed").map((e) => e.name) };
+}
+function cleanMeddic(input) {
+  const src = input && typeof input === "object" ? input : {};
+  return Object.fromEntries(MEDDIC.map((e) => [e.key, EVIDENCE.includes(src[e.key]) ? src[e.key] : "unknown"]));
+}
+
 // core/crm.ts
 var DEAL_STAGES = ["lead", "contacted", "qualified", "proposal", "won", "lost"];
 var SOURCES = ["website", "referral", "linkedin", "whatsapp", "walk-in", "event", "other"];
-var CRM_EVENTS = ["crm.contact", "crm.stage", "crm.touch", "crm.removed"];
+var CRM_EVENTS = ["crm.contact", "crm.stage", "crm.touch", "crm.qualify", "crm.removed"];
 var EMAIL_RE2 = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 var PHONE_RE = /^\+?[\d\s()-]{7,20}$/;
 var STALE_DAYS = 7;
@@ -2665,6 +2747,14 @@ async function logTouch(store2, orgId, id, note, by) {
   await record2(store2, orgId, by, "crm.touch", { contactId: id, note: text2(note, 500), summary: `Touched base with ${c.name}` });
   return loadCrm(store2, orgId);
 }
+async function qualifyDeal(store2, orgId, id, meddic, callNotes, by) {
+  const c = (await loadCrm(store2, orgId)).contacts.find((x) => x.id === id);
+  if (!c) throw new Error("Contact not found");
+  const m = cleanMeddic(meddic);
+  const { score, verdict } = scoreMeddic(m);
+  await record2(store2, orgId, by, "crm.qualify", { contactId: id, meddic: m, callNotes: text2(callNotes, 4e3), summary: `${c.name}: MEDDIC ${score}% (${verdict})` });
+  return loadCrm(store2, orgId);
+}
 async function removeContact(store2, orgId, id, by) {
   await record2(store2, orgId, by, "crm.removed", { contactId: id, summary: "Contact removed" });
   return loadCrm(store2, orgId);
@@ -2696,13 +2786,16 @@ function computeCrm(events, now = Date.now()) {
     if (e.action === "crm.contact") {
       const c = d.contact;
       const prev = map.get(c.id);
-      map.set(c.id, { ...c, stage: prev?.stage ?? "lead", createdAt: prev?.createdAt ?? e.at, updatedAt: e.at, lastTouch: prev?.lastTouch ?? null });
+      map.set(c.id, { ...c, stage: prev?.stage ?? "lead", createdAt: prev?.createdAt ?? e.at, updatedAt: e.at, lastTouch: prev?.lastTouch ?? null, meddic: prev?.meddic ?? null, callNotes: prev?.callNotes ?? "", score: prev?.score ?? null });
     } else {
       const prev = map.get(String(d.contactId));
       if (!prev) continue;
       if (e.action === "crm.stage") map.set(prev.id, { ...prev, stage: d.stage, updatedAt: e.at, lastTouch: e.at });
       else if (e.action === "crm.touch") map.set(prev.id, { ...prev, updatedAt: e.at, lastTouch: e.at });
-      else if (e.action === "crm.removed") map.delete(prev.id);
+      else if (e.action === "crm.qualify") {
+        const m = cleanMeddic(d.meddic);
+        map.set(prev.id, { ...prev, meddic: m, callNotes: String(d.callNotes ?? ""), score: scoreMeddic(m).score, updatedAt: e.at, lastTouch: e.at });
+      } else if (e.action === "crm.removed") map.delete(prev.id);
     }
   }
   const contacts = [...map.values()].sort((a, b) => DEAL_STAGES.indexOf(a.stage) - DEAL_STAGES.indexOf(b.stage) || b.updatedAt.localeCompare(a.updatedAt));
@@ -2748,6 +2841,8 @@ var POST5 = handle(async (request) => {
         return json({ crm: await setDealStage(store2, orgId, id, b.stage, label) });
       case "touch":
         return json({ crm: await logTouch(store2, orgId, id, String(b.note ?? ""), label) });
+      case "qualify":
+        return json({ crm: await qualifyDeal(store2, orgId, id, b.meddic, String(b.callNotes ?? ""), label) });
       case "remove":
         return json({ crm: await removeContact(store2, orgId, id, label) });
       case "import":

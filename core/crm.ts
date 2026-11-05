@@ -2,13 +2,18 @@
 // The Sales CRM agent drafts follow-ups; each email waits for the owner's approval.
 import { newId, nowIso, type Store } from './store.js';
 import type { AuditEvent } from './types.js';
+import { cleanMeddic, scoreMeddic, type Meddic } from './gtm.js';
 
 export const DEAL_STAGES = ['lead', 'contacted', 'qualified', 'proposal', 'won', 'lost'] as const;
 export const SOURCES = ['website', 'referral', 'linkedin', 'whatsapp', 'walk-in', 'event', 'other'] as const;
 export type DealStage = (typeof DEAL_STAGES)[number];
 
 export interface ContactInput { id?: string; name: string; company?: string; email?: string; phone?: string; source?: string; value?: number | string; nextStep?: string; notes?: string }
-export interface Contact { id: string; name: string; company: string; email: string; phone: string; source: string; value: number; nextStep: string; notes: string; stage: DealStage; createdAt: string; updatedAt: string; lastTouch: string | null }
+export interface Contact {
+  id: string; name: string; company: string; email: string; phone: string; source: string; value: number; nextStep: string; notes: string;
+  stage: DealStage; createdAt: string; updatedAt: string; lastTouch: string | null;
+  meddic: Meddic | null; callNotes: string; score: number | null;
+}
 export interface CrmState {
   contacts: Contact[];
   pipeline: Record<DealStage, number>;
@@ -16,7 +21,7 @@ export interface CrmState {
   followUpGoal: string;
 }
 
-export const CRM_EVENTS = ['crm.contact', 'crm.stage', 'crm.touch', 'crm.removed'];
+export const CRM_EVENTS = ['crm.contact', 'crm.stage', 'crm.touch', 'crm.qualify', 'crm.removed'];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^\+?[\d\s()-]{7,20}$/;
 const STALE_DAYS = 7;
@@ -61,6 +66,16 @@ export async function logTouch(store: Store, orgId: string, id: string, note: st
   return loadCrm(store, orgId);
 }
 
+/** Saves the deal's MEDDIC evidence and the latest call notes; counts as a touch. */
+export async function qualifyDeal(store: Store, orgId: string, id: string, meddic: unknown, callNotes: string, by: string): Promise<CrmState> {
+  const c = (await loadCrm(store, orgId)).contacts.find((x) => x.id === id);
+  if (!c) throw new Error('Contact not found');
+  const m = cleanMeddic(meddic);
+  const { score, verdict } = scoreMeddic(m);
+  await record(store, orgId, by, 'crm.qualify', { contactId: id, meddic: m, callNotes: text(callNotes, 4000), summary: `${c.name}: MEDDIC ${score}% (${verdict})` });
+  return loadCrm(store, orgId);
+}
+
 export async function removeContact(store: Store, orgId: string, id: string, by: string): Promise<CrmState> {
   await record(store, orgId, by, 'crm.removed', { contactId: id, summary: 'Contact removed' });
   return loadCrm(store, orgId);
@@ -94,14 +109,15 @@ export function computeCrm(events: AuditEvent[], now = Date.now()): CrmState {
   for (const e of events) {
     const d = e.detail;
     if (e.action === 'crm.contact') {
-      const c = d.contact as Omit<Contact, 'stage' | 'createdAt' | 'updatedAt' | 'lastTouch'>;
+      const c = d.contact as Omit<Contact, 'stage' | 'createdAt' | 'updatedAt' | 'lastTouch' | 'meddic' | 'callNotes' | 'score'>;
       const prev = map.get(c.id);
-      map.set(c.id, { ...c, stage: prev?.stage ?? 'lead', createdAt: prev?.createdAt ?? e.at, updatedAt: e.at, lastTouch: prev?.lastTouch ?? null });
+      map.set(c.id, { ...c, stage: prev?.stage ?? 'lead', createdAt: prev?.createdAt ?? e.at, updatedAt: e.at, lastTouch: prev?.lastTouch ?? null, meddic: prev?.meddic ?? null, callNotes: prev?.callNotes ?? '', score: prev?.score ?? null });
     } else {
       const prev = map.get(String(d.contactId));
       if (!prev) continue;
       if (e.action === 'crm.stage') map.set(prev.id, { ...prev, stage: d.stage as DealStage, updatedAt: e.at, lastTouch: e.at });
       else if (e.action === 'crm.touch') map.set(prev.id, { ...prev, updatedAt: e.at, lastTouch: e.at });
+      else if (e.action === 'crm.qualify') { const m = cleanMeddic(d.meddic); map.set(prev.id, { ...prev, meddic: m, callNotes: String(d.callNotes ?? ''), score: scoreMeddic(m).score, updatedAt: e.at, lastTouch: e.at }); }
       else if (e.action === 'crm.removed') map.delete(prev.id);
     }
   }

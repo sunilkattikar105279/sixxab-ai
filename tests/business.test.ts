@@ -86,3 +86,38 @@ test('Accounting: entries are validated and roll up into a monthly profit and lo
   const tools = getAgent('accountant')!.tools;
   assert.ok(!tools.includes('send_message') && !tools.includes('spend_money'));
 });
+
+test('GTM: MEDDIC scores deals and every sales-loop agent gets a grounded goal', async () => {
+  const { scoreMeddic, cleanMeddic, callPrepGoal, debriefGoal, followUpGoal, objectionGoal, pipelineReviewGoal } = await import('../core/gtm.js');
+  assert.deepEqual(scoreMeddic(null), { score: 0, verdict: 'Early', gaps: ['Metrics', 'Economic buyer', 'Decision criteria', 'Decision process', 'Identified pain', 'Champion'] });
+  const strong = cleanMeddic({ metrics: 'confirmed', economic_buyer: 'confirmed', decision_criteria: 'confirmed', decision_process: 'partial', pain: 'confirmed', champion: 'partial', extra: 'x' });
+  assert.equal(scoreMeddic(strong).score, 83);
+  assert.equal(scoreMeddic(strong).verdict, 'Qualified');
+  assert.equal(cleanMeddic({ metrics: 'maybe' }).metrics, 'unknown', 'bad values fall back to unknown');
+  const deal = { name: 'Dr Hajare', company: 'Radhakrishna Ortho', email: 'dr@example.com', stage: 'qualified', value: 8500, meddic: strong, callNotes: 'Wants 30 more patient enquiries a month.' };
+  assert.match(callPrepGoal(deal), /Decision process, Champion/);
+  assert.match(callPrepGoal(deal), /never invent facts/);
+  assert.match(debriefGoal(deal), /30 more patient enquiries/);
+  assert.match(followUpGoal(deal), /send_message \(channel "email", to dr@example.com\)/);
+  assert.match(followUpGoal({ ...deal, email: '' }), /no email address/);
+  assert.match(objectionGoal(deal, 'Too expensive'), /"Too expensive"/);
+  assert.equal(pipelineReviewGoal([{ ...deal, stage: 'won' }]), '', 'nothing open, nothing to review');
+  assert.match(pipelineReviewGoal([deal]), /MEDDIC 83% Qualified/);
+  for (const id of ['head-of-gtm', 'call-prepper', 'deal-qualifier', 'follow-up-writer', 'objection-handler']) assert.ok(getAgent(id), id);
+  assert.ok(getAgent('follow-up-writer')!.tools.includes('send_message'));
+  assert.ok(!getAgent('head-of-gtm')!.tools.includes('send_message'), 'the Head of GTM recommends; it never contacts anyone');
+});
+
+test('CRM: qualifying a deal stores its MEDDIC score and call notes', async () => {
+  const { upsertContact, qualifyDeal } = await import('../core/crm.js');
+  const s = new MemoryStore();
+  const c = (await upsertContact(s, ORG, { name: 'Dr Hajare', email: 'dr@example.com' }, 'f')).contacts[0];
+  assert.equal(c.score, null);
+  const crm = await qualifyDeal(s, ORG, c.id, { metrics: 'confirmed', pain: 'partial' }, 'Wants more enquiries', 'f');
+  const q = crm.contacts[0];
+  assert.equal(q.score, 25);
+  assert.equal(q.meddic?.metrics, 'confirmed');
+  assert.equal(q.callNotes, 'Wants more enquiries');
+  assert.ok(q.lastTouch, 'qualifying counts as a touch');
+  await assert.rejects(qualifyDeal(s, ORG, 'nope', {}, '', 'f'), /not found/);
+});

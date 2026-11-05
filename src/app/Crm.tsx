@@ -3,8 +3,10 @@ import React, { useState } from 'react';
 import { Spinner } from './ui';
 import { useLoad } from './useLoad';
 import { AgentRun, money, usePost } from './AgentRun';
+import { DealPanel } from './DealPanel';
+import { pipelineReviewGoal, type Meddic } from '../../core/gtm';
 
-interface Contact { id: string; name: string; company: string; email: string; phone: string; source: string; value: number; nextStep: string; notes: string; stage: string; lastTouch: string | null; createdAt: string }
+interface Contact { id: string; name: string; company: string; email: string; phone: string; source: string; value: number; nextStep: string; notes: string; stage: string; lastTouch: string | null; createdAt: string; meddic: Meddic | null; callNotes: string; score: number | null }
 interface CrmState { contacts: Contact[]; pipeline: Record<string, number>; totals: { open: number; openValue: number; won: number; wonValue: number; winRate: number | null; followUps: number }; followUpGoal: string }
 
 const STAGES = ['lead', 'contacted', 'qualified', 'proposal', 'won', 'lost'];
@@ -18,6 +20,7 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
   const [f, setF] = useState(EMPTY);
   const [csv, setCsv] = useState('');
   const [filter, setFilter] = useState('open');
+  const [openId, setOpenId] = useState<string | null>(null);
   if (error) return <p className="error">{error}</p>;
   if (!data) return <Spinner label="Loading your CRM…" />;
   const { crm } = data;
@@ -36,6 +39,13 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
           <div><span className="muted small">Need a follow-up</span><strong>{t.followUps}</strong><span className="muted small">quiet 7+ days</span></div>
         </div>
         <AgentRun agentId="sales-crm" goal={crm.followUpGoal} label={`Draft ${t.followUps} follow-up${t.followUps === 1 ? '' : 's'}`} emptyText="No open deal with an email has gone quiet for a week." goApprovals={goApprovals} />
+      </section>
+
+      <section className="panel glass-card">
+        <p className="eyebrow">Go-to-market · Head of GTM</p>
+        <h2>Weekly pipeline review</h2>
+        <p className="muted small">Focus deals, stuck deals and the forecast weighted by each deal's MEDDIC score. Open a contact below to prep a call, debrief it, send the follow-up or answer an objection.</p>
+        <AgentRun agentId="head-of-gtm" goal={pipelineReviewGoal(crm.contacts)} label="Run the weekly review" emptyText="Add an open deal to review the pipeline." goApprovals={goApprovals} />
       </section>
 
       <section className="panel glass-card">
@@ -70,19 +80,24 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
         {shown.length === 0 ? <p className="muted small">No contacts here yet.</p> : (
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Name</th><th>Value</th><th>Stage</th><th>Last touch</th><th>Next step</th><th /></tr></thead>
+              <thead><tr><th>Name</th><th>Value</th><th>Stage</th><th>MEDDIC</th><th>Last touch</th><th>Next step</th><th /></tr></thead>
               <tbody>{shown.map((c) => (
-                <tr key={c.id}>
+                <React.Fragment key={c.id}>
+                <tr>
                   <td><strong>{c.name}</strong>{c.company ? <span className="muted small"> · {c.company}</span> : null}<br /><span className="muted small">{c.email || c.phone || c.source}</span></td>
                   <td>{c.value ? money(c.value) : '—'}</td>
                   <td><select aria-label={`Stage for ${c.name}`} value={c.stage} disabled={!!busy} onChange={(e) => post(c.id, { action: 'stage', contactId: c.id, stage: e.target.value })}>{STAGES.map((s) => <option key={s}>{s}</option>)}</select></td>
+                  <td>{c.score == null ? <span className="muted small">—</span> : `${c.score}%`}</td>
                   <td className="nowrap">{since(c.lastTouch)}</td>
                   <td>{c.nextStep || <span className="muted small">—</span>}</td>
                   <td className="nowrap">
+                    <button type="button" className="btn-mini" aria-expanded={openId === c.id} onClick={() => setOpenId(openId === c.id ? null : c.id)}>{openId === c.id ? 'Close' : 'Sell'}</button>
                     <button type="button" className="btn-mini" disabled={!!busy} onClick={() => post(c.id, { action: 'touch', contactId: c.id, note: 'Spoke today' })}>Spoke today</button>
                     <button type="button" className="btn-mini" disabled={!!busy} onClick={() => post(c.id, { action: 'remove', contactId: c.id })}>Remove</button>
                   </td>
                 </tr>
+                {openId === c.id && <tr><td colSpan={7}><DealPanel c={c} busy={!!busy} post={post} goApprovals={goApprovals} /></td></tr>}
+                </React.Fragment>
               ))}</tbody>
             </table>
           </div>

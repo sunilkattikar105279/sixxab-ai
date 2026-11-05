@@ -424,7 +424,7 @@ await check('business tabs: add a CRM contact, open a support ticket, record inc
     if (route.request().method() === 'POST') {
       const b = JSON.parse(route.request().postData() || '{}');
       posts[name].push(b);
-      if (name === 'crm') { crm.contacts.push({ id: 'c1', ...b.contact, value: Number(b.contact.value), stage: 'lead', lastTouch: null, createdAt: new Date().toISOString(), notes: '' }); crm.totals = { ...crm.totals, open: 1, openValue: Number(b.contact.value) }; }
+      if (name === 'crm' && b.action === 'contact') { crm.contacts.push({ id: 'c1', ...b.contact, value: Number(b.contact.value), stage: 'lead', lastTouch: null, createdAt: new Date().toISOString(), notes: '' }); crm.totals = { ...crm.totals, open: 1, openValue: Number(b.contact.value) }; }
       if (name === 'support') { support.tickets.push({ id: 't1', number: 1001, ...b.ticket, status: 'open', createdAt: new Date().toISOString(), notes: [{ at: new Date().toISOString(), by: b.ticket.customer, text: b.ticket.message }] }); support.totals = { ...support.totals, open: 1 }; }
       if (name === 'accounts') { Object.assign(accounts.thisMonth, { income: Number(b.entry.amount), profit: Number(b.entry.amount), margin: 100 }); }
     }
@@ -441,6 +441,19 @@ await check('business tabs: add a CRM contact, open a support ticket, record inc
   await page.getByRole('button', { name: 'Add contact' }).click();
   await page.getByText('$5,000 in play').waitFor();
   assert.equal(posts.crm[0].contact.name, 'Asha Rao');
+  await page.getByText('Run the weekly review').waitFor();
+  await page.getByRole('button', { name: 'Sell' }).click();
+  await page.getByText('0% · Early').waitFor();
+  await page.getByLabel('Metrics for Asha Rao').selectOption('confirmed');
+  await page.getByLabel('Identified pain for Asha Rao').selectOption('confirmed');
+  await page.getByText('33% · Early').waitFor();
+  await page.getByLabel('Call notes for Asha Rao').fill('Wants 30 more enquiries a month');
+  await page.getByRole('button', { name: 'Save qualification' }).click();
+  await page.getByRole('button', { name: 'Debrief my notes' }).waitFor();
+  const q = posts.crm.find((p) => p.action === 'qualify');
+  assert.equal(q.meddic.metrics, 'confirmed');
+  assert.equal(q.callNotes, 'Wants 30 more enquiries a month');
+  await page.screenshot({ path: `${SHOTS}/app-crm-deal.png`, fullPage: true });
   await page.getByRole('button', { name: 'Support', exact: true }).click();
   await page.getByLabel('Customer').fill('Meera');
   await page.getByLabel('Subject').fill('Opening hours');

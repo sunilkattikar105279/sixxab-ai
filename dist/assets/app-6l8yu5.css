@@ -182,3 +182,6 @@ th { color: var(--sub); font-weight: 500; font-size: 12px; text-transform: upper
 .cost-row input, .plan-form input, .plan-form select { min-height: 40px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,0.04); color: #fff; font: inherit; font-size: 14px; }
 .plan-form { display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 10px; align-items: end; margin: 10px 0; }
 @media (max-width: 760px) { .cost-editor, .plan-form { grid-template-columns: 1fr; } }
+
+.deal-panel { padding: 12px 4px; }
+.gtm-actions { gap: 16px; align-items: start; }

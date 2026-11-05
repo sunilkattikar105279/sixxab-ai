@@ -1,6 +1,6 @@
 // CRM for the signed-in business. GET /api/crm → contacts, pipeline, totals and the follow-up goal.
-// POST /api/crm { action: contact | stage | touch | remove | import, ... }
-import { importContacts, loadCrm, logTouch, removeContact, setDealStage, upsertContact, type ContactInput, type DealStage } from '../../core/crm.js';
+// POST /api/crm { action: contact | stage | touch | qualify | remove | import, ... }
+import { importContacts, loadCrm, logTouch, qualifyDeal, removeContact, setDealStage, upsertContact, type ContactInput, type DealStage } from '../../core/crm.js';
 import { handle, HttpError, json, readJson, requireUser } from '../context.js';
 
 export const GET = handle(async (request) => {
@@ -8,7 +8,7 @@ export const GET = handle(async (request) => {
   return json({ crm: await loadCrm(store, orgId) });
 });
 
-interface Body { action?: string; contact?: ContactInput; contactId?: string; stage?: DealStage; note?: string; csv?: string }
+interface Body { action?: string; contact?: ContactInput; contactId?: string; stage?: DealStage; note?: string; csv?: string; meddic?: unknown; callNotes?: string }
 
 export const POST = handle(async (request) => {
   const { orgId, label, store } = await requireUser(request);
@@ -19,6 +19,7 @@ export const POST = handle(async (request) => {
       case 'contact': return json({ crm: await upsertContact(store, orgId, b.contact ?? ({} as ContactInput), label) });
       case 'stage': return json({ crm: await setDealStage(store, orgId, id, b.stage as DealStage, label) });
       case 'touch': return json({ crm: await logTouch(store, orgId, id, String(b.note ?? ''), label) });
+      case 'qualify': return json({ crm: await qualifyDeal(store, orgId, id, b.meddic, String(b.callNotes ?? ''), label) });
       case 'remove': return json({ crm: await removeContact(store, orgId, id, label) });
       case 'import': return json({ ...(await importContacts(store, orgId, String(b.csv ?? ''), label)), crm: await loadCrm(store, orgId) });
       default: throw new HttpError(400, 'Unknown action');
