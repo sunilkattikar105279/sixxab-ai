@@ -2253,9 +2253,9 @@ function computeGovernance(input) {
 
 // server/build-info.ts
 var BUILD_INFO = {
-  "builtAt": "2026-11-05T03:28:08.190Z",
+  "builtAt": "2026-11-05T04:14:46.127Z",
   "files": 81,
-  "lines": 7968,
+  "lines": 7985,
   "tests": 97,
   "e2e": 11,
   "rlsTables": 9,
@@ -3124,6 +3124,21 @@ function parsePerson(p) {
     linkedin: str(p.linkedin_url)
   };
 }
+async function apolloReason(res) {
+  try {
+    const text5 = await res.text();
+    let msg = text5;
+    try {
+      const j = JSON.parse(text5);
+      msg = str(j.error) || str(j.message) || text5;
+    } catch {
+    }
+    msg = msg.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().slice(0, 200);
+    return msg ? ` Apollo said: "${msg}"` : "";
+  } catch {
+    return "";
+  }
+}
 async function call(apiKey, path, body, fetchImpl) {
   if (!apiKey) throw new Error("Apollo is not connected: add APOLLO_API_KEY in Vercel");
   const res = await fetchImpl(`${APOLLO_BASE}${path}`, {
@@ -3132,9 +3147,13 @@ async function call(apiKey, path, body, fetchImpl) {
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(TIMEOUT_MS2)
   });
-  if (res.status === 401 || res.status === 403) throw new Error("Apollo refused the key: check APOLLO_API_KEY and that your plan includes API access");
-  if (res.status === 429) throw new Error("Apollo rate limit reached: try again in a minute");
-  if (!res.ok) throw new Error(`Apollo error ${res.status}`);
+  if (!res.ok) {
+    const why = await apolloReason(res);
+    if (res.status === 401) throw new Error(`Apollo key not recognised: re-copy it into APOLLO_API_KEY (Production) and redeploy.${why}`);
+    if (res.status === 403) throw new Error(`Apollo accepted the key but refused this search: in Apollo, turn on "Set as master key" for the key (or give it People Search and People Enrichment), and check your plan includes API access.${why}`);
+    if (res.status === 429) throw new Error("Apollo rate limit reached: try again in a minute");
+    throw new Error(`Apollo error ${res.status}.${why}`);
+  }
   return await res.json();
 }
 async function apolloSearch(apiKey, f, fetchImpl = fetch) {
