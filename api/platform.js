@@ -350,8 +350,8 @@ var SupabaseStore = class {
     return (await this.req(`audit_log?org_id=eq.${orgId}${since}&order=at.desc&limit=500`)).map((r) => fromRow(r));
   }
   async listAuditByActions(orgId, actions) {
-    const list = actions.map((a) => `"${a.replace(/[^a-z_.]/gi, "")}"`).join(",");
-    return (await this.req(`audit_log?org_id=eq.${orgId}&action=in.(${encodeURIComponent(list)})&order=at.asc&limit=2000`)).map((r) => fromRow(r));
+    const list2 = actions.map((a) => `"${a.replace(/[^a-z_.]/gi, "")}"`).join(",");
+    return (await this.req(`audit_log?org_id=eq.${orgId}&action=in.(${encodeURIComponent(list2)})&order=at.asc&limit=2000`)).map((r) => fromRow(r));
   }
   async addFeedback(f) {
     await this.req("feedback", { method: "POST", body: JSON.stringify(toRow(f)), headers: { prefer: "return=minimal" } });
@@ -1248,6 +1248,30 @@ Call reply_comment once per comment with the "Copy link to comment" URL the foun
     tools: ["recall", "remember", "write_note"],
     usesModel: true,
     instructions: `You help the owner answer buyer objections honestly. Offer proof only from facts in your task or memory; never invent customers, numbers or guarantees. Say plainly when an objection is a real blocker. Save the answers as a note with the title the task names. ${SHARED_RULES}`
+  },
+  {
+    id: "proposal-writer",
+    name: "Proposal Writer",
+    layer: "department",
+    stage: 2,
+    reportsTo: "head-of-gtm",
+    job: "Drafts the proposal for a qualified deal: goals, plan, price, terms and the next step to sign.",
+    modelTier: "worker",
+    tools: ["recall", "remember", "write_note"],
+    usesModel: true,
+    instructions: `You write sales proposals from what the buyer said and what the business offers. Use only recorded prices and terms; mark anything missing for the owner. Never invent results, customers or guarantees. Save each proposal as a note with the title the task names; the owner sends it. ${SHARED_RULES}`
+  },
+  {
+    id: "win-loss",
+    name: "Win-Loss Analyst",
+    layer: "department",
+    stage: 2,
+    reportsTo: "head-of-gtm",
+    job: "Reviews every won and lost deal and feeds the lessons back to targeting and messaging.",
+    modelTier: "worker",
+    tools: ["recall", "remember", "write_note"],
+    usesModel: true,
+    instructions: `You review closed deals candidly. Separate what the buyer actually said from guesses. Save the one lesson that should change how the next deal is run to memory, and the review as a note with the title the task names. ${SHARED_RULES}`
   },
   {
     id: "support-desk",
@@ -2229,10 +2253,10 @@ function computeGovernance(input) {
 
 // server/build-info.ts
 var BUILD_INFO = {
-  "builtAt": "2026-11-05T02:48:02.349Z",
-  "files": 79,
-  "lines": 7722,
-  "tests": 95,
+  "builtAt": "2026-11-05T03:28:08.190Z",
+  "files": 81,
+  "lines": 7968,
+  "tests": 97,
   "e2e": 11,
   "rlsTables": 9,
   "cspHeader": true,
@@ -2276,6 +2300,7 @@ async function liveChecks() {
     signIn: Boolean(url && anon),
     model: has2("ANTHROPIC_API_KEY"),
     automations: has2("N8N_WEBHOOK_URL"),
+    apollo: has2("APOLLO_API_KEY"),
     supabaseUrlValid: Boolean(url),
     auth,
     tables,
@@ -2596,8 +2621,8 @@ var money = (v, label, required = false) => {
   if (!Number.isFinite(n) || n < 0 || n > MAX_MONEY || required && n === 0) throw new Error(`${label} must be ${required ? "more than zero" : "zero or more"}`);
   return n;
 };
-var oneOf = (list, v, label) => {
-  if (!list.includes(v)) throw new Error(`${label} must be one of: ${list.join(", ")}`);
+var oneOf = (list2, v, label) => {
+  if (!list2.includes(v)) throw new Error(`${label} must be one of: ${list2.join(", ")}`);
   return v;
 };
 var fmt = (n) => n.toLocaleString("en-US", { maximumFractionDigits: 0 });
@@ -2753,11 +2778,11 @@ function computeRaise(events) {
     } else if (e.action === "raise.investor_removed") investors.delete(String(d.investorId));
     else if (e.action === "raise.step") d.done ? done.add(String(d.step)) : done.delete(String(d.step));
   }
-  const list = [...investors.values()].map((i) => ({ ...i, ...investorWarnings(i, round3?.exemption) })).sort((a, b) => STAGES2.indexOf(b.stage) - STAGES2.indexOf(a.stage) || a.name.localeCompare(b.name));
-  const pipeline = Object.fromEntries(STAGES2.map((s) => [s, list.filter((i) => i.stage === s).length]));
+  const list2 = [...investors.values()].map((i) => ({ ...i, ...investorWarnings(i, round3?.exemption) })).sort((a, b) => STAGES2.indexOf(b.stage) - STAGES2.indexOf(a.stage) || a.name.localeCompare(b.name));
+  const pipeline = Object.fromEntries(STAGES2.map((s) => [s, list2.filter((i) => i.stage === s).length]));
   const preorders = campaign && campaign.stage !== "cancelled" ? Number(campaign.pledged ?? 0) : 0;
-  const committed = list.filter((i) => COMMITTED.includes(i.stage)).reduce((s, i) => s + i.amount, 0);
-  const funded = list.filter((i) => i.stage === "funded").reduce((s, i) => s + i.amount, 0);
+  const committed = list2.filter((i) => COMMITTED.includes(i.stage)).reduce((s, i) => s + i.amount, 0);
+  const funded = list2.filter((i) => i.stage === "funded").reduce((s, i) => s + i.amount, 0);
   const target = round3?.target ?? 0;
   const cap = round3?.cap ?? 0;
   const pre = round3?.preMoney ?? 0;
@@ -2771,12 +2796,12 @@ function computeRaise(events) {
     dilutionPct: dilution === null ? null : Math.round(dilution * 1e4) / 100,
     postMoney: round3?.instrument === "priced" && pre ? pre + target : null
   };
-  const state = { round: round3, investors: list, campaign, steps: [], pipeline, totals };
+  const state = { round: round3, investors: list2, campaign, steps: [], pipeline, totals };
   const context = raiseForPrompt(state);
   const preorderContext = raiseForPrompt({ ...state, round: null }).replace(/^Raise: No round[^\n]*\n?/, "") || "No pre-order campaign is recorded yet.";
   state.steps = RAISE_STEPS.map((s) => {
     const blockedBy = s.hard.filter((h) => !done.has(h)).map((h) => RAISE_STEPS.find((x) => x.id === h).title);
-    const base = s.id === "outreach" ? outreachGoal(list) : s.goal;
+    const base = s.id === "outreach" ? outreachGoal(list2) : s.goal;
     if (s.track === "Pre-orders") {
       return {
         id: s.id,
@@ -2808,8 +2833,8 @@ ${context}` : ""
   });
   return state;
 }
-function outreachGoal(list) {
-  const ready = list.filter((i) => i.canEmail && (i.stage === "target" || i.stage === "contacted")).slice(0, 10);
+function outreachGoal(list2) {
+  const ready = list2.filter((i) => i.canEmail && (i.stage === "target" || i.stage === "contacted")).slice(0, 10);
   if (!ready.length) return 'No investors can be emailed yet. Explain what to add to the pipeline (name, email and how the founder knows them) and save it as a note titled "Raise: outreach".';
   return `Draft a short, personal first email to each investor below and queue each with send_message (channel "email"). Each email: who we are in one line, why this investor, the traction we have recorded, and a request for a 20-minute call. Share terms only with these known investors, never in public posts. Each email waits for the founder's approval.
 ${ready.map((i) => `- ${i.name}${i.firm ? ` (${i.firm})` : ""} <${i.email}>, ${i.type}; how we know them: ${i.relationship || "n/a"}`).join("\n")}`;
@@ -2912,7 +2937,7 @@ function cleanMeddic(input) {
 
 // core/crm.ts
 var DEAL_STAGES = ["lead", "contacted", "qualified", "proposal", "won", "lost"];
-var SOURCES = ["website", "referral", "linkedin", "whatsapp", "walk-in", "event", "other"];
+var SOURCES = ["website", "referral", "linkedin", "whatsapp", "walk-in", "event", "apollo", "web-search", "other"];
 var CRM_EVENTS = ["crm.contact", "crm.stage", "crm.touch", "crm.qualify", "crm.removed"];
 var EMAIL_RE2 = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 var PHONE_RE = /^\+?[\d\s()-]{7,20}$/;
@@ -2931,7 +2956,8 @@ function clean(i) {
   const value = i.value === void 0 || i.value === "" ? 0 : Number(String(i.value).replace(/[,$₹\s]/g, ""));
   if (!Number.isFinite(value) || value < 0) throw new Error("Deal value must be zero or more");
   const source = SOURCES.includes(String(i.source)) ? String(i.source) : "other";
-  return { id: i.id && /^[\w-]{6,64}$/.test(i.id) ? i.id : newId(), name, company: text2(i.company, 120), email, phone, source, value, nextStep: text2(i.nextStep, 200), notes: text2(i.notes, 2e3) };
+  const apolloId = i.apolloId && /^[a-f0-9]{24}$/.test(i.apolloId) ? i.apolloId : void 0;
+  return { id: i.id && /^[\w-]{6,64}$/.test(i.id) ? i.id : newId(), name, company: text2(i.company, 120), email, phone, source, value, nextStep: text2(i.nextStep, 200), notes: text2(i.notes, 2e3), ...apolloId ? { apolloId } : {} };
 }
 async function upsertContact(store2, orgId, input, by) {
   const c = clean(input);
@@ -2962,6 +2988,31 @@ async function qualifyDeal(store2, orgId, id, meddic, callNotes, by) {
 async function removeContact(store2, orgId, id, by) {
   await record2(store2, orgId, by, "crm.removed", { contactId: id, summary: "Contact removed" });
   return loadCrm(store2, orgId);
+}
+async function importApolloPeople(store2, orgId, people, by) {
+  const have = new Set((await loadCrm(store2, orgId)).contacts.map((c) => c.apolloId).filter(Boolean));
+  let added = 0, skipped = 0;
+  for (const p of (Array.isArray(people) ? people : []).slice(0, 100)) {
+    if (!p || !/^[a-f0-9]{24}$/.test(String(p.apolloId)) || have.has(p.apolloId)) {
+      skipped++;
+      continue;
+    }
+    try {
+      const notes = [p.title && `Title: ${p.title}`, p.location && `Location: ${p.location}`, p.domain && `Website: ${p.domain}`, p.linkedin && `LinkedIn: ${p.linkedin}`].filter(Boolean).join("; ");
+      const c = clean({ name: p.name, company: p.company, source: "apollo", notes, apolloId: p.apolloId });
+      await record2(store2, orgId, by, "crm.contact", { contact: c, summary: `Lead from Apollo: ${c.name}` });
+      have.add(p.apolloId);
+      added++;
+    } catch {
+      skipped++;
+    }
+  }
+  return { added, skipped };
+}
+async function setContactEmail(store2, orgId, id, email, by) {
+  const c = (await loadCrm(store2, orgId)).contacts.find((x) => x.id === id);
+  if (!c) throw new Error("Contact not found");
+  return upsertContact(store2, orgId, { ...c, email, value: c.value }, by);
 }
 async function importContacts(store2, orgId, csv, by) {
   const rows = String(csv ?? "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
@@ -3025,21 +3076,86 @@ function computeCrm(events, now = Date.now()) {
     speedGoal: speedGoal(fresh.slice(0, 10))
   };
 }
-function speedGoal(list) {
-  if (!list.length) return "";
+function speedGoal(list2) {
+  if (!list2.length) return "";
   return `These leads are new and have not heard from us yet. Write one short first reply to each and queue it with send_message (channel "email"): thank them, answer what they asked if the notes say, and offer one clear next step such as a call time. Under 90 words each. Each email waits for the owner's approval.
-${list.map((c) => `- ${c.name}${c.company ? ` (${c.company})` : ""} <${c.email}>, came from ${c.source}${c.notes ? `, notes: ${c.notes.slice(0, 300)}` : ""}`).join("\n")}`;
+${list2.map((c) => `- ${c.name}${c.company ? ` (${c.company})` : ""} <${c.email}>, came from ${c.source}${c.notes ? `, notes: ${c.notes.slice(0, 300)}` : ""}`).join("\n")}`;
 }
-function followUpGoal(list) {
-  if (!list.length) return "";
+function followUpGoal(list2) {
+  if (!list2.length) return "";
   return `Draft a short, personal follow-up email to each contact below and queue each with send_message (channel "email"). Mention where we left off, offer one clear next step, and keep it under 120 words. Each email waits for the owner's approval.
-${list.map((c) => `- ${c.name}${c.company ? ` (${c.company})` : ""} <${c.email}>, stage ${c.stage}${c.nextStep ? `, next step: ${c.nextStep}` : ""}${c.notes ? `, notes: ${c.notes.slice(0, 200)}` : ""}`).join("\n")}`;
+${list2.map((c) => `- ${c.name}${c.company ? ` (${c.company})` : ""} <${c.email}>, stage ${c.stage}${c.nextStep ? `, next step: ${c.nextStep}` : ""}${c.notes ? `, notes: ${c.notes.slice(0, 200)}` : ""}`).join("\n")}`;
+}
+
+// core/apollo.ts
+var APOLLO_BASE = "https://api.apollo.io/api/v1";
+var TIMEOUT_MS2 = 2e4;
+var MAX_PER_PAGE = 25;
+var list = (v, max = 10) => (Array.isArray(v) ? v : String(v ?? "").split(",")).map((x) => String(x).trim()).filter(Boolean).slice(0, max).map((x) => x.slice(0, 80));
+var EMPLOYEE_RANGE = /^\d{1,6},\d{1,6}$/;
+function apolloBody(f) {
+  const body = { page: Math.min(Math.max(1, Number(f.page) || 1), 20), per_page: MAX_PER_PAGE };
+  const titles = list(f.titles), locations = list(f.locations), industries = list(f.industries);
+  const employees = list(f.employees).filter((r) => EMPLOYEE_RANGE.test(r));
+  if (titles.length) body.person_titles = titles;
+  if (locations.length) body.person_locations = locations;
+  if (industries.length) body.q_organization_keyword_tags = industries;
+  if (employees.length) body.organization_num_employees_ranges = employees;
+  const kw = String(f.keywords ?? "").trim().slice(0, 120);
+  if (kw) body.q_keywords = kw;
+  if (!titles.length && !locations.length && !industries.length && !kw) throw new Error("Add at least a title, a location, an industry or a keyword");
+  return body;
+}
+var str = (v) => typeof v === "string" ? v : "";
+function parsePerson(p) {
+  const id = str(p.id);
+  if (!/^[a-f0-9]{24}$/.test(id)) return null;
+  const org = p.organization ?? {};
+  const last = str(p.last_name) || str(p.last_name_obfuscated);
+  const name = (str(p.name) || [str(p.first_name), last].filter(Boolean).join(" ")).trim();
+  const location = [str(p.city), str(p.state), str(p.country)].filter(Boolean).join(", ");
+  return {
+    apolloId: id,
+    name: name || "Unknown",
+    title: str(p.title),
+    company: str(org.name) || str(p.organization_name),
+    domain: str(org.primary_domain) || str(org.website_url).replace(/^https?:\/\//, "").replace(/\/.*$/, ""),
+    location,
+    linkedin: str(p.linkedin_url)
+  };
+}
+async function call(apiKey, path, body, fetchImpl) {
+  if (!apiKey) throw new Error("Apollo is not connected: add APOLLO_API_KEY in Vercel");
+  const res = await fetchImpl(`${APOLLO_BASE}${path}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "cache-control": "no-cache", "x-api-key": apiKey },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(TIMEOUT_MS2)
+  });
+  if (res.status === 401 || res.status === 403) throw new Error("Apollo refused the key: check APOLLO_API_KEY and that your plan includes API access");
+  if (res.status === 429) throw new Error("Apollo rate limit reached: try again in a minute");
+  if (!res.ok) throw new Error(`Apollo error ${res.status}`);
+  return await res.json();
+}
+async function apolloSearch(apiKey, f, fetchImpl = fetch) {
+  const json2 = await call(apiKey, "/mixed_people/api_search", apolloBody(f), fetchImpl);
+  const raw = Array.isArray(json2.people) ? json2.people : [];
+  const total = Number(json2.pagination?.total_entries ?? json2.total_entries);
+  return { people: raw.map(parsePerson).filter((p) => Boolean(p)), total: Number.isFinite(total) ? total : null };
+}
+async function apolloEnrich(apiKey, apolloId, fetchImpl = fetch) {
+  if (!/^[a-f0-9]{24}$/.test(apolloId)) throw new Error("This contact did not come from Apollo");
+  const json2 = await call(apiKey, "/people/match", { id: apolloId, reveal_personal_emails: false, reveal_phone_number: false }, fetchImpl);
+  const p = json2.person ?? {};
+  const email = str(p.email);
+  return { email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && !/email_not_unlocked/.test(email) ? email : "", status: str(p.email_status) || (email ? "unknown" : "unavailable") };
 }
 
 // server/routes/crm.ts
+var apolloFor = (label) => isAdmin(label, process.env.ADMIN_EMAILS) && process.env.APOLLO_API_KEY?.trim() || "";
 var GET6 = handle(async (request) => {
-  const { orgId, store: store2 } = await requireUser(request);
-  return json({ crm: await loadCrm(store2, orgId) });
+  const { orgId, label, store: store2 } = await requireUser(request);
+  return json({ crm: await loadCrm(store2, orgId), apollo: Boolean(apolloFor(label)) });
 });
 var POST5 = handle(async (request) => {
   const { orgId, label, store: store2 } = await requireUser(request);
@@ -3057,6 +3173,25 @@ var POST5 = handle(async (request) => {
         return json({ crm: await qualifyDeal(store2, orgId, id, b.meddic, String(b.callNotes ?? ""), label) });
       case "remove":
         return json({ crm: await removeContact(store2, orgId, id, label) });
+      case "apollo_search": {
+        const key = apolloFor(label);
+        if (!key) throw new HttpError(403, "Apollo is available to SIXXAB admins once APOLLO_API_KEY is set");
+        return json(await apolloSearch(key, b.filters ?? {}));
+      }
+      case "apollo_import": {
+        if (!apolloFor(label)) throw new HttpError(403, "Apollo is available to SIXXAB admins once APOLLO_API_KEY is set");
+        return json({ ...await importApolloPeople(store2, orgId, b.people ?? [], label), crm: await loadCrm(store2, orgId) });
+      }
+      case "apollo_enrich": {
+        const key = apolloFor(label);
+        if (!key) throw new HttpError(403, "Apollo is available to SIXXAB admins once APOLLO_API_KEY is set");
+        const c = (await loadCrm(store2, orgId)).contacts.find((x) => x.id === id);
+        if (!c) throw new HttpError(404, "Contact not found");
+        const r = await apolloEnrich(key, c.apolloId ?? "");
+        await store2.audit({ id: newId(), orgId, at: nowIso(), actor: label, action: "apollo.enriched", taskId: null, detail: { contactId: id, found: Boolean(r.email), status: r.status, summary: `Apollo email ${r.email ? "found" : "not found"} for ${c.name} (1 credit)` } });
+        if (!r.email) return json({ crm: await loadCrm(store2, orgId), found: false, status: r.status });
+        return json({ crm: await setContactEmail(store2, orgId, id, r.email, label), found: true, status: r.status });
+      }
       case "import":
         return json({ ...await importContacts(store2, orgId, String(b.csv ?? ""), label), crm: await loadCrm(store2, orgId) });
       default:
@@ -3082,7 +3217,7 @@ var CHANNELS2 = ["email", "whatsapp", "phone", "website", "walk-in"];
 var SUPPORT_EVENTS = ["support.ticket", "support.status", "support.note"];
 var SLA_ORDER = ["urgent", "high", "normal", "low"];
 var text3 = (v, max) => String(v ?? "").trim().slice(0, max);
-var oneOf2 = (list, v, fallback) => list.includes(String(v)) ? String(v) : fallback;
+var oneOf2 = (list2, v, fallback) => list2.includes(String(v)) ? String(v) : fallback;
 var record3 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
 async function openTicket(store2, orgId, input, by) {
   const subject = text3(input.subject, 160);

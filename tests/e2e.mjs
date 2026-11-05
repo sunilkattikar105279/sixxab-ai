@@ -434,13 +434,15 @@ await check('business tabs: add a CRM contact, open a support ticket, record inc
       if (name === 'support') { support.tickets.push({ id: 't1', number: 1001, ...b.ticket, status: 'open', createdAt: new Date().toISOString(), notes: [{ at: new Date().toISOString(), by: b.ticket.customer, text: b.ticket.message }] }); support.totals = { ...support.totals, open: 1 }; }
       if (name === 'accounts') { Object.assign(accounts.thisMonth, { income: Number(b.entry.amount), profit: Number(b.entry.amount), margin: 100 }); }
     }
-    await route.fulfill({ json: { [name]: name === 'crm' ? crm : name === 'support' ? support : accounts } });
+    await route.fulfill({ json: { [name]: name === 'crm' ? crm : name === 'support' ? support : accounts, ...(name === 'crm' ? { apollo: true } : {}) } });
   });
   await ctx.addInitScript(() => localStorage.setItem('sixxab.session', JSON.stringify({ accessToken: 'at', refreshToken: 'rt', expiresAt: Math.floor(Date.now() / 1000) + 3600, user: { id: 'u1', email: 'founder@example.com' } })));
   const page = await ctx.newPage();
   await page.goto(BASE + '/app');
   await page.getByRole('button', { name: 'CRM', exact: true }).click();
   await page.getByText('No open deal with an email has gone quiet for a week.').waitFor();
+  await page.getByText('Find people in Apollo').waitFor();
+  await page.getByRole('button', { name: 'Search Apollo' }).waitFor();
   await page.getByLabel('Name').fill('Asha Rao');
   await page.getByLabel('Email').fill('asha@example.com');
   await page.getByLabel('Deal value').fill('5000');

@@ -5,9 +5,9 @@ import { Rate } from './Rate';
 import { Spinner } from './ui';
 
 interface RunResult { taskId: string; status: string; output: string | null; queued: number }
-interface Props { agentId: string; goal: string; label: string; emptyText: string; goApprovals: () => void }
+interface Props { agentId: string; goal: string; label: string; emptyText: string; goApprovals: () => void; extra?: (output: string) => React.ReactNode }
 
-export function AgentRun({ agentId, goal, label, emptyText, goApprovals }: Props) {
+export function AgentRun({ agentId, goal, label, emptyText, goApprovals, extra }: Props) {
   const [busy, setBusy] = useState(false);
   const [run, setRun] = useState<RunResult | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -32,6 +32,7 @@ export function AgentRun({ agentId, goal, label, emptyText, goApprovals }: Props
       {run && (
         <div className="notice" role="status">
           {run.output && <p className="output">{run.output}</p>}
+          {run.output && extra?.(run.output)}
           {run.output && run.status === 'done' && <Rate taskId={run.taskId} />}
           {run.queued > 0 && <button type="button" className="btn-primary" onClick={goApprovals}>Review {run.queued} message{run.queued === 1 ? '' : 's'} waiting for your yes</button>}
         </div>

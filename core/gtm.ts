@@ -78,3 +78,12 @@ export function pipelineReviewGoal(deals: DealContext[]): string {
   const rows = open.map((d) => { const s = scoreMeddic(d.meddic); return `- ${d.name}${d.company ? ` (${d.company})` : ''}: ${d.stage}, ${d.value || 0}, MEDDIC ${s.score}% ${s.verdict}, gaps: ${s.gaps.join(', ') || 'none'}${d.nextStep ? `, next: ${d.nextStep}` : ''}`; });
   return `Run the weekly pipeline review as Head of GTM. From the open deals below: the expected value this month and next (weight by MEDDIC score), the three deals to focus on and the one action each, deals that look stuck or under-qualified and whether to push or drop them, and the coaching point for the week. Use only these numbers. Save it as a note titled "GTM: weekly pipeline review".\n${rows.join('\n')}`;
 }
+
+export function proposalGoal(d: DealContext): string {
+  return `Write a proposal for this deal: their situation and goals in their words, what we will do, the plan and timeline, the price and terms from the business profile (mark any price that is not recorded as "to be set by the owner"), why us, and the next step to sign. Plain language, two pages at most. Never invent results, customers or guarantees. Save it as a note titled "Proposal: ${d.name}".\n\n${d.callNotes ? `Latest call notes:\n${d.callNotes.slice(0, 3000)}\n\n` : ''}${dealLines(d)}`;
+}
+
+export function winLossGoal(d: DealContext): string {
+  const won = d.stage === 'won';
+  return `This deal was ${won ? 'won' : 'lost'}. Write a short win-loss review: the real reasons it was ${won ? 'won' : 'lost'} (from the notes and the MEDDIC record, quoting where you can), what we did that helped or hurt, what it says about our ideal customer and our message, and one change to make for the next deal. Remember the main lesson so other sales agents use it. Save it as a note titled "Win-loss: ${d.name}".\n\n${dealLines(d)}`;
+}

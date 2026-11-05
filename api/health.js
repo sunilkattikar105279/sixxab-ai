@@ -148,6 +148,7 @@ async function liveChecks() {
     signIn: Boolean(url && anon),
     model: has("ANTHROPIC_API_KEY"),
     automations: has("N8N_WEBHOOK_URL"),
+    apollo: has("APOLLO_API_KEY"),
     supabaseUrlValid: Boolean(url),
     auth,
     tables,

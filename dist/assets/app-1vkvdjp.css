@@ -185,3 +185,4 @@ th { color: var(--sub); font-weight: 500; font-size: 12px; text-transform: upper
 
 .deal-panel { padding: 12px 4px; }
 .gtm-actions { gap: 16px; align-items: start; }
+.row-wrap { display: flex; flex-wrap: wrap; gap: 14px; border: 0; padding: 0; margin: 0; }

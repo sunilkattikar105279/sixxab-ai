@@ -151,3 +151,44 @@ test('CRM: brand-new leads with an email go to Speed-to-Lead; the Lead Finder ne
   assert.doesNotMatch(crm.speedGoal, /Old|No email/);
   assert.match(leadSearchGoal('clinics in Pune'), /leave a field empty when it is not published/);
 });
+
+test('Apollo: filters are validated, people parsed, imports de-duplicated, and emails revealed only by id', async () => {
+  const { apolloBody, apolloSearch, apolloEnrich } = await import('../core/apollo.js');
+  const { importApolloPeople, setContactEmail, loadCrm } = await import('../core/crm.js');
+  assert.throws(() => apolloBody({}), /at least/);
+  const body = apolloBody({ titles: 'Founder, CEO', locations: ['Pune, India'], employees: ['1,10', 'bad'], page: 99 });
+  assert.deepEqual(body, { page: 20, per_page: 25, person_titles: ['Founder', 'CEO'], person_locations: ['Pune, India'], organization_num_employees_ranges: ['1,10'] });
+  const calls: { url: string; init: RequestInit }[] = [];
+  const fake = (async (url: string, init: RequestInit) => {
+    calls.push({ url, init });
+    if (url.endsWith('/mixed_people/api_search')) return new Response(JSON.stringify({ people: [{ id: 'a'.repeat(24), first_name: 'Asha', last_name_obfuscated: 'R***', title: 'Founder', organization: { name: 'Rao Clinic', primary_domain: 'raoclinic.in' }, city: 'Pune', country: 'India' }, { id: 'bad' }], pagination: { total_entries: 140 } }), { status: 200 });
+    return new Response(JSON.stringify({ person: { email: 'asha@raoclinic.in', email_status: 'verified' } }), { status: 200 });
+  }) as unknown as typeof fetch;
+  const r = await apolloSearch('key', { titles: 'Founder' }, fake);
+  assert.equal(r.total, 140);
+  assert.deepEqual(r.people, [{ apolloId: 'a'.repeat(24), name: 'Asha R***', title: 'Founder', company: 'Rao Clinic', domain: 'raoclinic.in', location: 'Pune, India', linkedin: '' }]);
+  assert.equal((calls[0].init.headers as Record<string, string>)['x-api-key'], 'key', 'the key goes in a header, never the URL');
+  await assert.rejects(apolloSearch('', { titles: 'Founder' }, fake), /not connected/);
+  const s = new MemoryStore();
+  assert.deepEqual(await importApolloPeople(s, ORG, [...r.people, ...r.people], 'f'), { added: 1, skipped: 1 });
+  assert.deepEqual(await importApolloPeople(s, ORG, r.people, 'f'), { added: 0, skipped: 1 }, 'already imported');
+  const c = (await loadCrm(s, ORG)).contacts[0];
+  assert.equal(c.source, 'apollo');
+  assert.match(c.notes, /Title: Founder/);
+  const e = await apolloEnrich('key', c.apolloId!, fake);
+  assert.equal(e.email, 'asha@raoclinic.in');
+  assert.equal(JSON.parse(String(calls.at(-1)!.init.body)).reveal_personal_emails, false, 'never asks for personal emails');
+  await assert.rejects(apolloEnrich('key', 'not-an-id', fake), /did not come from Apollo/);
+  const crm = await setContactEmail(s, ORG, c.id, e.email, 'f');
+  assert.equal(crm.contacts[0].email, 'asha@raoclinic.in');
+  assert.equal(crm.contacts[0].apolloId, 'a'.repeat(24), 'other fields are kept');
+});
+
+test('GTM: Proposal Writer and Win-Loss Analyst get grounded goals', async () => {
+  const { proposalGoal, winLossGoal } = await import('../core/gtm.js');
+  const d = { name: 'Dr Hajare', stage: 'won', meddic: null };
+  assert.match(proposalGoal(d), /to be set by the owner/);
+  assert.match(winLossGoal(d), /was won/);
+  assert.match(winLossGoal({ ...d, stage: 'lost' }), /was lost/);
+  assert.ok(getAgent('proposal-writer') && getAgent('win-loss'));
+});

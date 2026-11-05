@@ -1,7 +1,7 @@
 // One deal's sales loop: MEDDIC checklist and call notes, then the GTM agents — prep the call,
 // debrief the notes, write the follow-up, answer an objection. Emails wait in Approvals.
 import React, { useState } from 'react';
-import { MEDDIC, EMPTY_MEDDIC, scoreMeddic, callPrepGoal, debriefGoal, followUpGoal, objectionGoal, type Meddic, type DealContext } from '../../core/gtm';
+import { MEDDIC, EMPTY_MEDDIC, scoreMeddic, callPrepGoal, debriefGoal, followUpGoal, objectionGoal, proposalGoal, winLossGoal, type Meddic, type DealContext } from '../../core/gtm';
 import { Spinner } from './ui';
 import { AgentRun } from './AgentRun';
 
@@ -48,6 +48,8 @@ export function DealPanel({ c, busy, post, goApprovals }: { c: DealContact; busy
           <label className="field"><span className="sr-only">Objection</span><input aria-label={`Objection from ${c.name}`} value={objection} maxLength={500} onChange={(e) => setObjection(e.target.value)} placeholder="e.g. It's too expensive for a clinic our size" /></label>
           <AgentRun agentId="objection-handler" goal={objection.trim() ? objectionGoal(deal, objection) : ''} label="Answer it" emptyText="Type the objection they raised." goApprovals={goApprovals} />
         </div>
+        <div className="stack-sm"><span className="muted small">Proposal · Proposal Writer</span><AgentRun agentId="proposal-writer" goal={proposalGoal(deal)} label="Draft the proposal" emptyText="" goApprovals={goApprovals} /></div>
+        <div className="stack-sm"><span className="muted small">Won or lost · Win-Loss Analyst</span><AgentRun agentId="win-loss" goal={c.stage === 'won' || c.stage === 'lost' ? winLossGoal(deal) : ''} label="Review this deal" emptyText="Available once the deal is won or lost." goApprovals={goApprovals} /></div>
       </div>
     </div>
   );

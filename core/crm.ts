@@ -5,12 +5,13 @@ import type { AuditEvent } from './types.js';
 import { cleanMeddic, scoreMeddic, type Meddic } from './gtm.js';
 
 export const DEAL_STAGES = ['lead', 'contacted', 'qualified', 'proposal', 'won', 'lost'] as const;
-export const SOURCES = ['website', 'referral', 'linkedin', 'whatsapp', 'walk-in', 'event', 'other'] as const;
+export const SOURCES = ['website', 'referral', 'linkedin', 'whatsapp', 'walk-in', 'event', 'apollo', 'web-search', 'other'] as const;
 export type DealStage = (typeof DEAL_STAGES)[number];
 
-export interface ContactInput { id?: string; name: string; company?: string; email?: string; phone?: string; source?: string; value?: number | string; nextStep?: string; notes?: string }
+export interface ContactInput { id?: string; name: string; company?: string; email?: string; phone?: string; source?: string; value?: number | string; nextStep?: string; notes?: string; apolloId?: string }
 export interface Contact {
   id: string; name: string; company: string; email: string; phone: string; source: string; value: number; nextStep: string; notes: string;
+  apolloId?: string;
   stage: DealStage; createdAt: string; updatedAt: string; lastTouch: string | null;
   meddic: Meddic | null; callNotes: string; score: number | null;
 }
@@ -45,7 +46,8 @@ function clean(i: ContactInput) {
   const value = i.value === undefined || i.value === '' ? 0 : Number(String(i.value).replace(/[,$₹\s]/g, ''));
   if (!Number.isFinite(value) || value < 0) throw new Error('Deal value must be zero or more');
   const source = (SOURCES as readonly string[]).includes(String(i.source)) ? String(i.source) : 'other';
-  return { id: i.id && /^[\w-]{6,64}$/.test(i.id) ? i.id : newId(), name, company: text(i.company, 120), email, phone, source, value, nextStep: text(i.nextStep, 200), notes: text(i.notes, 2000) };
+  const apolloId = i.apolloId && /^[a-f0-9]{24}$/.test(i.apolloId) ? i.apolloId : undefined;
+  return { id: i.id && /^[\w-]{6,64}$/.test(i.id) ? i.id : newId(), name, company: text(i.company, 120), email, phone, source, value, nextStep: text(i.nextStep, 200), notes: text(i.notes, 2000), ...(apolloId ? { apolloId } : {}) };
 }
 
 export async function upsertContact(store: Store, orgId: string, input: ContactInput, by: string): Promise<CrmState> {
@@ -83,6 +85,32 @@ export async function qualifyDeal(store: Store, orgId: string, id: string, meddi
 export async function removeContact(store: Store, orgId: string, id: string, by: string): Promise<CrmState> {
   await record(store, orgId, by, 'crm.removed', { contactId: id, summary: 'Contact removed' });
   return loadCrm(store, orgId);
+}
+
+/** Adds people found in Apollo as leads; anyone already imported (same Apollo id) is skipped. */
+export async function importApolloPeople(store: Store, orgId: string, people: { apolloId: string; name: string; title?: string; company?: string; domain?: string; location?: string; linkedin?: string }[], by: string): Promise<{ added: number; skipped: number }> {
+  const have = new Set((await loadCrm(store, orgId)).contacts.map((c) => c.apolloId).filter(Boolean));
+  let added = 0, skipped = 0;
+  for (const p of (Array.isArray(people) ? people : []).slice(0, 100)) {
+    if (!p || !/^[a-f0-9]{24}$/.test(String(p.apolloId)) || have.has(p.apolloId)) { skipped++; continue; }
+    try {
+      const notes = [p.title && `Title: ${p.title}`, p.location && `Location: ${p.location}`, p.domain && `Website: ${p.domain}`, p.linkedin && `LinkedIn: ${p.linkedin}`].filter(Boolean).join('; ');
+      const c = clean({ name: p.name, company: p.company, source: 'apollo', notes, apolloId: p.apolloId });
+      await record(store, orgId, by, 'crm.contact', { contact: c, summary: `Lead from Apollo: ${c.name}` });
+      have.add(p.apolloId);
+      added++;
+    } catch {
+      skipped++;
+    }
+  }
+  return { added, skipped };
+}
+
+/** Stores an email revealed for a contact, keeping everything else as it was. */
+export async function setContactEmail(store: Store, orgId: string, id: string, email: string, by: string): Promise<CrmState> {
+  const c = (await loadCrm(store, orgId)).contacts.find((x) => x.id === id);
+  if (!c) throw new Error('Contact not found');
+  return upsertContact(store, orgId, { ...c, email, value: c.value }, by);
 }
 
 /** Imports "name,company,email,phone,source,value" rows (header optional, at most 500). Bad rows are skipped. */

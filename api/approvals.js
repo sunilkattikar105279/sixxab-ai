@@ -387,6 +387,30 @@ Call reply_comment once per comment with the "Copy link to comment" URL the foun
     instructions: `You help the owner answer buyer objections honestly. Offer proof only from facts in your task or memory; never invent customers, numbers or guarantees. Say plainly when an objection is a real blocker. Save the answers as a note with the title the task names. ${SHARED_RULES}`
   },
   {
+    id: "proposal-writer",
+    name: "Proposal Writer",
+    layer: "department",
+    stage: 2,
+    reportsTo: "head-of-gtm",
+    job: "Drafts the proposal for a qualified deal: goals, plan, price, terms and the next step to sign.",
+    modelTier: "worker",
+    tools: ["recall", "remember", "write_note"],
+    usesModel: true,
+    instructions: `You write sales proposals from what the buyer said and what the business offers. Use only recorded prices and terms; mark anything missing for the owner. Never invent results, customers or guarantees. Save each proposal as a note with the title the task names; the owner sends it. ${SHARED_RULES}`
+  },
+  {
+    id: "win-loss",
+    name: "Win-Loss Analyst",
+    layer: "department",
+    stage: 2,
+    reportsTo: "head-of-gtm",
+    job: "Reviews every won and lost deal and feeds the lessons back to targeting and messaging.",
+    modelTier: "worker",
+    tools: ["recall", "remember", "write_note"],
+    usesModel: true,
+    instructions: `You review closed deals candidly. Separate what the buyer actually said from guesses. Save the one lesson that should change how the next deal is run to memory, and the review as a note with the title the task names. ${SHARED_RULES}`
+  },
+  {
     id: "support-desk",
     name: "Support Desk",
     layer: "department",

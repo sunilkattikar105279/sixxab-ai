@@ -6,8 +6,12 @@ import { AgentRun, money, usePost } from './AgentRun';
 import { DealPanel } from './DealPanel';
 import { pipelineReviewGoal, type Meddic } from '../../core/gtm';
 import { leadSearchGoal } from '../../core/crm';
+import { ApolloSearch } from './ApolloSearch';
 
-interface Contact { id: string; name: string; company: string; email: string; phone: string; source: string; value: number; nextStep: string; notes: string; stage: string; lastTouch: string | null; createdAt: string; meddic: Meddic | null; callNotes: string; score: number | null }
+/** CSV lead rows (name,company,email,phone,source,value) found in an agent's output. */
+const leadRows = (out: string) => out.split(/\r?\n/).map((l) => l.trim().replace(/^[-*]\s*/, '')).filter((l) => l.split(',').length === 6 && !/^name\s*,/i.test(l));
+
+interface Contact { id: string; name: string; company: string; email: string; phone: string; source: string; value: number; nextStep: string; notes: string; stage: string; lastTouch: string | null; createdAt: string; meddic: Meddic | null; callNotes: string; score: number | null; apolloId?: string }
 interface CrmState { contacts: Contact[]; pipeline: Record<string, number>; totals: { open: number; openValue: number; won: number; wonValue: number; winRate: number | null; followUps: number }; followUpGoal: string; newLeads?: number; speedGoal?: string }
 
 const STAGES = ['lead', 'contacted', 'qualified', 'proposal', 'won', 'lost'];
@@ -16,7 +20,7 @@ const EMPTY = { name: '', company: '', email: '', phone: '', source: 'website', 
 const since = (iso: string | null) => (iso ? `${Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 864e5))}d ago` : 'never');
 
 export function Crm({ goApprovals }: { goApprovals: () => void }) {
-  const { data, error, reload } = useLoad<{ crm: CrmState }>('/api/crm');
+  const { data, error, reload } = useLoad<{ crm: CrmState; apollo?: boolean }>('/api/crm');
   const { busy, msg, post } = usePost('/api/crm', reload);
   const [f, setF] = useState(EMPTY);
   const [csv, setCsv] = useState('');
@@ -50,13 +54,16 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
         <AgentRun agentId="head-of-gtm" goal={pipelineReviewGoal(crm.contacts)} label="Run the weekly review" emptyText="Add an open deal to review the pipeline." goApprovals={goApprovals} />
       </section>
 
+      {data.apollo && <ApolloSearch onImported={reload} />}
+
       <section className="panel glass-card">
         <p className="eyebrow">New business · Lead Finder and Speed-to-Lead</p>
         <h2>Find and answer leads</h2>
         <label className="field"><span>Who should the Lead Finder look for?</span>
           <input aria-label="Lead search" value={search} maxLength={300} onChange={(e) => setSearch(e.target.value)} placeholder="e.g. physiotherapy clinics in Pune with a website" />
         </label>
-        <AgentRun agentId="lead-finder" goal={search.trim() ? leadSearchGoal(search.trim()) : ''} label="Find leads" emptyText="Describe the businesses to find. The list comes back as a note you can paste into Import." goApprovals={goApprovals} />
+        <AgentRun agentId="lead-finder" goal={search.trim() ? leadSearchGoal(search.trim()) : ''} label="Find leads" emptyText="Describe the businesses to find. Found businesses can be imported with one click." goApprovals={goApprovals}
+          extra={(out) => { const rows = leadRows(out); return rows.length ? <div className="row-end"><button type="button" className="btn-primary" disabled={!!busy} onClick={() => post('import', { action: 'import', csv: rows.map((r) => r.replace(/^((?:[^,]*,){4})[^,]*/, '$1web-search')).join('\n') })}>Import {rows.length} lead{rows.length === 1 ? '' : 's'} into the CRM</button></div> : null; }} />
         <AgentRun agentId="speed-to-lead" goal={crm.speedGoal ?? ''} label={`Reply to ${crm.newLeads ?? 0} new lead${crm.newLeads === 1 ? '' : 's'}`} emptyText="No new leads from the last 48 hours are waiting for a first reply." goApprovals={goApprovals} />
       </section>
 
@@ -105,6 +112,7 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
                   <td className="nowrap">
                     <button type="button" className="btn-mini" aria-expanded={openId === c.id} onClick={() => setOpenId(openId === c.id ? null : c.id)}>{openId === c.id ? 'Close' : 'Sell'}</button>
                     <button type="button" className="btn-mini" disabled={!!busy} onClick={() => post(c.id, { action: 'touch', contactId: c.id, note: 'Spoke today' })}>Spoke today</button>
+                    {data.apollo && c.apolloId && !c.email && <button type="button" className="btn-mini" disabled={!!busy} onClick={() => post(c.id, { action: 'apollo_enrich', contactId: c.id })}>Find email (1 credit)</button>}
                     <button type="button" className="btn-mini" disabled={!!busy} onClick={() => post(c.id, { action: 'remove', contactId: c.id })}>Remove</button>
                   </td>
                 </tr>
