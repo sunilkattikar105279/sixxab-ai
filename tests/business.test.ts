@@ -121,3 +121,33 @@ test('CRM: qualifying a deal stores its MEDDIC score and call notes', async () =
   assert.ok(q.lastTouch, 'qualifying counts as a touch');
   await assert.rejects(qualifyDeal(s, ORG, 'nope', {}, '', 'f'), /not found/);
 });
+
+test('Bookkeeping: a bank statement imports once, sorted into categories, unclear lines left for review', async () => {
+  const { importStatement, loadAccounts, categorize } = await import('../core/accounting.js');
+  const s = new MemoryStore();
+  const csv = 'date,description,amount\n2026-11-02,UPI payment received from Patel,15000\n2026-11-03,Office rent November,-30000\n2026-11-04,Vercel Pro subscription,-1700\n2026-11-05,Misc cash,-200\nbad,row,10\n2026-11-06,Zero,0';
+  const r = await importStatement(s, ORG, csv, 'f', 'INR');
+  assert.deepEqual(r, { added: 4, skipped: 2, uncategorized: 1 });
+  const again = await importStatement(s, ORG, csv, 'f', 'INR');
+  assert.equal(again.added, 0, 'the same lines are not imported twice');
+  const a = await loadAccounts(s, ORG, 'INR', new Date('2026-11-20T00:00:00Z'));
+  assert.deepEqual(a.entries.map((e) => e.category).sort(), ['other', 'rent', 'sales', 'software']);
+  assert.equal(a.thisMonth.income, 15000);
+  assert.match(a.reviewGoal, /not categorized yet[\s\S]*Misc cash/);
+  assert.equal(categorize('GST payment', 'expense'), 'taxes');
+});
+
+test('CRM: brand-new leads with an email go to Speed-to-Lead; the Lead Finder never invents emails', async () => {
+  const { computeCrm, leadSearchGoal } = await import('../core/crm.js');
+  const base = { company: '', phone: '', source: 'website', value: 0, nextStep: '', notes: '' };
+  const ev = (at: string, contact: Record<string, unknown>) => ({ id: at + String(contact.id), orgId: ORG, at, actor: 'f', action: 'crm.contact', taskId: null, detail: { contact: { ...base, ...contact } } });
+  const crm = computeCrm([
+    ev('2026-11-04T10:00:00Z', { id: 'c-new001', name: 'New', email: 'n@example.com' }),
+    ev('2026-10-01T10:00:00Z', { id: 'c-old001', name: 'Old', email: 'o@example.com' }),
+    ev('2026-11-04T10:00:00Z', { id: 'c-nomail', name: 'No email', email: '' }),
+  ], Date.parse('2026-11-04T12:00:00Z'));
+  assert.equal(crm.newLeads, 1);
+  assert.match(crm.speedGoal, /New <n@example.com>/);
+  assert.doesNotMatch(crm.speedGoal, /Old|No email/);
+  assert.match(leadSearchGoal('clinics in Pune'), /leave a field empty when it is not published/);
+});

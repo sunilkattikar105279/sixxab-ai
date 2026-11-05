@@ -13,6 +13,7 @@ import { AdminPanel } from './AdminPanel';
 import { Governance } from './Governance';
 import { Billing } from './Billing';
 import { useLoad } from './useLoad';
+import { AgentRun } from './AgentRun';
 
 type Tab = 'journey' | 'today' | 'approvals' | 'crm' | 'support' | 'accounts' | 'raise' | 'agents' | 'activity' | 'governance' | 'billing';
 type AgentInfo = Omit<RoleCard, 'instructions'>;
@@ -340,6 +341,17 @@ function EarnedCell({ p }: { p?: Progress }) {
   return <span className="muted small">{Math.min(p.streak, p.needed)} of {p.needed} approvals with no edits</span>;
 }
 
+function AgentTask({ agent }: { agent: AgentInfo }) {
+  const [goal, setGoal] = useState(agent.starter ?? `In five bullet points, say what you will do for this business in the next 30 days, given its profile, stage and goals. Save it as a note titled "Plan: ${agent.name}".`);
+  return (
+    <details className="agent-task">
+      <summary className="muted small">Give {agent.name} a task</summary>
+      <textarea aria-label={`Task for ${agent.name}`} rows={4} value={goal} onChange={(e) => setGoal(e.target.value)} maxLength={4000} />
+      <AgentRun agentId={agent.id} goal={goal.trim()} label="Run" emptyText="Write a task first." goApprovals={() => undefined} />
+    </details>
+  );
+}
+
 function Agents() {
   const { data, error, reload } = useLoad<{ agents: AgentInfo[]; taskTypes: TaskType[]; tasks: TaskRow[]; progress?: Progress[]; cost?: Cost }>('/api/agents');
   const [busy, setBusy] = useState<string | null>(null);
@@ -394,6 +406,7 @@ function Agents() {
             <div key={a.id} className="agent">
               <div className="row-between"><strong>{a.name}</strong><span className="muted small">{a.layer}</span></div>
               <p className="muted small">{a.job}</p>
+              {a.usesModel && <AgentTask agent={a} />}
             </div>
           ))}
         </div>

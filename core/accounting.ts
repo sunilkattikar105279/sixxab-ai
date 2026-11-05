@@ -41,6 +41,54 @@ export async function addEntry(store: Store, orgId: string, input: EntryInput, b
   return loadAccounts(store, orgId, currency);
 }
 
+// Keyword rules for bank lines; anything unmatched is "other" for the Accounting agent to review.
+const RULES: [RegExp, EntryKind, string][] = [
+  [/salary|payroll|wages|stipend/i, 'expense', 'salaries'],
+  [/rent|lease/i, 'expense', 'rent'],
+  [/google ads|facebook|meta ads|linkedin ads|instagram|advert|marketing|promotion/i, 'expense', 'marketing'],
+  [/aws|vercel|supabase|anthropic|openai|github|google workspace|microsoft|zoom|slack|notion|software|subscription/i, 'expense', 'software'],
+  [/uber|ola|airline|indigo|air india|hotel|travel|irctc|fuel|petrol/i, 'expense', 'travel'],
+  [/\bgst\b|tds|tax|irs/i, 'expense', 'taxes'],
+  [/legal|advocate|lawyer|ca fees|accountant|consult/i, 'expense', 'professional fees'],
+  [/stationery|supplies|amazon|flipkart|pharma|medical supplies|lab supplies/i, 'expense', 'supplies'],
+  [/stripe|razorpay|paypal|upi|neft|imps|rtgs|deposit|payment received/i, 'income', 'sales'],
+];
+
+export function categorize(description: string, kind: EntryKind): string {
+  const hit = RULES.find(([re, k]) => k === kind && re.test(description));
+  return hit ? hit[2] : kind === 'income' ? 'other income' : 'other';
+}
+
+/**
+ * Imports a bank statement: "date,description,amount" rows (header optional; amounts below zero are
+ * expenses), at most 1,000. Lines already in the ledger (same date, amount and description) are skipped.
+ */
+export async function importStatement(store: Store, orgId: string, csv: string, by: string, currency = 'USD'): Promise<{ added: number; skipped: number; uncategorized: number }> {
+  const rows = String(csv ?? '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (rows[0] && /^date\s*,/i.test(rows[0])) rows.shift();
+  const existing = new Set((await loadAccounts(store, orgId, currency)).entries.map((e) => `${e.date}|${e.amount}|${e.note}`));
+  let added = 0, skipped = 0, uncategorized = 0;
+  for (const row of rows.slice(0, 1000)) {
+    const parts = row.split(',').map((x) => x.trim().replace(/^"|"$/g, ''));
+    const amountRaw = parts.pop() ?? '';
+    const [date, ...desc] = parts;
+    const description = desc.join(' ').slice(0, 300);
+    const signed = Number(amountRaw.replace(/[,$₹\s]/g, ''));
+    if (!DATE_RE.test(date ?? '') || !Number.isFinite(signed) || signed === 0) { skipped++; continue; }
+    const kind: EntryKind = signed < 0 ? 'expense' : 'income';
+    const amount = round2(Math.abs(signed));
+    const key = `${date}|${amount}|${description}`;
+    if (existing.has(key)) { skipped++; continue; }
+    existing.add(key);
+    const category = categorize(description, kind);
+    if (category === 'other' || category === 'other income') uncategorized++;
+    const entry = { id: newId(), kind, date, amount, category, party: '', note: description };
+    await record(store, orgId, by, 'acct.entry', { entry, source: 'statement', summary: `Imported ${kind}: ${amount} ${currency} (${category})` });
+    added++;
+  }
+  return { added, skipped, uncategorized };
+}
+
 export async function removeEntry(store: Store, orgId: string, id: string, by: string, currency = 'USD'): Promise<AccountsState> {
   await record(store, orgId, by, 'acct.removed', { entryId: id, summary: 'Ledger entry removed' });
   return loadAccounts(store, orgId, currency);
@@ -77,11 +125,12 @@ export function computeAccounts(events: AuditEvent[], currency = 'USD', today = 
   const cats = new Map<string, number>();
   for (const en of entries) if (en.kind === 'expense' && en.date.startsWith(current)) cats.set(en.category, (cats.get(en.category) ?? 0) + en.amount);
   const expensesByCategory = [...cats.entries()].map(([category, amount]) => ({ category, amount: round2(amount) })).sort((a, b) => b.amount - a.amount);
-  return { currency, entries, months, thisMonth: pnl(current), expensesByCategory, reviewGoal: reviewGoal(months, currency) };
+  return { currency, entries, months, thisMonth: pnl(current), expensesByCategory, reviewGoal: reviewGoal(months, currency, entries.filter((e) => e.category === 'other' || e.category === 'other income')) };
 }
 
-function reviewGoal(months: MonthPnl[], currency: string): string {
+function reviewGoal(months: MonthPnl[], currency: string, unsorted: Entry[] = []): string {
   if (!months.length) return '';
+  const review = unsorted.length ? `\nThese lines are not categorized yet; suggest a category for each from: ${[...INCOME_CATEGORIES, ...EXPENSE_CATEGORIES].join(', ')}.\n${unsorted.slice(0, 30).map((e) => `- ${e.date} ${e.kind} ${e.amount}: ${e.note || e.party || 'no description'}`).join('\n')}` : '';
   const lines = months.slice(0, 6).map((m) => `- ${m.month}: income ${m.income}, expenses ${m.expenses}, profit ${m.profit}${m.margin === null ? '' : ` (${m.margin}% margin)`}`);
-  return `Write this month's finance review for the owner from the recorded ledger below (amounts in ${currency}): profit and loss, the trend against earlier months, the three biggest costs and whether each is worth it, cash to watch, and two concrete actions. Use only these numbers; mark anything missing. This is not tax or legal advice. Save it as a note titled "Finance: monthly review".\n${lines.join('\n')}`;
+  return `Write this month's finance review for the owner from the recorded ledger below (amounts in ${currency}): profit and loss, the trend against earlier months, the three biggest costs and whether each is worth it, cash to watch, and two concrete actions. Use only these numbers; mark anything missing. This is not tax or legal advice. Save it as a note titled "Finance: monthly review".\n${lines.join('\n')}${review}`;
 }

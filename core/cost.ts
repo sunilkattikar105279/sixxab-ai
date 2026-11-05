@@ -1,6 +1,6 @@
 // Model cost per call, task and agent. Prices are USD per million tokens, from the published
 // model pages (Nov 2026): Haiku 5.5 $0.10/$0.50 (prompts up to 100K tokens, $0.50/$2.50 above),
-// Sonnet 5.5 $2/$10, Opus 5.5 $4/$20.
+// Sonnet 5.5 $2/$10, Opus 5.5 $4/$20. Web search: $10 per 1,000 searches, on top of tokens.
 import { newId, nowIso, type Store } from './store.js';
 import type { ModelResponse } from './types.js';
 
@@ -12,6 +12,7 @@ const PRICES: Record<string, Price> = {
 };
 
 const round = (n: number) => Math.round(n * 1e6) / 1e6;
+export const WEB_SEARCH_USD = 0.01;
 
 /** USD cost of one call, or null for a model without a known price. */
 export function costUsd(model: string, inputTokens: number, outputTokens: number): number | null {
@@ -27,9 +28,11 @@ export async function recordUsage(store: Store, orgId: string, taskId: string | 
   if (!resp.usage) return;
   const model = resp.model ?? 'unknown';
   const { inputTokens, outputTokens } = resp.usage;
+  const webSearches = resp.usage.webSearches ?? 0;
+  const tokens = costUsd(model, inputTokens, outputTokens);
   await store.audit({
     id: newId(), orgId, at: nowIso(), actor: agentId, action: 'model.usage', taskId,
-    detail: { model, inputTokens, outputTokens, costUsd: costUsd(model, inputTokens, outputTokens) },
+    detail: { model, inputTokens, outputTokens, ...(webSearches ? { webSearches } : {}), costUsd: tokens === null ? null : round(tokens + webSearches * WEB_SEARCH_USD) },
   });
 }
 

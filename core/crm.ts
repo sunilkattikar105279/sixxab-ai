@@ -19,12 +19,16 @@ export interface CrmState {
   pipeline: Record<DealStage, number>;
   totals: { open: number; openValue: number; won: number; wonValue: number; winRate: number | null; followUps: number };
   followUpGoal: string;
+  /** Brand-new leads (48 hours, never contacted, with an email) for the Speed-to-Lead agent. */
+  newLeads: number;
+  speedGoal: string;
 }
 
 export const CRM_EVENTS = ['crm.contact', 'crm.stage', 'crm.touch', 'crm.qualify', 'crm.removed'];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^\+?[\d\s()-]{7,20}$/;
 const STALE_DAYS = 7;
+const NEW_LEAD_HOURS = 48;
 const OPEN: DealStage[] = ['lead', 'contacted', 'qualified', 'proposal'];
 
 const text = (v: unknown, max: number) => String(v ?? '').trim().slice(0, max);
@@ -126,6 +130,7 @@ export function computeCrm(events: AuditEvent[], now = Date.now()): CrmState {
   const open = contacts.filter((c) => OPEN.includes(c.stage));
   const won = contacts.filter((c) => c.stage === 'won');
   const closed = won.length + pipeline.lost;
+  const fresh = contacts.filter((c) => c.stage === 'lead' && c.email && !c.lastTouch && now - Date.parse(c.createdAt) <= NEW_LEAD_HOURS * 36e5);
   const stale = open.filter((c) => c.email && now - Date.parse(c.lastTouch ?? c.createdAt) >= STALE_DAYS * 864e5);
   return {
     contacts, pipeline,
@@ -134,7 +139,19 @@ export function computeCrm(events: AuditEvent[], now = Date.now()): CrmState {
       winRate: closed ? Math.round((won.length / closed) * 100) : null, followUps: stale.length,
     },
     followUpGoal: followUpGoal(stale.slice(0, 10)),
+    newLeads: fresh.length,
+    speedGoal: speedGoal(fresh.slice(0, 10)),
   };
+}
+
+function speedGoal(list: Contact[]): string {
+  if (!list.length) return '';
+  return `These leads are new and have not heard from us yet. Write one short first reply to each and queue it with send_message (channel "email"): thank them, answer what they asked if the notes say, and offer one clear next step such as a call time. Under 90 words each. Each email waits for the owner's approval.\n${list.map((c) => `- ${c.name}${c.company ? ` (${c.company})` : ''} <${c.email}>, came from ${c.source}${c.notes ? `, notes: ${c.notes.slice(0, 300)}` : ''}`).join('\n')}`;
+}
+
+/** The Lead Finder's goal for a search the owner describes. */
+export function leadSearchGoal(query: string): string {
+  return `Find up to 10 businesses that match: "${query.slice(0, 300)}". Use web search. For each: business name, city, website, public business phone or email if listed, and why it fits, with the page you found it on. Save the list as a note titled "Leads: ${query.slice(0, 60)}" with the rows also as CSV lines (name,company,email,phone,source,value) ready to import into the CRM; leave a field empty when it is not published.`;
 }
 
 function followUpGoal(list: Contact[]): string {

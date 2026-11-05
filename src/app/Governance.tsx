@@ -4,10 +4,12 @@ import { api } from '../lib/auth';
 import { Rate } from './Rate';
 import { Spinner } from './ui';
 import { useLoad } from './useLoad';
+import { AgentProof, type AgentProofRow } from './AgentProof';
 
 type State = 'green' | 'amber' | 'red' | 'off';
 interface Gov {
   generatedAt: string;
+  agents?: AgentProofRow[];
   status: { overall: State; checks: { key: string; label: string; state: State; detail: string }[] };
   journey: { businesses: number; byStage: Record<string, number>; onboarded: number; stepsDone: number; stepsTotal: number; pendingApprovals: number; oldestApprovalHours: number | null;
     businessesList: { orgId: string; name: string | null; stage: string; onboarded: boolean; stepsDone: number; pending: number }[] };
@@ -48,6 +50,8 @@ export function Governance() {
           {g.status.checks.map((c) => <li key={c.key}><Dot s={c.state} /> <strong>{c.label}</strong> <span className="muted small">{c.detail}</span></li>)}
         </ul>
       </section>
+
+      {g.agents && <AgentProof agents={g.agents} onDone={reload} />}
 
       <section className="panel glass-card">
         <h2>Customer journey and workflows</h2>

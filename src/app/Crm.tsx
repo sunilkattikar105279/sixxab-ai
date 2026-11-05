@@ -5,9 +5,10 @@ import { useLoad } from './useLoad';
 import { AgentRun, money, usePost } from './AgentRun';
 import { DealPanel } from './DealPanel';
 import { pipelineReviewGoal, type Meddic } from '../../core/gtm';
+import { leadSearchGoal } from '../../core/crm';
 
 interface Contact { id: string; name: string; company: string; email: string; phone: string; source: string; value: number; nextStep: string; notes: string; stage: string; lastTouch: string | null; createdAt: string; meddic: Meddic | null; callNotes: string; score: number | null }
-interface CrmState { contacts: Contact[]; pipeline: Record<string, number>; totals: { open: number; openValue: number; won: number; wonValue: number; winRate: number | null; followUps: number }; followUpGoal: string }
+interface CrmState { contacts: Contact[]; pipeline: Record<string, number>; totals: { open: number; openValue: number; won: number; wonValue: number; winRate: number | null; followUps: number }; followUpGoal: string; newLeads?: number; speedGoal?: string }
 
 const STAGES = ['lead', 'contacted', 'qualified', 'proposal', 'won', 'lost'];
 const SOURCES = ['website', 'referral', 'linkedin', 'whatsapp', 'walk-in', 'event', 'other'];
@@ -21,6 +22,7 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
   const [csv, setCsv] = useState('');
   const [filter, setFilter] = useState('open');
   const [openId, setOpenId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
   if (error) return <p className="error">{error}</p>;
   if (!data) return <Spinner label="Loading your CRM…" />;
   const { crm } = data;
@@ -46,6 +48,16 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
         <h2>Weekly pipeline review</h2>
         <p className="muted small">Focus deals, stuck deals and the forecast weighted by each deal's MEDDIC score. Open a contact below to prep a call, debrief it, send the follow-up or answer an objection.</p>
         <AgentRun agentId="head-of-gtm" goal={pipelineReviewGoal(crm.contacts)} label="Run the weekly review" emptyText="Add an open deal to review the pipeline." goApprovals={goApprovals} />
+      </section>
+
+      <section className="panel glass-card">
+        <p className="eyebrow">New business · Lead Finder and Speed-to-Lead</p>
+        <h2>Find and answer leads</h2>
+        <label className="field"><span>Who should the Lead Finder look for?</span>
+          <input aria-label="Lead search" value={search} maxLength={300} onChange={(e) => setSearch(e.target.value)} placeholder="e.g. physiotherapy clinics in Pune with a website" />
+        </label>
+        <AgentRun agentId="lead-finder" goal={search.trim() ? leadSearchGoal(search.trim()) : ''} label="Find leads" emptyText="Describe the businesses to find. The list comes back as a note you can paste into Import." goApprovals={goApprovals} />
+        <AgentRun agentId="speed-to-lead" goal={crm.speedGoal ?? ''} label={`Reply to ${crm.newLeads ?? 0} new lead${crm.newLeads === 1 ? '' : 's'}`} emptyText="No new leads from the last 48 hours are waiting for a first reply." goApprovals={goApprovals} />
       </section>
 
       <section className="panel glass-card">

@@ -1,6 +1,7 @@
 // Gathers the platform-wide inputs for the admin Governance snapshot (core/governance.ts).
 import { computeGovernance, type GovernanceInput, type OrgSnapshot } from '../core/governance.js';
 import { computeJourney } from '../core/journey.js';
+import { PROOF_EVENTS } from '../core/proof.js';
 import { loadBusinessProfile } from '../core/profile.js';
 import type { SupabaseStore } from '../core/supabase-store.js';
 import { BUILD_INFO } from './build-info.js';
@@ -23,8 +24,9 @@ export async function loadFixedCosts(store: SupabaseStore, adminOrgId: string): 
 
 async function orgSnapshot(store: SupabaseStore, orgId: string, now: number): Promise<OrgSnapshot> {
   const since7 = new Date(now - 7 * DAY).toISOString();
-  const [profile, events, tasks, approvals] = await Promise.all([
+  const [profile, events, tasks, approvals, proofEvents] = await Promise.all([
     loadBusinessProfile(store, orgId), store.listAuditByActions(orgId, EVENTS), store.listTasks(orgId, since7), store.listApprovals(orgId, 'pending'),
+    store.listAuditByActions(orgId, PROOF_EVENTS),
   ]);
   const j = computeJourney(profile, events, journeyOptions());
   const lastPlan = events.filter((e) => e.action === 'billing.plan').at(-1);
@@ -40,6 +42,7 @@ async function orgSnapshot(store: SupabaseStore, orgId: string, now: number): Pr
     pendingApprovals: approvals.map((a) => a.createdAt),
     tasks7d: tasks.map((t) => ({ status: t.status })),
     events30d: events.filter((e) => now - Date.parse(e.at) <= 30 * DAY),
+    proofEvents,
     plan: lastPlan ? { name: String(lastPlan.detail.name), monthlyFee: Number(lastPlan.detail.monthlyFee), currency: String(lastPlan.detail.currency) } : null,
   };
 }

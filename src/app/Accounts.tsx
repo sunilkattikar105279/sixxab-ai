@@ -16,6 +16,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 export function Accounts({ goApprovals }: { goApprovals: () => void }) {
   const { data, error, reload } = useLoad<{ accounts: AccountsState }>('/api/accounts');
   const { busy, msg, post } = usePost('/api/accounts', reload);
+  const [csv, setCsv] = useState('');
   const [f, setF] = useState({ kind: 'income' as 'income' | 'expense', date: today(), amount: '', category: 'sales', party: '', note: '' });
   if (error) return <p className="error">{error}</p>;
   if (!data) return <Spinner label="Loading your books…" />;
@@ -51,6 +52,12 @@ export function Accounts({ goApprovals }: { goApprovals: () => void }) {
           </div>
           <div className="row-end"><button type="submit" className="btn-primary" disabled={!!busy || !f.amount}>{busy === 'add' ? <Spinner label="Saving…" /> : 'Record'}</button></div>
         </form>
+        <details>
+          <summary>Import a bank statement <span className="muted small">CSV: date, description, amount (money out below zero)</span></summary>
+          <textarea aria-label="Bank statement CSV" rows={4} value={csv} onChange={(e) => setCsv(e.target.value)} placeholder="2026-11-02,UPI payment received from Patel,15000&#10;2026-11-03,Office rent November,-30000" />
+          <p className="muted small">Lines are sorted into categories automatically; anything unclear is marked "other" for the Accounting agent to suggest. Lines already in the ledger are skipped.</p>
+          <div className="row-end"><button type="button" className="btn-ghost" disabled={!!busy || !csv.trim()} onClick={async () => { if (await post('import', { action: 'import', csv })) setCsv(''); }}>Import statement</button></div>
+        </details>
         {msg && <p className="error" role="alert">{msg}</p>}
       </section>
 

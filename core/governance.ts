@@ -1,6 +1,7 @@
 // AI & Platform Governance: one admin-only snapshot of the whole platform for the founder, COO,
 // SRE, CTO, CISO and CFO. Pure: the server gathers the inputs, this turns them into status,
 // customer journey, workflows, integrations, data, security, code/pipeline and cost per customer.
+import { computeAgentProof } from './proof.js';
 import type { AuditEvent } from './types.js';
 import { DEFAULT_INR_PER_USD } from './journey.js';
 
@@ -22,6 +23,8 @@ export interface OrgSnapshot {
   /** tool.*, model.usage and settings events from the last 30 days */
   events30d: AuditEvent[];
   plan: Plan | null;
+  /** task.done, task.rated and approval decisions, any age: proof that agents work */
+  proofEvents?: AuditEvent[];
 }
 
 export interface PlatformChecks {
@@ -131,6 +134,7 @@ export function computeGovernance(input: GovernanceInput) {
       oldestApprovalHours: oldest === null ? null : Math.round((now - oldest) / 3600_000),
       businessesList: input.orgs.map((o) => ({ orgId: o.orgId, name: o.name, stage: o.stage, onboarded: o.onboarded, stepsDone: o.stepsDone, pending: o.pendingApprovals.length })),
     },
+    agents: computeAgentProof(input.orgs.flatMap((o) => o.proofEvents ?? []), input.counts),
     workflows: { tasks7d, delivered7d: integrations.reduce((s, i) => s + i.sent, 0), failed7d: integrations.reduce((s, i) => s + i.failed, 0) },
     integrations,
     data: { counts: input.counts },

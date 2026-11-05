@@ -631,7 +631,7 @@ test('the Start-the-business stage agents exist, use only safe tools, and every 
   for (const id of ['onboarding-guide', 'health-check', 'niche-offer', 'roadmap-planner', 'milestone-tracker']) {
     const a = getAgent(id);
     assert.ok(a?.usesModel, id);
-    assert.ok(a!.tools.every((t) => ['recall', 'remember', 'write_note'].includes(t)), `${id} only plans and records; it never sends or spends`);
+    assert.ok(a!.tools.every((t) => ['recall', 'remember', 'write_note', 'web_search'].includes(t)), `${id} only plans, researches and records; it never sends or spends`);
   }
   for (const s of STEPS) if (s.agentId) assert.ok(getAgent(s.agentId), `step ${s.id} agent ${s.agentId}`);
 });

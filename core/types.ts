@@ -23,6 +23,8 @@ export interface RoleCard {
   instructions: string;
   /** Agents with no model (pure platform services) never run the LLM loop. */
   usesModel: boolean;
+  /** A safe first task the owner can run from the Agents tab (and the admin proof run uses). */
+  starter?: string;
 }
 
 /** Risk class drives defaults: money and external actions never start above L1/L2. */
@@ -160,11 +162,14 @@ export interface ToolSpec {
   input_schema: Record<string, unknown>;
 }
 
+/** A tool the Claude API runs itself, such as web search; results come back inside the response. */
+export interface ServerToolSpec { type: string; name: string; max_uses?: number }
+
 export interface ModelRequest {
   tier: ModelTier;
   system: string;
   messages: ChatMessage[];
-  tools?: ToolSpec[];
+  tools?: (ToolSpec | ServerToolSpec)[];
   maxTokens?: number;
 }
 
@@ -174,7 +179,7 @@ export interface ModelResponse {
   /** The model that answered, when the API reports it. */
   model?: string;
   /** Tokens billed for this call, when the API reports them. */
-  usage?: { inputTokens: number; outputTokens: number };
+  usage?: { inputTokens: number; outputTokens: number; webSearches?: number };
 }
 
 export interface ModelClient {

@@ -2,7 +2,7 @@
 import { getAgent } from './agents.js';
 import { effectiveGate } from './policy.js';
 import { newId, nowIso, type Store } from './store.js';
-import { NOT_SENT_PREFIX, toolForTaskType, toolsFor, TOOLS, type Integrations, type Tool } from './tools.js';
+import { NOT_SENT_PREFIX, toolForTaskType, toolsFor, TOOLS, WEB_SEARCH_TOOL, type Integrations, type Tool } from './tools.js';
 import { recordDecision } from './learning.js';
 import { PROFILE_PREFIX, profileForPrompt } from './profile.js';
 import { journeyForPrompt, type JourneyOptions } from './journey.js';
@@ -155,7 +155,7 @@ export async function runTask(deps: RuntimeDeps, taskId: string): Promise<RunRes
   const agent = getAgent(task.agentId);
   if (!agent || !agent.usesModel) throw new Error(`Agent ${task.agentId} cannot run tasks`);
   const types = new Map((await deps.store.getTaskTypes(task.orgId)).map((t) => [t.key, t]));
-  const tools = toolsFor(agent).map((t) => t.spec);
+  const tools = [...toolsFor(agent).map((t) => t.spec), ...(agent.tools.includes('web_search') ? [WEB_SEARCH_TOOL] : [])];
   const maxTurns = deps.maxTurns ?? 8;
   const queued: Approval[] = [];
 
@@ -168,6 +168,11 @@ export async function runTask(deps: RuntimeDeps, taskId: string): Promise<RunRes
     const transcript: ChatMessage[] = [...task.transcript, { role: 'assistant', content: resp.content }];
     const uses = resp.content.filter((b): b is ToolUseBlock => b.type === 'tool_use');
     if (uses.length === 0) {
+      // A long web search pauses the turn; sending the transcript back lets Claude carry on.
+      if (resp.stopReason === 'pause_turn') {
+        task = await deps.store.updateTask(task.id, { transcript });
+        continue;
+      }
       if (resp.stopReason === 'max_tokens') {
         const nudge: ChatMessage = { role: 'user', content: 'Your reply was cut off at the length limit. Finish with a shorter summary.' };
         task = await deps.store.updateTask(task.id, { transcript: [...transcript, nudge] });

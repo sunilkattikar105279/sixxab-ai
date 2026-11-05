@@ -1,7 +1,7 @@
 // Accounting ledger for the signed-in business, in its profile currency.
 // GET /api/accounts → entries, monthly profit and loss, this month's costs and the review goal.
-// POST /api/accounts { action: entry | remove, ... }
-import { addEntry, loadAccounts, removeEntry, type EntryInput } from '../../core/accounting.js';
+// POST /api/accounts { action: entry | import | remove, ... }
+import { addEntry, importStatement, loadAccounts, removeEntry, type EntryInput } from '../../core/accounting.js';
 import { loadBusinessProfile } from '../../core/profile.js';
 import { handle, HttpError, json, readJson, requireUser } from '../context.js';
 
@@ -11,15 +11,16 @@ export const GET = handle(async (request) => {
   return json({ accounts: await loadAccounts(store, orgId, currency) });
 });
 
-interface Body { action?: string; entry?: EntryInput; entryId?: string }
+interface Body { action?: string; entry?: EntryInput; entryId?: string; csv?: string }
 
 export const POST = handle(async (request) => {
   const { orgId, label, store } = await requireUser(request);
-  const b = await readJson<Body>(request, 20_000);
+  const b = await readJson<Body>(request, 300_000);
   const currency = (await loadBusinessProfile(store, orgId))?.currency ?? 'USD';
   try {
     switch (b.action) {
       case 'entry': return json({ accounts: await addEntry(store, orgId, b.entry ?? ({} as EntryInput), label, currency) });
+      case 'import': return json({ ...(await importStatement(store, orgId, String(b.csv ?? ''), label, currency)), accounts: await loadAccounts(store, orgId, currency) });
       case 'remove': return json({ accounts: await removeEntry(store, orgId, String(b.entryId ?? ''), label, currency) });
       default: throw new HttpError(400, 'Unknown action');
     }

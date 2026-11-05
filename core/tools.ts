@@ -206,6 +206,9 @@ export const TOOLS: Record<string, Tool> = {
   },
 };
 
+/** Claude's own web search, for agents whose role card lists "web_search" ($10 per 1,000 searches). */
+export const WEB_SEARCH_TOOL = { type: 'web_search_20260209', name: 'web_search', max_uses: 5 } as const;
+
 export function toolsFor(agent: RoleCard): Tool[] {
   return agent.tools.map((n) => TOOLS[n]).filter((t): t is Tool => Boolean(t));
 }

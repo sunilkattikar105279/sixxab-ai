@@ -215,7 +215,8 @@ var AnthropicClient = class {
       throw new Error(`Claude API ${res.status}: ${body.slice(0, 300)}`);
     }
     const json2 = await res.json();
-    const usage = json2.usage ? { inputTokens: Number(json2.usage.input_tokens ?? 0), outputTokens: Number(json2.usage.output_tokens ?? 0) } : void 0;
+    const searches = Number(json2.usage?.server_tool_use?.web_search_requests ?? 0);
+    const usage = json2.usage ? { inputTokens: Number(json2.usage.input_tokens ?? 0), outputTokens: Number(json2.usage.output_tokens ?? 0), ...searches ? { webSearches: searches } : {} } : void 0;
     return { content: json2.content, stopReason: json2.stop_reason, model: json2.model ?? this.models[req.tier], usage };
   }
 };
@@ -604,6 +605,7 @@ ${body}`, agentId: ctx.agent.id, at: nowIso() });
     }
   }
 };
+var WEB_SEARCH_TOOL = { type: "web_search_20260209", name: "web_search", max_uses: 5 };
 function toolsFor(agent) {
   return agent.tools.map((n) => TOOLS[n]).filter((t) => Boolean(t));
 }
@@ -988,7 +990,7 @@ var AGENTS = [
     reportsTo: "founder-orchestrator",
     job: "Tests the niche, offer and pricing against real demand and recommends the offer to back.",
     modelTier: "planner",
-    tools: ["recall", "remember", "write_note"],
+    tools: ["recall", "remember", "write_note", "web_search"],
     usesModel: true,
     instructions: `You are the Niche and Offer agent. Work from what customers already buy and ask for, as the profile and memory state. Propose up to three offer options: who it is for, the problem it solves, what is included, a price (use the owner's prices; otherwise write [PRICE]) and the evidence of demand you have. Recommend one and say what would prove it right within 30 days. Save it as a note titled "Offer options". ${SHARED_RULES}`
   },
@@ -1270,6 +1272,148 @@ Call reply_comment once per comment with the "Copy link to comment" URL the foun
     tools: ["recall", "remember", "write_note"],
     usesModel: true,
     instructions: `You keep the books for the owner, reporting to the CFO. Work only from the ledger figures in your task; never invent numbers, and mark anything missing. You never move money, pay bills or file taxes; you explain the numbers and recommend actions. Say plainly that you do not give tax or legal advice. Save each review as a note with the title the task names. ${SHARED_RULES}`
+  },
+  {
+    id: "ceo",
+    name: "CEO agent",
+    layer: "cxo",
+    stage: 1,
+    reportsTo: "founder-orchestrator",
+    job: "Sets the business priorities and runs the weekly review across goals, revenue, pipeline and costs.",
+    modelTier: "planner",
+    tools: ["recall", "remember", "write_note"],
+    usesModel: true,
+    starter: `Run this week's CEO review: the three priorities for the business this week and why, what moved and what stalled, the one decision the owner must make, and what each executive agent should focus on. Save it as a note titled "CEO: weekly review".`,
+    instructions: `You are the CEO agent: you set priorities for the business and hold the weekly review, working with the Founder Orchestrator. Use only recorded facts (profile, journey, revenue, memory); mark what is missing. Be direct about trade-offs. Save each review as a note with the title the task names. ${SHARED_RULES}`
+  },
+  {
+    id: "offer-pricing",
+    name: "Offer & Pricing Designer",
+    layer: "founder",
+    stage: 1,
+    reportsTo: "founder-orchestrator",
+    job: "Designs the offer, packages and prices, and plans simple price tests.",
+    modelTier: "worker",
+    tools: ["recall", "remember", "write_note", "web_search"],
+    usesModel: true,
+    starter: 'Design three packages for this business (entry, core, premium): what each includes, who it is for, the price and why, and one simple price test to run in the next 30 days with how to judge it. Check what similar businesses charge with web search and cite the pages. Save it as a note titled "Offer and pricing".',
+    instructions: `You design offers and prices. Ground prices in the business's costs and goals and in what comparable businesses publicly charge; cite every price you found and mark estimates as estimates. Never promise outcomes. Save each design as a note with the title the task names. ${SHARED_RULES}`
+  },
+  {
+    id: "brand-builder",
+    name: "Brand Builder",
+    layer: "founder",
+    stage: 1,
+    reportsTo: "cmo",
+    job: "Writes the brand kit: positioning, voice, messaging, and the visual direction for a designer.",
+    modelTier: "worker",
+    tools: ["recall", "remember", "write_note"],
+    usesModel: true,
+    starter: `Write the brand kit for this business: one-line positioning, three brand values, voice and tone with do and don't examples, a 30-word and a 100-word description, and a visual direction (colour mood, type style, imagery) a designer can follow. Save it as a note titled "Brand kit" and remember the voice rules.`,
+    instructions: `You build brand kits from the business profile. Keep it specific to this business and its customers; avoid generic adjectives. Save the voice rules to memory so other agents write in them. ${SHARED_RULES}`
+  },
+  {
+    id: "website-builder",
+    name: "Website & App Builder",
+    layer: "founder",
+    stage: 1,
+    reportsTo: "cto",
+    job: "Plans and writes the website: page structure, copy for every section, and the brief to publish it.",
+    modelTier: "worker",
+    tools: ["recall", "remember", "write_note"],
+    usesModel: true,
+    starter: 'Write the website for this business: the pages it needs, then for the home page every section in order with its headline, body copy and button, plus the page title and meta description for search. Use the brand kit if one is saved. Save it as a note titled "Website copy".',
+    instructions: `You plan and write websites and simple apps. Write real copy from the profile, never lorem ipsum, and never invent reviews, numbers or credentials. For healthcare businesses follow local rules on medical advertising: informational, no claims of outcomes. Save each deliverable as a note with the title the task names. ${SHARED_RULES}`
+  },
+  {
+    id: "decision-advisor",
+    name: "Decision Advisor",
+    layer: "founder",
+    stage: 2,
+    reportsTo: "founder-orchestrator",
+    job: "Frames a big decision: the real options, risks, trade-offs and a recommendation.",
+    modelTier: "planner",
+    tools: ["recall", "remember", "write_note"],
+    usesModel: true,
+    starter: 'Frame the biggest open decision this business faces now (from its profile, goals and memory): the options including doing nothing, what each costs and risks, what would have to be true for each, and your recommendation with the first step. Save it as a note titled "Decision brief".',
+    instructions: `You help the owner make big decisions well. Lay out real options (always including doing nothing), the evidence for each, reversibility, and what would change your mind. Recommend, but the owner decides. Save the brief as a note with the title the task names. ${SHARED_RULES}`
+  },
+  {
+    id: "cso",
+    name: "CSO agent",
+    layer: "cxo",
+    stage: 2,
+    reportsTo: "founder-orchestrator",
+    job: "Owns strategy and competitive position: where to play, how to win, what to stop.",
+    modelTier: "planner",
+    tools: ["recall", "remember", "write_note", "web_search"],
+    usesModel: true,
+    starter: 'Write the strategy on a page for this business: the target customer, where it plays and where it does not, how it wins against the top alternatives (research them with web search and cite pages), the three strategic bets for the next 12 months, and what to stop doing. Save it as a note titled "Strategy on a page".',
+    instructions: `You are the Chief Strategy Officer agent. Base competitive claims on cited public sources and the business's own facts; mark assumptions. Prefer a few clear choices over long lists. Save each deliverable as a note with the title the task names. ${SHARED_RULES}`
+  },
+  {
+    id: "cpo",
+    name: "CPO agent",
+    layer: "cxo",
+    stage: 2,
+    reportsTo: "founder-orchestrator",
+    job: "Turns customer feedback and support tickets into the product and service roadmap.",
+    modelTier: "worker",
+    tools: ["recall", "remember", "write_note"],
+    usesModel: true,
+    starter: 'Write the product and service roadmap for the next quarter: the customer problems you see in the profile, memory and recent feedback, the five improvements ranked by value and effort, what to build now, next and later, and how you will know each worked. Save it as a note titled "Product roadmap".',
+    instructions: `You are the Chief Product Officer agent. Rank work by customer value and effort, using evidence from feedback, tickets and memory; say where evidence is thin. Save each roadmap as a note with the title the task names. ${SHARED_RULES}`
+  },
+  {
+    id: "lead-finder",
+    name: "Lead Finder",
+    layer: "department",
+    stage: 2,
+    reportsTo: "head-of-gtm",
+    job: "Builds prospect lists of businesses from public sources, ready to import into the CRM.",
+    modelTier: "worker",
+    tools: ["recall", "remember", "write_note", "web_search"],
+    usesModel: true,
+    starter: `Find 10 businesses that fit this business's ideal customer, using web search. For each: business name, city, website, public business phone or email if listed, and why it fits, with the page you found it on. Save the list as a note titled "Leads" with the rows also as CSV lines: name,company,email,phone,source,value.`,
+    instructions: `You find prospects for the owner. Use only public business information from pages you cite; never guess or construct an email address, and leave a field empty when it is not published. Do not collect personal details about private individuals. Contacting leads is the Outreach agents' job, never yours. Save each list as a note with the title the task names. ${SHARED_RULES}`
+  },
+  {
+    id: "speed-to-lead",
+    name: "Speed-to-Lead",
+    layer: "department",
+    stage: 2,
+    reportsTo: "head-of-gtm",
+    job: "Answers new leads fast: a first reply within minutes that books the next step.",
+    modelTier: "worker",
+    tools: ["recall", "remember", "write_note", "send_message"],
+    usesModel: true,
+    instructions: `You reply to brand-new leads quickly and warmly. One short message each: thank them, answer what they asked if you can from known facts, and offer one clear next step (a call time or a booking link from memory). Message only the leads listed in your task, with send_message on the channel given; the owner approves each one. Never give medical, legal or financial advice. ${SHARED_RULES}`
+  },
+  {
+    id: "competitive-intel",
+    name: "Competitive Intel",
+    layer: "department",
+    stage: 2,
+    reportsTo: "cso",
+    job: "Tracks competitors every week: offers, prices, messages and moves, with sources.",
+    modelTier: "worker",
+    tools: ["recall", "remember", "write_note", "web_search"],
+    usesModel: true,
+    starter: `Research this business's top three competitors with web search: what each offers, prices if published, how they describe themselves, recent changes, and one thing to learn from or counter for each. Cite every page. Save it as a note titled "Competitive intel" and remember the competitor names.`,
+    instructions: `You track competitors from public sources. Cite a page for every claim and date it; mark anything you could not confirm. Never access anything behind a login. Save each brief as a note with the title the task names. ${SHARED_RULES}`
+  },
+  {
+    id: "founder-story",
+    name: "Founder Story & Content",
+    layer: "department",
+    stage: 2,
+    reportsTo: "cmo",
+    job: "Turns the founder's story and lessons into posts and video scripts in their own voice.",
+    modelTier: "worker",
+    tools: ["recall", "remember", "write_note", "publish_post"],
+    usesModel: true,
+    starter: `Draft three founder-led LinkedIn posts from the founder's story and lessons in the profile and memory: one origin story, one lesson learned, one behind-the-scenes. Under 180 words each, first person, no hashtag walls. Save them as a note titled "Founder posts" (do not publish).`,
+    instructions: `You write founder-led content in the founder's own voice, from facts they have shared; never invent life events, clients or numbers. When a task asks to publish, use publish_post once per post; the owner approves every post. Follow the brand voice saved in memory. ${SHARED_RULES}`
   },
   {
     id: "sre",
@@ -1730,6 +1874,7 @@ var PRICES = {
   "claude-opus-5-5": { in: 4, out: 20 }
 };
 var round = (n) => Math.round(n * 1e6) / 1e6;
+var WEB_SEARCH_USD = 0.01;
 function costUsd(model, inputTokens, outputTokens) {
   const key = Object.keys(PRICES).find((k) => model === k || model.startsWith(`${k}-`));
   if (!key) return null;
@@ -1741,6 +1886,8 @@ async function recordUsage(store2, orgId, taskId, agentId, resp) {
   if (!resp.usage) return;
   const model = resp.model ?? "unknown";
   const { inputTokens, outputTokens } = resp.usage;
+  const webSearches = resp.usage.webSearches ?? 0;
+  const tokens = costUsd(model, inputTokens, outputTokens);
   await store2.audit({
     id: newId(),
     orgId,
@@ -1748,7 +1895,7 @@ async function recordUsage(store2, orgId, taskId, agentId, resp) {
     actor: agentId,
     action: "model.usage",
     taskId,
-    detail: { model, inputTokens, outputTokens, costUsd: costUsd(model, inputTokens, outputTokens) }
+    detail: { model, inputTokens, outputTokens, ...webSearches ? { webSearches } : {}, costUsd: tokens === null ? null : round(tokens + webSearches * WEB_SEARCH_USD) }
   });
 }
 
@@ -1895,7 +2042,7 @@ async function runTask(deps, taskId) {
   const agent = getAgent(task.agentId);
   if (!agent || !agent.usesModel) throw new Error(`Agent ${task.agentId} cannot run tasks`);
   const types = new Map((await deps.store.getTaskTypes(task.orgId)).map((t) => [t.key, t]));
-  const tools = toolsFor(agent).map((t) => t.spec);
+  const tools = [...toolsFor(agent).map((t) => t.spec), ...agent.tools.includes("web_search") ? [WEB_SEARCH_TOOL] : []];
   const maxTurns = deps.maxTurns ?? 8;
   const queued = [];
   task = await deps.store.updateTask(task.id, { status: "running" });
@@ -1911,6 +2058,10 @@ async function runTask(deps, taskId) {
     const transcript = [...task.transcript, { role: "assistant", content: resp.content }];
     const uses = resp.content.filter((b) => b.type === "tool_use");
     if (uses.length === 0) {
+      if (resp.stopReason === "pause_turn") {
+        task = await deps.store.updateTask(task.id, { transcript });
+        continue;
+      }
       if (resp.stopReason === "max_tokens") {
         const nudge = { role: "user", content: "Your reply was cut off at the length limit. Finish with a shorter summary." };
         task = await deps.store.updateTask(task.id, { transcript: [...transcript, nudge] });
@@ -1928,6 +2079,55 @@ async function runTask(deps, taskId) {
   task = await deps.store.updateTask(task.id, { status: "failed", output: `Stopped after ${maxTurns} turns without finishing.` });
   await audit(deps.store, task.orgId, agent.id, "task.failed", task.id, { reason: "turn limit" });
   return { task, approvals: queued, approval: queued[0] };
+}
+
+// core/proof.ts
+var PROOF_EVENTS = ["task.done", "task.rated", "approval.approved", "approval.rejected"];
+var PROOF_PREFIX = "Proof run for the SIXXAB build plan. Do not send, post, publish or spend anything in this run; if your job normally sends messages, write the draft into a note instead.";
+var STAGE_NAME = { 1: "S1 Startup", 2: "S2 Struggle", 3: "S3 Scale", 4: "S4 Success", 5: "S5 Significance", 6: "S6 SIXXAB" };
+function starterFor(a) {
+  return a.starter ?? `In five bullet points, say what you will do for this business in the next 30 days, given its profile, stage and goals. Save it as a note titled "Plan: ${a.name}".`;
+}
+function proofGoal(a) {
+  return a.usesModel ? `${PROOF_PREFIX}
+
+${starterFor(a)}` : null;
+}
+function computeAgentProof(events, counts, agents = AGENTS) {
+  const done = /* @__PURE__ */ new Map();
+  for (const e of events) {
+    if (e.action !== "task.done") continue;
+    const cur = done.get(e.actor) ?? { runs: 0, last: "" };
+    done.set(e.actor, { runs: cur.runs + 1, last: e.at > cur.last ? e.at : cur.last });
+  }
+  const decided = events.filter((e) => e.action === "approval.approved" || e.action === "approval.rejected").length;
+  const rated = events.filter((e) => e.action === "task.rated").length;
+  const service = {
+    "shared-memory": [(counts.memories ?? 0) > 0, `${Math.max(0, counts.memories ?? 0)} memories saved`],
+    "learning-engine": [decided + rated > 0, `${decided} approval decisions and ${rated} ratings learned from`],
+    "approvals-guardrails": [decided > 0, `${decided} approvals decided`],
+    "morning-briefing": [(counts.briefings ?? 0) > 0, `${Math.max(0, counts.briefings ?? 0)} briefings sent`],
+    "audit-log": [(counts.audit_log ?? 0) > 0, `${Math.max(0, counts.audit_log ?? 0)} actions recorded`]
+  };
+  return agents.map((a) => {
+    const d = done.get(a.id);
+    const svc = service[a.id];
+    const runs = d?.runs ?? 0;
+    const proven = svc ? svc[0] || runs > 0 : runs > 0;
+    const evidence = svc && !runs ? svc[1] : runs ? `${runs} task${runs === 1 ? "" : "s"} finished` : "No finished task yet";
+    return {
+      id: a.id,
+      name: a.name,
+      layer: a.layer,
+      job: a.job,
+      group: a.layer === "core" ? "Always on" : STAGE_NAME[a.stage] ?? `Stage ${a.stage}`,
+      runs,
+      lastRunAt: d?.last ?? null,
+      proven,
+      evidence,
+      proofGoal: proofGoal(a)
+    };
+  });
 }
 
 // core/governance.ts
@@ -2004,6 +2204,7 @@ function computeGovernance(input) {
       oldestApprovalHours: oldest === null ? null : Math.round((now - oldest) / 36e5),
       businessesList: input.orgs.map((o) => ({ orgId: o.orgId, name: o.name, stage: o.stage, onboarded: o.onboarded, stepsDone: o.stepsDone, pending: o.pendingApprovals.length }))
     },
+    agents: computeAgentProof(input.orgs.flatMap((o) => o.proofEvents ?? []), input.counts),
     workflows: { tasks7d, delivered7d: integrations.reduce((s, i) => s + i.sent, 0), failed7d: integrations.reduce((s, i) => s + i.failed, 0) },
     integrations,
     data: { counts: input.counts },
@@ -2028,10 +2229,10 @@ function computeGovernance(input) {
 
 // server/build-info.ts
 var BUILD_INFO = {
-  "builtAt": "2026-11-05T02:25:43.722Z",
-  "files": 77,
-  "lines": 7382,
-  "tests": 88,
+  "builtAt": "2026-11-05T02:48:02.349Z",
+  "files": 79,
+  "lines": 7722,
+  "tests": 95,
   "e2e": 11,
   "rlsTables": 9,
   "cspHeader": true,
@@ -2109,11 +2310,12 @@ async function loadFixedCosts(store2, adminOrgId) {
 }
 async function orgSnapshot(store2, orgId, now) {
   const since7 = new Date(now - 7 * DAY2).toISOString();
-  const [profile, events, tasks, approvals] = await Promise.all([
+  const [profile, events, tasks, approvals, proofEvents] = await Promise.all([
     loadBusinessProfile(store2, orgId),
     store2.listAuditByActions(orgId, EVENTS2),
     store2.listTasks(orgId, since7),
-    store2.listApprovals(orgId, "pending")
+    store2.listApprovals(orgId, "pending"),
+    store2.listAuditByActions(orgId, PROOF_EVENTS)
   ]);
   const j = computeJourney(profile, events, journeyOptions());
   const lastPlan = events.filter((e) => e.action === "billing.plan").at(-1);
@@ -2129,6 +2331,7 @@ async function orgSnapshot(store2, orgId, now) {
     pendingApprovals: approvals.map((a) => a.createdAt),
     tasks7d: tasks.map((t) => ({ status: t.status })),
     events30d: events.filter((e) => now - Date.parse(e.at) <= 30 * DAY2),
+    proofEvents,
     plan: lastPlan ? { name: String(lastPlan.detail.name), monthlyFee: Number(lastPlan.detail.monthlyFee), currency: String(lastPlan.detail.currency) } : null
   };
 }
@@ -2714,6 +2917,7 @@ var CRM_EVENTS = ["crm.contact", "crm.stage", "crm.touch", "crm.qualify", "crm.r
 var EMAIL_RE2 = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 var PHONE_RE = /^\+?[\d\s()-]{7,20}$/;
 var STALE_DAYS = 7;
+var NEW_LEAD_HOURS = 48;
 var OPEN = ["lead", "contacted", "qualified", "proposal"];
 var text2 = (v, max) => String(v ?? "").trim().slice(0, max);
 var record2 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
@@ -2803,6 +3007,7 @@ function computeCrm(events, now = Date.now()) {
   const open = contacts.filter((c) => OPEN.includes(c.stage));
   const won = contacts.filter((c) => c.stage === "won");
   const closed = won.length + pipeline.lost;
+  const fresh = contacts.filter((c) => c.stage === "lead" && c.email && !c.lastTouch && now - Date.parse(c.createdAt) <= NEW_LEAD_HOURS * 36e5);
   const stale = open.filter((c) => c.email && now - Date.parse(c.lastTouch ?? c.createdAt) >= STALE_DAYS * 864e5);
   return {
     contacts,
@@ -2815,8 +3020,15 @@ function computeCrm(events, now = Date.now()) {
       winRate: closed ? Math.round(won.length / closed * 100) : null,
       followUps: stale.length
     },
-    followUpGoal: followUpGoal(stale.slice(0, 10))
+    followUpGoal: followUpGoal(stale.slice(0, 10)),
+    newLeads: fresh.length,
+    speedGoal: speedGoal(fresh.slice(0, 10))
   };
+}
+function speedGoal(list) {
+  if (!list.length) return "";
+  return `These leads are new and have not heard from us yet. Write one short first reply to each and queue it with send_message (channel "email"): thank them, answer what they asked if the notes say, and offer one clear next step such as a call time. Under 90 words each. Each email waits for the owner's approval.
+${list.map((c) => `- ${c.name}${c.company ? ` (${c.company})` : ""} <${c.email}>, came from ${c.source}${c.notes ? `, notes: ${c.notes.slice(0, 300)}` : ""}`).join("\n")}`;
 }
 function followUpGoal(list) {
   if (!list.length) return "";
@@ -3005,6 +3217,52 @@ async function addEntry(store2, orgId, input, by, currency = "USD") {
   await record4(store2, orgId, by, "acct.entry", { entry, summary: `${input.kind === "income" ? "Income" : "Expense"} recorded: ${entry.amount} ${currency} (${category})` });
   return loadAccounts(store2, orgId, currency);
 }
+var RULES = [
+  [/salary|payroll|wages|stipend/i, "expense", "salaries"],
+  [/rent|lease/i, "expense", "rent"],
+  [/google ads|facebook|meta ads|linkedin ads|instagram|advert|marketing|promotion/i, "expense", "marketing"],
+  [/aws|vercel|supabase|anthropic|openai|github|google workspace|microsoft|zoom|slack|notion|software|subscription/i, "expense", "software"],
+  [/uber|ola|airline|indigo|air india|hotel|travel|irctc|fuel|petrol/i, "expense", "travel"],
+  [/\bgst\b|tds|tax|irs/i, "expense", "taxes"],
+  [/legal|advocate|lawyer|ca fees|accountant|consult/i, "expense", "professional fees"],
+  [/stationery|supplies|amazon|flipkart|pharma|medical supplies|lab supplies/i, "expense", "supplies"],
+  [/stripe|razorpay|paypal|upi|neft|imps|rtgs|deposit|payment received/i, "income", "sales"]
+];
+function categorize(description, kind) {
+  const hit = RULES.find(([re, k]) => k === kind && re.test(description));
+  return hit ? hit[2] : kind === "income" ? "other income" : "other";
+}
+async function importStatement(store2, orgId, csv, by, currency = "USD") {
+  const rows = String(csv ?? "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (rows[0] && /^date\s*,/i.test(rows[0])) rows.shift();
+  const existing = new Set((await loadAccounts(store2, orgId, currency)).entries.map((e) => `${e.date}|${e.amount}|${e.note}`));
+  let added = 0, skipped = 0, uncategorized = 0;
+  for (const row of rows.slice(0, 1e3)) {
+    const parts = row.split(",").map((x) => x.trim().replace(/^"|"$/g, ""));
+    const amountRaw = parts.pop() ?? "";
+    const [date, ...desc] = parts;
+    const description = desc.join(" ").slice(0, 300);
+    const signed = Number(amountRaw.replace(/[,$₹\s]/g, ""));
+    if (!DATE_RE2.test(date ?? "") || !Number.isFinite(signed) || signed === 0) {
+      skipped++;
+      continue;
+    }
+    const kind = signed < 0 ? "expense" : "income";
+    const amount = round2(Math.abs(signed));
+    const key = `${date}|${amount}|${description}`;
+    if (existing.has(key)) {
+      skipped++;
+      continue;
+    }
+    existing.add(key);
+    const category = categorize(description, kind);
+    if (category === "other" || category === "other income") uncategorized++;
+    const entry = { id: newId(), kind, date, amount, category, party: "", note: description };
+    await record4(store2, orgId, by, "acct.entry", { entry, source: "statement", summary: `Imported ${kind}: ${amount} ${currency} (${category})` });
+    added++;
+  }
+  return { added, skipped, uncategorized };
+}
 async function removeEntry(store2, orgId, id, by, currency = "USD") {
   await record4(store2, orgId, by, "acct.removed", { entryId: id, summary: "Ledger entry removed" });
   return loadAccounts(store2, orgId, currency);
@@ -3039,13 +3297,16 @@ function computeAccounts(events, currency = "USD", today = /* @__PURE__ */ new D
   const cats = /* @__PURE__ */ new Map();
   for (const en of entries) if (en.kind === "expense" && en.date.startsWith(current)) cats.set(en.category, (cats.get(en.category) ?? 0) + en.amount);
   const expensesByCategory = [...cats.entries()].map(([category, amount]) => ({ category, amount: round2(amount) })).sort((a, b) => b.amount - a.amount);
-  return { currency, entries, months, thisMonth: pnl(current), expensesByCategory, reviewGoal: reviewGoal(months, currency) };
+  return { currency, entries, months, thisMonth: pnl(current), expensesByCategory, reviewGoal: reviewGoal(months, currency, entries.filter((e) => e.category === "other" || e.category === "other income")) };
 }
-function reviewGoal(months, currency) {
+function reviewGoal(months, currency, unsorted = []) {
   if (!months.length) return "";
+  const review = unsorted.length ? `
+These lines are not categorized yet; suggest a category for each from: ${[...INCOME_CATEGORIES, ...EXPENSE_CATEGORIES].join(", ")}.
+${unsorted.slice(0, 30).map((e) => `- ${e.date} ${e.kind} ${e.amount}: ${e.note || e.party || "no description"}`).join("\n")}` : "";
   const lines = months.slice(0, 6).map((m) => `- ${m.month}: income ${m.income}, expenses ${m.expenses}, profit ${m.profit}${m.margin === null ? "" : ` (${m.margin}% margin)`}`);
   return `Write this month's finance review for the owner from the recorded ledger below (amounts in ${currency}): profit and loss, the trend against earlier months, the three biggest costs and whether each is worth it, cash to watch, and two concrete actions. Use only these numbers; mark anything missing. This is not tax or legal advice. Save it as a note titled "Finance: monthly review".
-${lines.join("\n")}`;
+${lines.join("\n")}${review}`;
 }
 
 // server/routes/accounts.ts
@@ -3056,12 +3317,14 @@ var GET8 = handle(async (request) => {
 });
 var POST7 = handle(async (request) => {
   const { orgId, label, store: store2 } = await requireUser(request);
-  const b = await readJson(request, 2e4);
+  const b = await readJson(request, 3e5);
   const currency = (await loadBusinessProfile(store2, orgId))?.currency ?? "USD";
   try {
     switch (b.action) {
       case "entry":
         return json({ accounts: await addEntry(store2, orgId, b.entry ?? {}, label, currency) });
+      case "import":
+        return json({ ...await importStatement(store2, orgId, String(b.csv ?? ""), label, currency), accounts: await loadAccounts(store2, orgId, currency) });
       case "remove":
         return json({ accounts: await removeEntry(store2, orgId, String(b.entryId ?? ""), label, currency) });
       default:

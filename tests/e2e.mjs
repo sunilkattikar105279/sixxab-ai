@@ -119,6 +119,10 @@ async function mockServices(ctx, state) {
     }
     const governance = {
       generatedAt: new Date().toISOString(),
+      agents: [
+        { id: 'audit-log', name: 'Audit Log', group: 'Always on', layer: 'core', job: 'Every action', runs: 0, lastRunAt: null, proven: true, evidence: '120 actions recorded', proofGoal: null },
+        { id: 'ceo', name: 'CEO agent', group: 'S1 Startup', layer: 'cxo', job: 'Weekly review', runs: 0, lastRunAt: null, proven: false, evidence: 'No finished task yet', proofGoal: 'Proof run. Weekly review.' },
+      ],
       status: { overall: 'amber', checks: [{ key: 'model', label: 'AI model', state: 'green', detail: 'Configured' }, { key: 'failures', label: 'Failed actions, last 24 hours', state: 'amber', detail: '1 failed' }] },
       journey: { businesses: 2, byStage: { startup: 2, struggle: 0, scale: 0, success: 0, significance: 0, sixxab: 0 }, onboarded: 1, stepsDone: 4, stepsTotal: 42, pendingApprovals: 1, oldestApprovalHours: 5,
         businessesList: [{ orgId: 'o1', name: 'SIXXAB AI', stage: 'startup', onboarded: true, stepsDone: 4, pending: 1 }, { orgId: 'o2', name: 'Radhakrishna Ortho', stage: 'startup', onboarded: false, stepsDone: 0, pending: 0 }] },
@@ -344,6 +348,8 @@ await check('admin assigns each business its own n8n workflow', async () => {
   // Governance: single pane, costs, CXO review
   await page.getByRole('button', { name: 'Governance', exact: true }).click();
   await page.getByText('Platform is running with warnings').waitFor();
+  await page.getByText('1 of 2 agents proven live').waitFor();
+  await page.getByRole('button', { name: 'Run proof for 1 agent' }).waitFor();
   await page.getByText('LinkedIn reply failed: Bad request').waitFor();
   await page.getByText('$83.75').waitFor();
   await page.getByLabel('Monthly cost for Vercel').fill('25');
