@@ -314,6 +314,10 @@ test('a goal is planned first, then each step runs on its own, then the goal set
     [{ type: 'text', text: 'Post queued.' }],
   ]);
   const planned = await planGoal(deps, ORG, 'Launch this week');
+  const plannerPrompt = String(deps.model.calls[0].system);
+  assert.match(plannerPrompt, /- customer-reply: .*Can: send_message/, 'the planner sees which agents can send');
+  assert.doesNotMatch(plannerPrompt, /- sre: [^\n]*Can:/, 'agents without outside actions list none');
+  assert.match(plannerPrompt, /only to an agent that can/, 'sending steps go only to agents with the tool');
   assert.equal(planned.steps.length, 2);
   assert.ok(planned.steps.every((s) => s.task.status === 'planned'));
   const planEv = (await store.listAudit(ORG)).filter((e) => e.action === 'plan.created');

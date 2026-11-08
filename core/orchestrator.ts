@@ -16,6 +16,8 @@ export interface OrchestrationResult {
   steps: { step: PlanStep; task: Task }[];
 }
 
+/** Tools that act outside the workspace; the planner must route those steps to an agent that has them. */
+const OUTSIDE_ACTIONS = ['send_message', 'publish_post', 'reply_comment', 'send_email_campaign', 'spend_money', 'web_search'];
 const MAX_STEPS = 6;
 
 /** Pulls the first JSON object out of a model reply and keeps only valid steps for known agents. */
@@ -48,11 +50,14 @@ export async function planGoal(deps: RuntimeDeps, orgId: string, goal: string): 
   let parent = await createTask(deps.store, orgId, lead.id, goal);
   parent = await deps.store.updateTask(parent.id, { status: 'running' });
 
-  const roster = runnableAgents().map((a) => `- ${a.id}: ${a.name}. ${a.job}`).join('\n');
+  const roster = runnableAgents().map((a) => {
+    const can = a.tools.filter((t) => OUTSIDE_ACTIONS.includes(t));
+    return `- ${a.id}: ${a.name}. ${a.job}${can.length ? ` Can: ${can.join(', ')}.` : ''}`;
+  }).join('\n');
   const profile = await profileForPrompt(deps.store, orgId);
   const resp = await deps.model.complete({
     tier: lead.modelTier,
-    system: `${lead.instructions}${profile}\n\nAgents you can assign:\n${roster}\n\nReply with JSON only: {"steps":[{"agentId":"...","goal":"..."}]}. At most ${MAX_STEPS} steps, in the order they should run. Give each step one clear deliverable.`,
+    system: `${lead.instructions}${profile}\n\nAgents you can assign:\n${roster}\n\nReply with JSON only: {"steps":[{"agentId":"...","goal":"..."}]}. At most ${MAX_STEPS} steps, in the order they should run. Give each step one clear deliverable. A step that sends a message or email, posts, replies to a comment, sends a campaign or spends money goes only to an agent that can do it (its "Can:" list names the tool); the other agents can only research and write notes.`,
     messages: [{ role: 'user', content: goal }],
     maxTokens: 2048,
   });
