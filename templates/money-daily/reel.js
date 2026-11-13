@@ -169,7 +169,7 @@ function captions(g, t) {
 
 export function render(g, t) {
   g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1; g.shadowBlur = 0;
-  if (t < S[FIRST]) { if (HOST) { g.fillStyle = KEY; g.fillRect(0, 0, W, H); } else background(g, t); titleCard(g, t); captions(g, t); return; }
+  if (t < S[FIRST]) { if (HOST) { g.fillStyle = KEY; g.fillRect(0, 0, W, H); } else { background(g, t); titleCard(g, t); } captions(g, t); return; } // HOST: title comes from out/title.png (transparent overlay over the clone)
   background(g, t); pipeline(g, t); clock(g, t);
   phoneFrame(g, t, () => { for (const [k, fn] of [['market', stMarket], ['why', stWhy], ['money', stMoney], ['watch', stWatch], ['levels', stLevels]].filter(([k]) => ORDER.includes(k))) { const f = inStage(t, k, gg => fn(gg, t)); if (f) f(g); } });
   terminal(g, t); cta(g, t); captions(g, t);
