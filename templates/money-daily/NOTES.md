@@ -10,3 +10,4 @@
 - `python3 make_title.py title.json out/title.png` makes a 1080x1920 RGBA title: soft see-through shade at the top, shadowed text, no box.
 - Workbench stage A overlays title.png on the clone + keyed screen from frame 0, fading out over the last 0.25 s before S.market (see composite_stageA.md). Frame 0 = cover (IG thumb_offset 0, LinkedIn thumbnail from frame 0).
 - Fallback (HOST=false) keeps the drawn title card.
+- Position (user rule, Nov 13): the title sits BELOW 50% of the screen — block from y≈1000 to y≈1330, on a see-through band (y 880–1500), above the bottom captions at y≈1560. Top half stays clear for the clone's face.

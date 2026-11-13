@@ -12,11 +12,12 @@ F = lambda name, size: ImageFont.truetype(os.path.join(HERE, 'fonts', name), siz
 ACC, YEL, TXT, SUB = (46, 229, 157, 255), (255, 210, 63, 255), (244, 247, 251, 255), (220, 228, 238, 255)
 
 img = Image.new('RGBA', (W, H), (0, 0, 0, 0))
-# see-through shade: dark at the top, fading to fully clear by y≈760 (the clone stays visible through it)
+# see-through band behind the title in the lower half; clear above y≈880 and below y≈1500 (the clone stays visible through it)
 shade = Image.new('RGBA', (W, H), (0, 0, 0, 0))
 px = shade.load()
-for y in range(0, 760):
-    a = int(150 * (1 - y / 760) ** 1.6)
+Y0 = 1000  # title block sits in the lower half, above the bottom captions (y≈1560)
+for y in range(880, 1500):
+    a = int(150 * (1 - abs(y - 1190) / 310) ** 1.4)
     for x in range(W):
         px[x, y] = (5, 9, 14, a)
 img = Image.alpha_composite(img, shade)
@@ -45,12 +46,12 @@ def fit(text, name, size, maxw):
     return F(name, size)
 
 
-line('SIXXAB MONEY · DAILY BRIEF', 150, F('IBMPlexMono-Medium.ttf', 34), ACC, spacing=5)
-line(T['date'], 202, F('IBMPlexMono-Regular.ttf', 28), SUB, spacing=3)
-line(T['l1'], 262, fit(T['l1'], 'Inter-Black.otf', 84, 960), TXT)
-line(T['l2'], 372, fit(T['l2'], 'Inter-Black.otf', 64, 960), YEL)
+line('SIXXAB MONEY · DAILY BRIEF', Y0, F('IBMPlexMono-Medium.ttf', 34), ACC, spacing=5)
+line(T['date'], Y0 + 52, F('IBMPlexMono-Regular.ttf', 28), SUB, spacing=3)
+line(T['l1'], Y0 + 112, fit(T['l1'], 'Inter-Black.otf', 84, 960), TXT)
+line(T['l2'], Y0 + 222, fit(T['l2'], 'Inter-Black.otf', 64, 960), YEL)
 # thin accent rule under the headline
-d = ImageDraw.Draw(img); d.rounded_rectangle([W / 2 - 90, 470, W / 2 + 90, 478], radius=4, fill=ACC)
+d = ImageDraw.Draw(img); d.rounded_rectangle([W / 2 - 90, Y0 + 320, W / 2 + 90, Y0 + 328], radius=4, fill=ACC)
 os.makedirs(os.path.dirname(OUT), exist_ok=True)
 img.save(OUT)
 print('wrote', OUT)
