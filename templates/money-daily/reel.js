@@ -93,7 +93,7 @@ function clock(g, t) { const st = stageAt(t); if (st === 'hook') return; const [
 // ---- hook (0 .. S.market): green key (clone underneath) + TITLE card ----
 const KEY = '#00FF00';
 function titleCard(g, t) {
-  const k = eoc((t - .15) / .45), out = ease(t, S[FIRST] - .25, S[FIRST]); if (k <= 0) return;
+  const k = 1, out = ease(t, S[FIRST] - .25, S[FIRST]);   // title fully visible from frame 0 (also the reel cover)
   g.save(); g.globalAlpha = k * (1 - out); if (!HOST) { g.translate(W / 2, 760); g.translate(-W / 2, -300); }
   rr(g, 70, 150, W - 140, 300, 34); g.fillStyle = 'rgba(7,11,17,0.92)'; g.fill(); g.strokeStyle = C.acc; g.lineWidth = 4; g.stroke();
   text(g, 'SIXXAB MONEY · DAILY BRIEF', W / 2, 222, { size: 30, w: 700, f: MONO, al: 'center', c: C.acc, ls: 4 });
