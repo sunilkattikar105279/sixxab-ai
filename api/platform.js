@@ -2256,9 +2256,9 @@ function computeGovernance(input) {
 
 // server/build-info.ts
 var BUILD_INFO = {
-  "builtAt": "2026-11-23T03:41:00.481Z",
+  "builtAt": "2026-11-23T03:51:09.316Z",
   "files": 81,
-  "lines": 8046,
+  "lines": 8052,
   "tests": 97,
   "e2e": 11,
   "rlsTables": 9,
