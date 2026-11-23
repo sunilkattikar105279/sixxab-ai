@@ -98,9 +98,12 @@ fs.mkdirSync(path.join(dist, 'app'), { recursive: true });
 fs.writeFileSync(path.join(dist, 'app', 'index.html'), page({ title: 'Workspace | SIXXAB AI', pathName: '/app', body: '', script: asset('src/entries/app.tsx'), css: acName }).replace('<meta name="description"', '<meta name="robots" content="noindex">\n<meta name="description"'));
 
 // 4. Legal pages
+// SIXXAB family SX mark (viewBox 0 0 50 42), gold on navy.
+const SX_PATH = 'M16,0 L49.4,0 L49,1.6 L36.4,19.6 L48.8,40.3 Q49.2,41.8 47.7,41.8 L32.8,41.8 Q30.6,41.7 31.4,40.4 L33.4,37.7 Q34,37.1 35,37.1 L38.3,37.1 L28.2,19.8 L21.8,11.2 Q21.1,9.2 23,9.1 L27,9.2 L32,15.9 L38.9,8.2 L40.3,5.8 Q40.5,5 39.4,5 L16.4,5 Q13.6,5.4 13.9,8.4 L14.3,10.3 L22.4,20.1 C28.5,26 29.5,31 27.6,35.8 C26.1,39.4 23.5,41.6 20.2,41.7 L1.4,41.8 Q0,41.7 0.4,40.2 L1.6,37.6 L6.4,30.9 L10.3,30.9 Q11.2,31.3 10.8,32.2 L9.2,35.4 Q9,36.8 10.3,36.8 L19.8,36.6 C22.8,35.5 23.6,32 21.9,29 L9.3,14.4 C7.6,12 7.4,6.5 9.5,3.5 C11,1.5 13,0.3 16,0 Z';
+const SX_GRAD = '<linearGradient id="sx" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F3D27A"/><stop offset="1" stop-color="#C8962F"/></linearGradient>';
 const legalSrc = JSON.parse(fs.readFileSync('content/legal.json', 'utf8'));
 for (const [slug, doc] of Object.entries(legalSrc)) {
-  const body = `<main class="legal"><p><a href="/">&larr; SIXXAB AI</a></p><h1>${doc.title}</h1><p class="muted">Effective ${doc.effective}</p>${doc.sections.map((s) => `<h2>${s.h}</h2>${s.p.map((x) => `<p>${x}</p>`).join('')}`).join('')}</main>`;
+  const body = `<main class="legal"><p style="margin:0 0 28px"><a href="/" class="brand" aria-label="SIXXAB AI home"><svg viewBox="0 0 50 42" width="40" height="34" aria-hidden="true" style="display:block"><defs>${SX_GRAD}</defs><path fill="url(#sx)" d="${SX_PATH}"/></svg><span class="brand-wm"><span class="brand-word">SIXXAB</span><span class="brand-ai"><i></i>AI<i></i></span></span></a></p><h1>${doc.title}</h1><p class="muted">Effective ${doc.effective}</p>${doc.sections.map((s) => `<h2>${s.h}</h2>${s.p.map((x) => `<p>${x}</p>`).join('')}`).join('')}</main>`;
   fs.writeFileSync(path.join(dist, `${slug}.html`), page({ title: `${doc.title} | SIXXAB AI`, desc: doc.title, pathName: `/${slug}`, body, css: acName }));
 }
 // Investor relations page (static; describes the business only, no offering terms).
@@ -108,9 +111,6 @@ fs.writeFileSync(path.join(dist, 'investors.html'), page({ title: 'Investors | S
 fs.writeFileSync(path.join(dist, '404.html'), page({ title: 'Not found | SIXXAB AI', body: '<main class="legal"><h1>Page not found</h1><p><a href="/">Go to the SIXXAB AI home page</a></p></main>', css: acName }));
 
 // 5. PWA: icons, manifest, service worker, OG image, robots, sitemap
-// SIXXAB family SX mark (viewBox 0 0 50 42), gold on navy.
-const SX_PATH = 'M16,0 L49.4,0 L49,1.6 L36.4,19.6 L48.8,40.3 Q49.2,41.8 47.7,41.8 L32.8,41.8 Q30.6,41.7 31.4,40.4 L33.4,37.7 Q34,37.1 35,37.1 L38.3,37.1 L28.2,19.8 L21.8,11.2 Q21.1,9.2 23,9.1 L27,9.2 L32,15.9 L38.9,8.2 L40.3,5.8 Q40.5,5 39.4,5 L16.4,5 Q13.6,5.4 13.9,8.4 L14.3,10.3 L22.4,20.1 C28.5,26 29.5,31 27.6,35.8 C26.1,39.4 23.5,41.6 20.2,41.7 L1.4,41.8 Q0,41.7 0.4,40.2 L1.6,37.6 L6.4,30.9 L10.3,30.9 Q11.2,31.3 10.8,32.2 L9.2,35.4 Q9,36.8 10.3,36.8 L19.8,36.6 C22.8,35.5 23.6,32 21.9,29 L9.3,14.4 C7.6,12 7.4,6.5 9.5,3.5 C11,1.5 13,0.3 16,0 Z';
-const SX_GRAD = '<linearGradient id="sx" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F3D27A"/><stop offset="1" stop-color="#C8962F"/></linearGradient>';
 const markSvg = (size, pad) => `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><rect width="${size}" height="${size}" fill="#071426"/><defs>${SX_GRAD}<radialGradient id="g" cx="50%" cy="45%" r="60%"><stop offset="0" stop-color="#E7C766" stop-opacity=".25"/><stop offset="1" stop-color="#071426" stop-opacity="0"/></radialGradient></defs><rect width="${size}" height="${size}" fill="url(#g)"/><g transform="translate(${pad} ${(size - (size - 2 * pad) * 42 / 50) / 2}) scale(${(size - 2 * pad) / 50})"><path fill="url(#sx)" d="${SX_PATH}"/></g></svg>`;
 const icons = [['icon-192.png', 192, 36], ['icon-512.png', 512, 96], ['maskable-512.png', 512, 140], ['apple-touch-icon.png', 180, 34], ['favicon-32.png', 32, 4]];
 for (const [name, size, pad] of icons) await sharp(Buffer.from(markSvg(size, pad))).png().toFile(path.join(dist, 'icons', name));
