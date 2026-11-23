@@ -41,6 +41,8 @@ a:focus-visible,button:focus-visible{outline:2px solid #E7C766;outline-offset:3p
 }
 .hero-vis img{display:block;width:auto;height:min(68vh,600px);max-width:100%;object-fit:contain;-webkit-mask-image:radial-gradient(ellipse 68% 70% at 50% 50%,#000 42%,transparent 96%);mask-image:radial-gradient(ellipse 68% 70% at 50% 50%,#000 42%,transparent 96%)}
 @media (max-width:960px){.hero-vis{display:none!important}}
+.vis-how img{display:block;width:auto;height:min(52vh,440px);max-width:100%;-webkit-mask-image:radial-gradient(ellipse 66% 68% at 50% 50%,#000 46%,transparent 96%);mask-image:radial-gradient(ellipse 66% 68% at 50% 50%,#000 46%,transparent 96%)}
+@media (max-width:640px){.call-card{grid-template-columns:minmax(0,1fr)!important;justify-items:start}.call-card img{width:110px!important;height:110px!important}}
 .vis img{display:block;width:100%;height:auto;border-radius:22px;border:1px solid rgba(201,162,39,.28);box-shadow:0 24px 60px rgba(0,0,0,.45),0 0 40px rgba(201,162,39,.08)}
 @media (min-width:961px){.flip>.vis{order:2}}
 @media (min-width:961px) and (max-width:1200px){.g4{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
@@ -161,8 +163,11 @@ h1,h2,h3,.h1,.h2{font-family:'Playfair Display',Georgia,serif!important;font-var
 
 <section id="how" class="sec" style="padding: 96px clamp(22px, 8vw, 120px); border-top: 1px solid rgba(201,162,39,.1)">
 <div style="max-width: 1120px; margin: 0 auto">
-<p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #E7C766; font-variation-settings: 'wght' 534">How it works</p>
-<h2 class="h2" style="margin: 0 0 18px; font-size: 40px; line-height: 1.15; font-weight: 400; font-variation-settings: 'wght' 430; max-width: 26ch">Agents do the work. You make the calls.</h2>
+<div class="split" style="display: grid; grid-template-columns: minmax(0,1.2fr) minmax(0,1fr); gap: clamp(24px, 4vw, 56px); align-items: center">
+<div><p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #E7C766; font-variation-settings: 'wght' 534">How it works</p>
+<h2 class="h2" style="margin: 0 0 18px; font-size: 40px; line-height: 1.15; font-weight: 400; font-variation-settings: 'wght' 430; max-width: 26ch">Agents do the work. You make the calls.</h2><p style="margin: 0; max-width: 52ch; font-size: 17px; line-height: 1.6; color: #9fb0c8">Your executive agents sit around one table, each with a job. You sit at the head: their plans come to you, and nothing goes out until you approve it.</p></div>
+<figure class="vis-how" style="margin: 0; display: flex; justify-content: center"><img src="/media/how-boardroom.webp" alt="AI executive agents around a gold boardroom table while the founder approves their plan" width="1000" height="1241" loading="lazy" decoding="async"></figure>
+</div>
 <ol class="g4" style="list-style: none; margin: 36px 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px">
 <sc-for list="{{steps}}" as="st" hint-placeholder-count="4">
 <li style="padding: 28px; border-radius: 22px; border: 1px solid rgba(201,162,39,.16); background: rgba(255,255,255,.03); display: flex; flex-direction: column; gap: 10px">
@@ -221,7 +226,9 @@ h1,h2,h3,.h1,.h2{font-family:'Playfair Display',Georgia,serif!important;font-var
 
 <section id="begin" class="sec" style="padding: 96px clamp(22px, 8vw, 120px); border-top: 1px solid rgba(201,162,39,.1)">
 <div style="max-width: 1120px; margin: 0 auto">
-<div style="padding: 28px; border-radius: 22px; border: 1px solid rgba(201,162,39,.16); background: rgba(255,255,255,.03); display: flex; flex-direction: column; gap: 14px">
+<div class="call-card" style="padding: 28px; border-radius: 22px; border: 1px solid rgba(201,162,39,.16); background: rgba(255,255,255,.03); display: grid; grid-template-columns: auto minmax(0,1fr); gap: 28px; align-items: center">
+<img src="/media/founder-sunil.webp" alt="Sunil Kattikar, founder of SIXXAB AI" width="600" height="702" loading="lazy" decoding="async" style="display: block; width: 150px; height: 150px; object-fit: cover; object-position: 50% 22%; border-radius: 50%; border: 2px solid rgba(201,162,39,.55); box-shadow: 0 0 0 6px rgba(201,162,39,.08)">
+<div style="display: flex; flex-direction: column; gap: 14px">
 <p style="margin: 0; font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: #E7C766; font-variation-settings: 'wght' 560">Strategy call</p>
 <h2 class="h2" style="margin: 0; font-size: 28px; line-height: 1.25; font-weight: 400; font-variation-settings: 'wght' 480">Hire the co-founder that never sleeps.</h2>
 <p style="margin: 0; max-width: 60ch; font-size: 15px; line-height: 1.6; color: #9fb0c8">Book 30 minutes with Sunil Kattikar, founder of SIXXAB AI. Leave with where your business stands, the plan that fits, and your first 90 days with AI agents.</p>
@@ -229,6 +236,7 @@ h1,h2,h3,.h1,.h2{font-family:'Playfair Display',Georgia,serif!important;font-var
 <a href="{{bookHref}}" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 22px; box-sizing: border-box; border-radius: 999px; font-size: 15px; font-variation-settings: 'wght' 540; border: 1.6px solid #F3EBD8; background: linear-gradient(180deg, #E7C766, #C9A227); color: #1a1405">Choose a time</a>
 <a href="mailto:sunil.kattikar@gmail.com?subject=SIXXAB%20AI%20strategy%20call&amp;body=Business%3A%0AStage%3A%0AWhat%20I%20want%20to%20fix%3A%0A" style="display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 22px; box-sizing: border-box; border-radius: 999px; font-size: 15px; font-variation-settings: 'wght' 540; border: 1.6px solid rgba(255,255,255,.6); background: transparent; color: #F3EBD8">Email Sunil</a>
 <a href="/login?next=start" style="display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 22px; box-sizing: border-box; border-radius: 999px; font-size: 15px; font-variation-settings: 'wght' 540; border: 1.6px solid rgba(255,255,255,.6); background: transparent; color: #F3EBD8">Start your business</a>
+</div>
 </div>
 </div>
 </div>

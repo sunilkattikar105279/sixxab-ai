@@ -114,8 +114,11 @@ export default function Landing(props) {
 </section>
 <section id="how" className="sec" style={{"padding": "96px clamp(22px, 8vw, 120px)", "borderTop": "1px solid rgba(201,162,39,.1)"}}>
 <div style={{"maxWidth": "1120px", "margin": "0 auto"}}>
-<p style={{"margin": "0 0 16px", "fontSize": "13px", "letterSpacing": "3px", "textTransform": "uppercase", "color": "#E7C766", "fontVariationSettings": "'wght' 534"}}>How it works</p>
-<h2 className="h2" style={{"margin": "0 0 18px", "fontSize": "40px", "lineHeight": "1.15", "fontWeight": "400", "fontVariationSettings": "'wght' 430", "maxWidth": "26ch"}}>Agents do the work. You make the calls.</h2>
+<div className="split" style={{"display": "grid", "gridTemplateColumns": "minmax(0,1.2fr) minmax(0,1fr)", "gap": "clamp(24px, 4vw, 56px)", "alignItems": "center"}}>
+<div><p style={{"margin": "0 0 16px", "fontSize": "13px", "letterSpacing": "3px", "textTransform": "uppercase", "color": "#E7C766", "fontVariationSettings": "'wght' 534"}}>How it works</p>
+<h2 className="h2" style={{"margin": "0 0 18px", "fontSize": "40px", "lineHeight": "1.15", "fontWeight": "400", "fontVariationSettings": "'wght' 430", "maxWidth": "26ch"}}>Agents do the work. You make the calls.</h2><p style={{"margin": "0", "maxWidth": "52ch", "fontSize": "17px", "lineHeight": "1.6", "color": "#9fb0c8"}}>Your executive agents sit around one table, each with a job. You sit at the head: their plans come to you, and nothing goes out until you approve it.</p></div>
+<figure className="vis-how" style={{"margin": "0", "display": "flex", "justifyContent": "center"}}><img src="/media/how-boardroom.webp" alt="AI executive agents around a gold boardroom table while the founder approves their plan" width="1000" height="1241" loading="lazy" decoding="async" /></figure>
+</div>
 <ol className="g4" style={{"listStyle": "none", "margin": "36px 0 0", "padding": "0", "display": "grid", "gridTemplateColumns": "repeat(4, minmax(0, 1fr))", "gap": "16px"}}>
 {(v.steps || []).map((st, $index) => (<React.Fragment key={$index}>
 <li style={{"padding": "28px", "borderRadius": "22px", "border": "1px solid rgba(201,162,39,.16)", "background": "rgba(255,255,255,.03)", "display": "flex", "flexDirection": "column", "gap": "10px"}}>
@@ -171,7 +174,9 @@ export default function Landing(props) {
 </section>
 <section id="begin" className="sec" style={{"padding": "96px clamp(22px, 8vw, 120px)", "borderTop": "1px solid rgba(201,162,39,.1)"}}>
 <div style={{"maxWidth": "1120px", "margin": "0 auto"}}>
-<div style={{"padding": "28px", "borderRadius": "22px", "border": "1px solid rgba(201,162,39,.16)", "background": "rgba(255,255,255,.03)", "display": "flex", "flexDirection": "column", "gap": "14px"}}>
+<div className="call-card" style={{"padding": "28px", "borderRadius": "22px", "border": "1px solid rgba(201,162,39,.16)", "background": "rgba(255,255,255,.03)", "display": "grid", "gridTemplateColumns": "auto minmax(0,1fr)", "gap": "28px", "alignItems": "center"}}>
+<img src="/media/founder-sunil.webp" alt="Sunil Kattikar, founder of SIXXAB AI" width="600" height="702" loading="lazy" decoding="async" style={{"display": "block", "width": "150px", "height": "150px", "objectFit": "cover", "objectPosition": "50% 22%", "borderRadius": "50%", "border": "2px solid rgba(201,162,39,.55)", "boxShadow": "0 0 0 6px rgba(201,162,39,.08)"}} />
+<div style={{"display": "flex", "flexDirection": "column", "gap": "14px"}}>
 <p style={{"margin": "0", "fontSize": "12px", "letterSpacing": "1.5px", "textTransform": "uppercase", "color": "#E7C766", "fontVariationSettings": "'wght' 560"}}>Strategy call</p>
 <h2 className="h2" style={{"margin": "0", "fontSize": "28px", "lineHeight": "1.25", "fontWeight": "400", "fontVariationSettings": "'wght' 480"}}>Hire the co-founder that never sleeps.</h2>
 <p style={{"margin": "0", "maxWidth": "60ch", "fontSize": "15px", "lineHeight": "1.6", "color": "#9fb0c8"}}>Book 30 minutes with Sunil Kattikar, founder of SIXXAB AI. Leave with where your business stands, the plan that fits, and your first 90 days with AI agents.</p>
@@ -179,6 +184,7 @@ export default function Landing(props) {
 <a href={v.bookHref} target="_blank" rel="noopener" style={{"display": "inline-flex", "alignItems": "center", "justifyContent": "center", "minHeight": "44px", "padding": "10px 22px", "boxSizing": "border-box", "borderRadius": "999px", "fontSize": "15px", "fontVariationSettings": "'wght' 540", "border": "1.6px solid #F3EBD8", "background": "linear-gradient(180deg, #E7C766, #C9A227)", "color": "#1a1405"}}>Choose a time</a>
 <a href="mailto:sunil.kattikar@gmail.com?subject=SIXXAB%20AI%20strategy%20call&body=Business%3A%0AStage%3A%0AWhat%20I%20want%20to%20fix%3A%0A" style={{"display": "inline-flex", "alignItems": "center", "justifyContent": "center", "minHeight": "44px", "padding": "10px 22px", "boxSizing": "border-box", "borderRadius": "999px", "fontSize": "15px", "fontVariationSettings": "'wght' 540", "border": "1.6px solid rgba(255,255,255,.6)", "background": "transparent", "color": "#F3EBD8"}}>Email Sunil</a>
 <a href="/login?next=start" style={{"display": "inline-flex", "alignItems": "center", "justifyContent": "center", "minHeight": "44px", "padding": "10px 22px", "boxSizing": "border-box", "borderRadius": "999px", "fontSize": "15px", "fontVariationSettings": "'wght' 540", "border": "1.6px solid rgba(255,255,255,.6)", "background": "transparent", "color": "#F3EBD8"}}>Start your business</a>
+</div>
 </div>
 </div>
 </div>
