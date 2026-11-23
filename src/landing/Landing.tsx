@@ -14,16 +14,18 @@ export default function Landing(props) {
 <svg viewBox="0 0 50 42" width="46" height="39" aria-hidden="true" style={{"display": "block"}}><defs><linearGradient id="sxg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style={{"stopColor": "#F3D27A"}}></stop><stop offset="1" style={{"stopColor": "#C8962F"}}></stop></linearGradient></defs><path fill="url(#sxg)" d="M16,0 L49.4,0 L49,1.6 L36.4,19.6 L48.8,40.3 Q49.2,41.8 47.7,41.8 L32.8,41.8 Q30.6,41.7 31.4,40.4 L33.4,37.7 Q34,37.1 35,37.1 L38.3,37.1 L28.2,19.8 L21.8,11.2 Q21.1,9.2 23,9.1 L27,9.2 L32,15.9 L38.9,8.2 L40.3,5.8 Q40.5,5 39.4,5 L16.4,5 Q13.6,5.4 13.9,8.4 L14.3,10.3 L22.4,20.1 C28.5,26 29.5,31 27.6,35.8 C26.1,39.4 23.5,41.6 20.2,41.7 L1.4,41.8 Q0,41.7 0.4,40.2 L1.6,37.6 L6.4,30.9 L10.3,30.9 Q11.2,31.3 10.8,32.2 L9.2,35.4 Q9,36.8 10.3,36.8 L19.8,36.6 C22.8,35.5 23.6,32 21.9,29 L9.3,14.4 C7.6,12 7.4,6.5 9.5,3.5 C11,1.5 13,0.3 16,0 Z" /></svg>
 <span style={{"display": "flex", "flexDirection": "column", "alignItems": "stretch"}}><span style={{"fontFamily": "Montserrat, Manrope, sans-serif", "fontWeight": "700", "fontSize": "20px", "letterSpacing": ".2em", "paddingLeft": ".2em", "whiteSpace": "nowrap", "background": "linear-gradient(180deg, #F3D27A, #C8962F)", "WebkitBackgroundClip": "text", "backgroundClip": "text", "color": "transparent"}}>SIXXAB</span><span style={{"display": "flex", "alignItems": "center", "gap": "7px", "marginTop": "5px", "fontFamily": "Montserrat, Manrope, sans-serif", "fontWeight": "600", "fontSize": "10px", "letterSpacing": ".34em", "paddingLeft": ".34em", "color": "#E0B95A", "whiteSpace": "nowrap"}}><i style={{"flex": "1", "height": "1.5px", "minWidth": "10px", "background": "#C8962F", "display": "block"}}></i>AI<i style={{"flex": "1", "height": "1.5px", "minWidth": "10px", "background": "#C8962F", "display": "block"}}></i></span></span>
 </a>
-<div className="navlinks" style={{"alignItems": "center", "gap": "30px", "fontSize": "14px", "fontVariationSettings": "'wght' 506"}}>
-<a href="#outcomes">What you get</a>
+<div className="navlinks" style={{"alignItems": "center", "gap": "26px", "fontSize": "14px", "fontVariationSettings": "'wght' 506", "whiteSpace": "nowrap"}}>
+<a href="#team">Your AI team</a>
+<a href="#paths">Growth stages</a>
 <a href="#how">How it works</a>
+<a href="#partners">Partners</a>
 <a href="#pricing">Pricing</a>
 <a href="/investors">Investors</a>
 </div>
-<div className="navlinks" style={{"alignItems": "center", "gap": "24px", "fontSize": "14px", "fontVariationSettings": "'wght' 506"}}>
-<a href="/login?next=start" style={{"color": "#E7C766", "fontVariationSettings": "'wght' 581"}}>Start your business</a>
+<div className="navlinks" style={{"alignItems": "center", "gap": "18px", "fontSize": "14px", "fontVariationSettings": "'wght' 506", "whiteSpace": "nowrap"}}>
 <a href="/login">Log in</a>
-<a href="#begin" style={{"display": "inline-flex", "alignItems": "center", "justifyContent": "center", "minHeight": "44px", "padding": "10px 22px", "boxSizing": "border-box", "borderRadius": "999px", "fontSize": "15px", "fontVariationSettings": "'wght' 540", "border": "1.6px solid rgba(255,255,255,.6)", "background": "transparent", "color": "#F3EBD8"}}>Book a strategy call</a>
+<a href="#begin" style={{"display": "inline-flex", "alignItems": "center", "justifyContent": "center", "minHeight": "44px", "padding": "10px 18px", "boxSizing": "border-box", "borderRadius": "999px", "fontSize": "14px", "fontVariationSettings": "'wght' 540", "border": "1.6px solid rgba(201,162,39,.6)", "background": "transparent", "color": "#F3EBD8"}}>Book a strategy call</a>
+<a href="/login?next=start" style={{"display": "inline-flex", "alignItems": "center", "justifyContent": "center", "minHeight": "44px", "padding": "10px 18px", "boxSizing": "border-box", "borderRadius": "999px", "fontSize": "14px", "fontVariationSettings": "'wght' 600", "background": "linear-gradient(180deg, #E7C766, #C9A227)", "color": "#1a1405"}}>Start your business</a>
 </div>
 <button type="button" className="burger" aria-label="Menu" aria-expanded={v.menuOpen} onClick={v.toggleMenu} style={{"width": "48px", "height": "44px", "alignItems": "center", "justifyContent": "center", "borderRadius": "999px", "border": "1.6px solid rgba(201,162,39,.72)", "background": "rgba(255,255,255,.04)", "color": "#F3EBD8", "cursor": "pointer"}}>
 <svg viewBox="0 0 22 14" width="20" height="14" aria-hidden="true" style={{"fill": "none", "stroke": "currentColor", "strokeWidth": "1.5", "strokeLinecap": "round"}}><path d="M1 1 H21" /><path d="M1 7 H21" /><path d="M1 13 H21" /></svg>
@@ -32,10 +34,11 @@ export default function Landing(props) {
 {v.menuOpen ? (<>
 <div style={{"position": "absolute", "zIndex": "6", "top": "96px", "right": "22px", "width": "min(300px, 82vw)", "padding": "14px", "borderRadius": "22px", "display": "flex", "flexDirection": "column", "gap": "2px", "background": "linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.045)), linear-gradient(180deg, rgba(7,20,38,.72), rgba(7,20,38,.82))", "backdropFilter": "blur(26px)", "boxShadow": "0 14px 38px rgba(4,12,24,.45)"}}>
 <a href="/login?next=start" style={{"padding": "13px 14px", "minHeight": "44px", "boxSizing": "border-box", "fontSize": "16px", "color": "#E7C766"}}>Start your business</a>
-<a href="#outcomes" style={{"padding": "13px 14px", "minHeight": "44px", "boxSizing": "border-box", "fontSize": "16px"}}>What you get</a>
+<a href="#team" style={{"padding": "13px 14px", "minHeight": "44px", "boxSizing": "border-box", "fontSize": "16px"}}>Your AI team</a>
+<a href="#paths" style={{"padding": "13px 14px", "minHeight": "44px", "boxSizing": "border-box", "fontSize": "16px"}}>Growth stages</a>
 <a href="#how" style={{"padding": "13px 14px", "minHeight": "44px", "boxSizing": "border-box", "fontSize": "16px"}}>How it works</a>
+<a href="#partners" style={{"padding": "13px 14px", "minHeight": "44px", "boxSizing": "border-box", "fontSize": "16px"}}>Partners</a>
 <a href="#pricing" style={{"padding": "13px 14px", "minHeight": "44px", "boxSizing": "border-box", "fontSize": "16px"}}>Pricing</a>
-<a href="mailto:sunil.kattikar@gmail.com?subject=SIXXAB%20consultant%20certification" style={{"padding": "13px 14px", "minHeight": "44px", "boxSizing": "border-box", "fontSize": "16px"}}>Consultants</a>
 <a href="/investors" style={{"padding": "13px 14px", "minHeight": "44px", "boxSizing": "border-box", "fontSize": "16px"}}>Investors</a>
 <a href="/login" style={{"padding": "13px 14px", "minHeight": "44px", "boxSizing": "border-box", "fontSize": "16px"}}>Log in</a>
 <a href="#begin" style={{"marginTop": "8px", "padding": "13px 18px", "textAlign": "center", "border": "1.6px solid rgba(201,162,39,.72)", "borderRadius": "999px", "fontSize": "16px"}}>Book a strategy call</a>

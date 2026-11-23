@@ -3,49 +3,77 @@
      instrument, minimums or "invest now" (general solicitation under Rule 506(b)). Terms live in the
      deck, shared privately. Change that only if the round is run under 506(c) or Reg CF, with counsel. -->
 <style>
-.inv{background:#02060f;color:#fff;font-family:'Sora',system-ui,sans-serif;min-height:100vh}
+.inv{background:#071426;color:#F3EBD8;font-family:'Manrope',system-ui,sans-serif;min-height:100vh}
 .inv a{color:inherit;text-decoration:none}
-.inv .wrap{max-width:1120px;margin:0 auto;padding:0 clamp(18px,6vw,64px)}
-.inv nav{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:32px 0}
-.inv .brand{display:flex;align-items:center;gap:9px;font-size:19px;letter-spacing:4px;font-variation-settings:'wght' 531}
-.inv .brand b{color:#ffe2b2;letter-spacing:2px;font-weight:400;font-variation-settings:'wght' 340}
-.inv .pill{display:inline-flex;align-items:center;min-height:44px;padding:11px 22px;border-radius:999px;border:1.6px solid rgba(196,214,232,.6);font-size:14px;color:#e8ecf0}
-.inv .pill.solid{background:#fff;color:#02060f;border-color:#fff}
-.inv header{padding:72px 0 64px;background:radial-gradient(60% 80% at 50% 0%,rgba(255,200,120,.14),rgba(2,6,15,0) 70%)}
-.inv .kick{margin:0 0 16px;font-size:13px;letter-spacing:3px;text-transform:uppercase;color:#ffe2b2;font-variation-settings:'wght' 534}
-.inv h1{margin:0 0 20px;max-width:20ch;font-size:clamp(34px,5vw,60px);line-height:1.1;font-weight:400;font-variation-settings:'wght' 424}
-.inv h2{margin:0 0 14px;font-size:clamp(26px,3vw,36px);line-height:1.2;font-weight:400;font-variation-settings:'wght' 440}
-.inv h3{margin:0;font-size:19px;line-height:1.3;font-weight:400;font-variation-settings:'wght' 540}
-.inv p{margin:0;font-size:17px;line-height:1.6;color:#a2a9b8}
-.inv .lead{max-width:56ch;font-size:19px}
-.inv section{padding:72px 0;border-top:1px solid rgba(196,214,232,.1)}
-.inv .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:32px}
-.inv .card{padding:26px;border-radius:22px;border:1px solid rgba(196,214,232,.16);background:rgba(255,255,255,.03);display:flex;flex-direction:column;gap:10px}
+.inv .wrap{max-width:1160px;margin:0 auto;padding:0 clamp(20px,6vw,64px)}
+.inv nav{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:28px 0}
+.inv .brand{display:flex;align-items:center;gap:11px;line-height:1}
+.inv .brand svg{display:block}
+.inv .wm{display:flex;flex-direction:column;align-items:stretch}
+.inv .wm b{font:700 20px Montserrat,'Manrope',sans-serif;letter-spacing:.2em;padding-left:.2em;white-space:nowrap;background:linear-gradient(180deg,#F3D27A,#C8962F);-webkit-background-clip:text;background-clip:text;color:transparent}
+.inv .wm small{display:flex;align-items:center;gap:7px;margin-top:5px;font:600 10px Montserrat,'Manrope',sans-serif;letter-spacing:.34em;padding-left:.34em;color:#E0B95A;white-space:nowrap}
+.inv .wm small i{flex:1;height:1.5px;min-width:10px;background:#C8962F;display:block}
+.inv .links{display:flex;align-items:center;gap:24px;font-size:14px;white-space:nowrap}
+.inv .links a:not(.pill){color:#cfd8e6}.inv .links a:not(.pill):hover{color:#E7C766}
+.inv .pill{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:10px 20px;border-radius:999px;border:1.6px solid rgba(201,162,39,.6);font-size:14px;font-weight:600;color:#F3EBD8}
+.inv .pill.solid{background:linear-gradient(180deg,#E7C766,#C9A227);color:#1a1405;border-color:transparent}
+.inv header{padding:40px 0 56px;background:radial-gradient(70% 90% at 75% 10%,rgba(201,162,39,.12),rgba(7,20,38,0) 70%)}
+.inv .hero{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:clamp(24px,4vw,56px);align-items:center}
+.inv .hero img{display:block;width:auto;max-width:100%;height:min(60vh,520px);margin:0 auto;-webkit-mask-image:radial-gradient(ellipse 68% 70% at 50% 50%,#000 42%,transparent 96%);mask-image:radial-gradient(ellipse 68% 70% at 50% 50%,#000 42%,transparent 96%)}
+.inv .kick{margin:0 0 14px;font-size:13px;letter-spacing:3px;text-transform:uppercase;color:#E7C766;font-weight:700}
+.inv h1{margin:0 0 20px;max-width:18ch;font-family:'Playfair Display',Georgia,serif;font-size:clamp(36px,5vw,60px);line-height:1.08;font-weight:700}
+.inv h1 em{font-style:normal;color:#E7C766}
+.inv h2{margin:0 0 14px;font-family:'Playfair Display',Georgia,serif;font-size:clamp(28px,3vw,40px);line-height:1.15;font-weight:700}
+.inv h3{margin:0;font-family:'Playfair Display',Georgia,serif;font-size:21px;line-height:1.3;font-weight:700}
+.inv p{margin:0;font-size:17px;line-height:1.6;color:#9fb0c8}
+.inv .lead{max-width:56ch;font-size:19px;color:#dbe4f0}
+.inv section{padding:80px 0;border-top:1px solid rgba(201,162,39,.12)}
+.inv .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:32px}
+.inv .grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-top:32px}
+.inv .card{padding:26px;border-radius:20px;border:1px solid rgba(201,162,39,.2);background:#0f2747;display:flex;flex-direction:column;gap:10px}
 .inv .card p{font-size:15px}
-.inv .card .tag{font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:#ffe2b2;font-variation-settings:'wght' 560}
+.inv .card.best{border:1.5px solid #C9A227;background:linear-gradient(180deg,#173563,#0f2747)}
+.inv .tag{font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:#C9A227;font-weight:700}
+.inv .card .price{font-family:'Playfair Display',Georgia,serif;font-size:34px;color:#E7C766;line-height:1.1}
+.inv .price small{font-family:'Manrope',sans-serif;font-size:14px;color:#9fb0c8}
 .inv ul.facts{list-style:none;margin:28px 0 0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 28px}
-.inv ul.facts li{display:flex;gap:12px;align-items:baseline;font-size:16px;line-height:1.5;color:#e2ebf5}
-.inv ul.facts li::before{content:'';flex:none;width:8px;height:8px;border-radius:50%;background:#ffe2b2;transform:translateY(-2px)}
-.inv .split{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:40px;align-items:start}
-.inv .cta{padding:40px;border-radius:28px;border:1px solid rgba(255,226,178,.3);background:linear-gradient(180deg,rgba(255,226,178,.08),rgba(255,226,178,.015));display:flex;flex-direction:column;gap:18px}
+.inv ul.facts li{display:flex;gap:12px;align-items:baseline;font-size:16px;line-height:1.5;color:#e2e8f1}
+.inv ul.facts li::before{content:'\2713';flex:none;color:#E7C766}
+.inv .split{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:clamp(24px,4vw,56px);align-items:center}
+.inv .shot{display:block;width:100%;max-width:100%;height:auto;border-radius:20px;border:1px solid rgba(201,162,39,.25);box-shadow:0 24px 60px rgba(0,0,0,.45)}
+.inv .stages{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-top:18px}
+.inv .stages div{padding:12px;border-radius:14px;border:1px solid rgba(201,162,39,.22);background:#0f2747}
+.inv .stages b{display:block;font-size:12px;letter-spacing:1.2px;text-transform:uppercase;color:#C9A227}
+.inv .stages span{font-size:14px;color:#F3EBD8}
+.inv .fam{display:flex;align-items:center;gap:12px}
+.inv .founder{display:grid;grid-template-columns:auto minmax(0,1fr);gap:32px;align-items:center}
+.inv .founder img{width:160px;height:160px;object-fit:cover;object-position:50% 22%;border-radius:50%;border:2px solid rgba(201,162,39,.55);box-shadow:0 0 0 6px rgba(201,162,39,.08)}
+.inv .cta{padding:40px;border-radius:28px;border:1px solid rgba(201,162,39,.35);background:radial-gradient(100% 140% at 0% 0%,#173563,#0B1F3A 60%);display:flex;flex-direction:column;gap:18px}
 .inv .row{display:flex;flex-wrap:wrap;gap:12px}
-.inv footer{padding:36px 0;border-top:1px solid rgba(196,214,232,.12);font-size:14px;color:#8d96a8;display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px}
-.inv .note{font-size:13px;color:#8d96a8}
-@media (max-width:860px){.inv .grid,.inv ul.facts,.inv .split{grid-template-columns:minmax(0,1fr)}.inv .hide-sm{display:none}}
+.inv footer{padding:36px 0;border-top:1px solid rgba(201,162,39,.14);font-size:14px;color:#8d9bb2;display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px}
+.inv footer a:hover{color:#E7C766}
+.inv .note{font-size:13px;color:#8d9bb2}
+@media (max-width:1100px){.inv .links .opt{display:none}}
+@media (max-width:960px){.inv .hero,.inv .split{grid-template-columns:minmax(0,1fr)}.inv .hero figure{display:none}.inv .grid4{grid-template-columns:repeat(2,minmax(0,1fr))}.inv .stages{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:700px){.inv .grid,.inv .grid4,.inv ul.facts{grid-template-columns:minmax(0,1fr)}.inv .stages{grid-template-columns:repeat(2,minmax(0,1fr))}.inv .links a:not(.solid){display:none}.inv .founder{grid-template-columns:minmax(0,1fr)}.inv .founder img{width:120px;height:120px}}
 </style>
 <div class="inv">
 <div class="wrap">
 <nav aria-label="Main">
-<a href="/" class="brand"><svg viewBox="0 0 23 17" width="24" height="18" aria-hidden="true" style="fill:#fff"><path d="M8.15 0.9 L4.55 0.9 L0.5 9.3 L4.1 9.3 Z"/><path d="M17.0 0 L13.4 0 L6.15 16.4 L9.75 16.4 Z"/><path d="M22.9 0 L19.3 0 L15.0 7.6 L18.6 7.6 Z"/><path d="M22.6 6.9 L19.0 6.9 L14.05 16.4 L17.65 16.4 Z"/></svg>SIXXAB <b>AI</b></a>
-<span class="row"><a class="pill hide-sm" href="/">Product</a><a class="pill solid" href="#contact">Request the deck</a></span>
+<a href="/" class="brand" aria-label="SIXXAB AI home"><svg viewBox="0 0 50 42" width="46" height="39" aria-hidden="true"><defs><linearGradient id="sxi" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F3D27A"/><stop offset="1" stop-color="#C8962F"/></linearGradient></defs><path fill="url(#sxi)" d="M16,0 L49.4,0 L49,1.6 L36.4,19.6 L48.8,40.3 Q49.2,41.8 47.7,41.8 L32.8,41.8 Q30.6,41.7 31.4,40.4 L33.4,37.7 Q34,37.1 35,37.1 L38.3,37.1 L28.2,19.8 L21.8,11.2 Q21.1,9.2 23,9.1 L27,9.2 L32,15.9 L38.9,8.2 L40.3,5.8 Q40.5,5 39.4,5 L16.4,5 Q13.6,5.4 13.9,8.4 L14.3,10.3 L22.4,20.1 C28.5,26 29.5,31 27.6,35.8 C26.1,39.4 23.5,41.6 20.2,41.7 L1.4,41.8 Q0,41.7 0.4,40.2 L1.6,37.6 L6.4,30.9 L10.3,30.9 Q11.2,31.3 10.8,32.2 L9.2,35.4 Q9,36.8 10.3,36.8 L19.8,36.6 C22.8,35.5 23.6,32 21.9,29 L9.3,14.4 C7.6,12 7.4,6.5 9.5,3.5 C11,1.5 13,0.3 16,0 Z"/></svg><span class="wm"><b>SIXXAB</b><small><i></i>AI<i></i></small></span></a>
+<span class="links"><a class="opt" href="/#team">Your AI team</a><a class="opt" href="/#paths">Growth stages</a><a href="#model">Business model</a><a href="#built">Traction</a><a href="#founder">Founder</a><a class="pill solid" href="#contact">Request the deck</a></span>
 </nav>
 </div>
 
 <header>
-<div class="wrap">
+<div class="wrap hero">
+<div>
 <p class="kick">Investor relations</p>
 <h1>The autonomous business platform for founders.</h1>
 <p class="lead">SIXXAB AI gives a founder a full executive team of AI agents that plans, sells, markets and runs the business, with a person approving anything that reaches a customer or spends money.</p>
+<div class="row" style="margin-top:28px"><a class="pill solid" href="#contact">Request the deck</a><a class="pill" href="/">See the product</a></div>
+</div>
+<figure style="margin:0"><img src="/media/hero-growth.webp" alt="A founder approving the work of AI agents as they carry the business up a rising gold growth curve" width="1000" height="1241" decoding="async"></figure>
 </div>
 </header>
 
@@ -60,9 +88,44 @@
 </div>
 </section>
 
-<section aria-labelledby="built">
-<p class="kick">What's built</p>
-<h2 id="built">Live at sixxab.ai, onboarding its first businesses.</h2>
+<section aria-labelledby="product">
+<div class="split">
+<img class="shot" src="/media/how-boardroom.webp" alt="AI executive agents around a gold boardroom table while the founder approves their plan" width="1000" height="1241" loading="lazy" decoding="async" style="max-height:460px;width:auto;margin:0 auto">
+<div>
+<p class="kick">The product</p>
+<h2 id="product">One founder agent, 18 executive agents, one plan.</h2>
+<p>The founder agent sets the plan from the business profile and goals. Executive agents for marketing, sales, operations and finance turn it into daily work. Every approval and edit feeds a learning loop, and autonomy is earned per task type, from assist, to approve, to autonomous.</p>
+<ul class="facts" style="grid-template-columns:minmax(0,1fr)">
+<li>Human approval enforced in the database, not left to the AI</li>
+<li>Money tasks are always approved by a person</li>
+<li>Every action audited, with the AI cost of each task</li>
+</ul>
+</div>
+</div>
+</section>
+
+<section aria-labelledby="growth">
+<div class="split">
+<div>
+<p class="kick">Growth stages</p>
+<h2 id="growth">From a solo founder to a $10M month.</h2>
+<p>A 21-step guided journey moves each business through six stages. Each stage opens at a monthly revenue level, and the right agents switch on as the business grows.</p>
+</div>
+<img class="shot" src="/media/team-scale.webp" alt="A founder-led business climbing from a solo start to a large headquarters" width="1600" height="893" loading="lazy" decoding="async">
+</div>
+<div class="stages">
+<div><b>Startup</b><span>$0</span></div>
+<div><b>Struggle</b><span>$10K a month</span></div>
+<div><b>Scale</b><span>$50K a month</span></div>
+<div><b>Success</b><span>$100K a month</span></div>
+<div><b>Significance</b><span>$1M a month</span></div>
+<div><b>SIXXAB</b><span>$10M a month</span></div>
+</div>
+</section>
+
+<section id="built" aria-labelledby="builth">
+<p class="kick">Traction</p>
+<h2 id="builth">Live at sixxab.ai, onboarding its first businesses.</h2>
 <ul class="facts">
 <li>Launched November 2026, with email and mobile sign-in and an installable app</li>
 <li>Three pilot businesses in the US and India, including an orthopaedic hospital and a pathology lab</li>
@@ -75,25 +138,40 @@
 </ul>
 </section>
 
-<section aria-labelledby="model">
-<div class="split">
-<div>
+<section id="model" aria-labelledby="modelh">
 <p class="kick">Business model</p>
-<h2 id="model">Subscriptions, plus a partner channel.</h2>
-<p>Businesses subscribe on 12-month plans that start at $5,000 a month for startups and small businesses. Certified consultants license the platform to deliver SIXXAB to clients in their own countries, starting with the US and India.</p>
+<h2 id="modelh">Subscriptions, plus a partner channel.</h2>
+<p style="max-width:60ch">Businesses subscribe on 12-month plans. Certified consultants license the platform to deliver SIXXAB to clients in their own countries, starting with the US and India, priced in USD and INR.</p>
+<div class="grid">
+<div class="card"><span class="tag">Start · Founder</span><p class="price">$5,000 <small>/ month, from</small></p><p>Startups and small businesses: founder agents for niche, strategy and roadmap, a built-in AI marketing agency, daily briefings and approvals.</p></div>
+<div class="card best"><span class="tag">Scale · Growth</span><p class="price">$20,000 <small>/ month, from</small></p><p>Growing businesses: all 18 executive and department agents, connected to the systems they already use.</p></div>
+<div class="card"><span class="tag">Run · Enterprise</span><p class="price">$50,000 <small>/ month, from</small></p><p>Large businesses: AI governance and value mapping, agents for each business unit, single sign-on, audit trail and data residency.</p></div>
 </div>
-<div class="card"><span class="tag">Markets</span><h3>United States and India</h3><p>Launching in both, with USD and INR pricing, and a consultant network for expansion into new countries.</p></div>
+<div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+<div class="card" style="padding:0;overflow:hidden"><img src="/media/ai-agency.webp" alt="An AI agency hub with agents serving a ring of client businesses" width="1400" height="781" loading="lazy" decoding="async" style="display:block;width:100%;height:auto"><div style="padding:22px;display:flex;flex-direction:column;gap:8px"><span class="tag">AI marketing agency</span><h3>50 marketing agents, approved by the owner</h3><p>The built-in agency plans, creates and publishes marketing for each business.</p></div></div>
+<div class="card" style="padding:0;overflow:hidden"><img src="/media/partner-certification.webp" alt="Certified SIXXAB consultants across a glowing globe with a gold certification seal" width="1400" height="781" loading="lazy" decoding="async" style="display:block;width:100%;height:auto"><div style="padding:22px;display:flex;flex-direction:column;gap:8px"><span class="tag">Partner channel</span><h3>Certified SIXXAB consultants</h3><p>Consultants license the platform to serve clients in new countries and industries.</p></div></div>
 </div>
 </section>
 
-<section aria-labelledby="team">
-<div class="split">
+<section aria-labelledby="family">
+<p class="kick">The SIXXAB family</p>
+<h2 id="family">One founder, one brand, four businesses.</h2>
+<div class="grid4">
+<div class="card"><span class="tag">SIXXAB AI</span><h3>The platform</h3><p>AI executive teams for business growth. sixxab.ai</p></div>
+<div class="card"><span class="tag">SIXXAB Money</span><h3>Financial education</h3><p>Markets and money, explained daily. money.sixxab.com</p></div>
+<div class="card"><span class="tag">SIXXAB Library</span><h3>Books from real life</h3><p>Practical books by the founder, experts and students. library.sixxab.com</p></div>
+<div class="card"><span class="tag">SIXXAB School</span><h3>The school of real life</h3><p>Students learn by building real projects on SIXXAB businesses. school.sixxab.com</p></div>
+</div>
+</section>
+
+<section id="founder" aria-labelledby="team">
+<div class="founder">
+<img src="/media/founder-sunil.webp" alt="Sunil Kattikar, founder of SIXXAB AI" width="600" height="702" loading="lazy" decoding="async">
 <div>
 <p class="kick">Founder</p>
 <h2 id="team">Sunil Kattikar</h2>
-<p>25 years in enterprise technology. Former Head of Cloud, AI &amp; Platform Engineering at GameStop. Led a hybrid cloud modernization at Western Union with 35+ architects and engineers, after 17 years in transformation consulting at Infosys. Executive MBA; AWS and Azure certified solutions architect.</p>
+<p style="max-width:70ch">26 years in digital, business, finance and economics transformation, with blockchain and AI. Former Head of Cloud, AI &amp; Platform Engineering at GameStop. Led a hybrid cloud modernization at Western Union with 35+ architects and engineers, after 17 years in transformation consulting at Infosys. Executive MBA; AWS and Azure certified solutions architect. SIXXAB AI is built and run with the same agent loop it sells: plan, act, approve, measure, learn and improve.</p>
 </div>
-<div class="card"><span class="tag">Built with</span><h3>AI-native from day one</h3><p>The platform is built and run with the same agent loop it sells: plan, act, approve, measure, learn and improve.</p></div>
 </div>
 </section>
 
@@ -103,8 +181,8 @@
 <h2 id="talk" style="margin:0">Request the investor deck.</h2>
 <p>Tell Sunil a little about you and how you invest. He replies personally with the deck and a time to talk. Partnerships and press are welcome too.</p>
 <div class="row">
-<a class="pill solid" href="mailto:sunil.kattikar@gmail.com?subject=SIXXAB%20AI%20investor%20deck%20request">Request the deck</a>
-<a class="pill" href="/">See the product</a>
+<a class="pill solid" href="mailto:support@sunilkattikar.com?subject=SIXXAB%20AI%20investor%20deck%20request">Request the deck</a>
+<a class="pill" href="/#begin">Book a strategy call</a>
 </div>
 <p class="note">This page describes the business only. It is not an offer to sell, or a solicitation of an offer to buy, any securities.</p>
 </div>
@@ -112,6 +190,6 @@
 </div>
 
 <div class="wrap">
-<footer><span>© 2026 SIXXAB AI · sixxab.ai</span><span class="row" style="gap:24px"><a href="/">Home</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></span></footer>
+<footer><span>© 2026 SIXXAB AI · sixxab.ai</span><span class="row" style="gap:24px"><a href="/">Home</a><a href="https://money.sixxab.com/">SIXXAB Money</a><a href="https://library.sixxab.com/">Library</a><a href="https://school.sixxab.com/">School</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></span></footer>
 </div>
 </div>

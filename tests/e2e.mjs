@@ -75,7 +75,7 @@ await check('landing works on a phone, menu opens', async () => {
   assert.ok(overflow <= 1, `horizontal overflow ${overflow}px`);
   await page.screenshot({ path: `${SHOTS}/phone-hero.png` });
   await page.getByRole('button', { name: 'Menu' }).click();
-  await page.getByRole('link', { name: 'Consultants' }).last().waitFor();
+  await page.getByRole('link', { name: 'Partners' }).last().waitFor();
   await page.screenshot({ path: `${SHOTS}/phone-menu.png` });
   await ctx.close();
 });

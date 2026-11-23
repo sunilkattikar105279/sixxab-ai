@@ -16,9 +16,8 @@ a:focus-visible,button:focus-visible{outline:2px solid #E7C766;outline-offset:3p
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 .navlinks{display:flex}
 .burger{display:none!important}
+@media (max-width:1180px){.navlinks{display:none!important}.burger{display:inline-flex!important}}
 @media (max-width:960px){
-.navlinks{display:none!important}
-.burger{display:inline-flex!important}
 .g3,.g2,.g4,.gs{grid-template-columns:minmax(0,1fr)!important}
 .h1{font-size:34px!important}
 .h2{font-size:30px!important}
