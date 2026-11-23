@@ -17,6 +17,8 @@ fs.rmSync(dist, { recursive: true, force: true });
 fs.rmSync(apiOut, { recursive: true, force: true });
 fs.mkdirSync(path.join(dist, 'assets'), { recursive: true });
 fs.mkdirSync(path.join(dist, 'icons'), { recursive: true });
+// Landing visuals (content/media/*.webp) are served as-is from /media.
+fs.cpSync(path.join(root, 'content', 'media'), path.join(dist, 'media'), { recursive: true });
 
 const common = { bundle: true, minify: true, sourcemap: false, target: ['es2020'], jsx: 'automatic', legalComments: 'none', logLevel: 'warning', define: { 'process.env.NODE_ENV': '"production"' } };
 
