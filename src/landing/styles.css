@@ -26,6 +26,8 @@ a:focus-visible,button:focus-visible{outline:2px solid #E7C766;outline-offset:3p
 .track{display:none!important}
 .split{grid-template-columns:minmax(0,1fr)!important}
 }
+.hero-vis img{display:block;width:auto;height:min(68vh,600px);max-width:100%;object-fit:contain;-webkit-mask-image:radial-gradient(ellipse 68% 70% at 50% 50%,#000 42%,transparent 96%);mask-image:radial-gradient(ellipse 68% 70% at 50% 50%,#000 42%,transparent 96%)}
+@media (max-width:960px){.hero-vis{display:none!important}}
 .vis img{display:block;width:100%;height:auto;border-radius:22px;border:1px solid rgba(201,162,39,.28);box-shadow:0 24px 60px rgba(0,0,0,.45),0 0 40px rgba(201,162,39,.08)}
 @media (min-width:961px){.flip>.vis{order:2}}
 @media (min-width:961px) and (max-width:1200px){.g4{grid-template-columns:repeat(2,minmax(0,1fr))!important}}

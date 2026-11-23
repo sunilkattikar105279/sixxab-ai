@@ -39,6 +39,8 @@ a:focus-visible,button:focus-visible{outline:2px solid #E7C766;outline-offset:3p
 .track{display:none!important}
 .split{grid-template-columns:minmax(0,1fr)!important}
 }
+.hero-vis img{display:block;width:auto;height:min(68vh,600px);max-width:100%;object-fit:contain;-webkit-mask-image:radial-gradient(ellipse 68% 70% at 50% 50%,#000 42%,transparent 96%);mask-image:radial-gradient(ellipse 68% 70% at 50% 50%,#000 42%,transparent 96%)}
+@media (max-width:960px){.hero-vis{display:none!important}}
 .vis img{display:block;width:100%;height:auto;border-radius:22px;border:1px solid rgba(201,162,39,.28);box-shadow:0 24px 60px rgba(0,0,0,.45),0 0 40px rgba(201,162,39,.08)}
 @media (min-width:961px){.flip>.vis{order:2}}
 @media (min-width:961px) and (max-width:1200px){.g4{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
@@ -83,7 +85,8 @@ h1,h2,h3,.h1,.h2{font-family:'Playfair Display',Georgia,serif!important;font-var
 </sc-if>
 
 <div style="position: relative; z-index: 1; flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 0 clamp(22px, 8vw, 120px)">
-<div style="width: 100%; max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px">
+<div class="split" style="width: 100%; max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: minmax(0,1.25fr) minmax(0,1fr); gap: clamp(24px, 4vw, 56px); align-items: center">
+<div style="display: flex; flex-direction: column; gap: 22px">
 <p style="margin: 0; font-size: 14px; letter-spacing: 3px; text-transform: uppercase; color: #E7C766; font-variation-settings: 'wght' 534">SIXXAB AI · AI agent teams for business growth</p>
 <h1 class="h1" style="margin: 0; font-size: clamp(32px, 3.9vw, 56px); line-height: 1.12; font-weight: 400; font-variation-settings: 'wght' 424; letter-spacing: -.01em">Your AI executive team.<span style="display: block; color: #E7C766">You approve every move.</span></h1>
 <p style="margin: 0; max-width: 54ch; font-size: clamp(17px, 1.45vw, 21px); line-height: 1.55; color: #F3EBD8">SIXXAB AI gives founders and business owners a team of AI agents that plan and run marketing, sales, operations and finance every day.</p>
@@ -93,6 +96,8 @@ h1,h2,h3,.h1,.h2{font-family:'Playfair Display',Georgia,serif!important;font-var
 <a href="#begin" style="display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 22px; box-sizing: border-box; border-radius: 999px; font-size: 15px; font-variation-settings: 'wght' 540; border: 1.6px solid rgba(255,255,255,.6); background: transparent; color: #F3EBD8">Book a strategy call</a>
 </div>
 <p style="margin: 8px 0 0; font-size: 14px; color: #9fb0c8">Live with businesses in the US and India · Human approval built in · 12-month plans</p>
+</div>
+<figure class="hero-vis" style="margin: 0; display: flex; justify-content: center"><img src="/media/hero-growth.webp" alt="A founder approving the work of AI agents as they carry the business up a rising gold growth curve" width="1000" height="1241" loading="eager" decoding="async"></figure>
 </div>
 </div>
 </header>

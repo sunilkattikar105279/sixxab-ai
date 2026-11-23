@@ -42,7 +42,8 @@ export default function Landing(props) {
 </div>
 </>) : null}
 <div style={{"position": "relative", "zIndex": "1", "flex": "1", "display": "flex", "flexDirection": "column", "justifyContent": "center", "padding": "0 clamp(22px, 8vw, 120px)"}}>
-<div style={{"width": "100%", "maxWidth": "1120px", "margin": "0 auto", "display": "flex", "flexDirection": "column", "gap": "22px"}}>
+<div className="split" style={{"width": "100%", "maxWidth": "1200px", "margin": "0 auto", "display": "grid", "gridTemplateColumns": "minmax(0,1.25fr) minmax(0,1fr)", "gap": "clamp(24px, 4vw, 56px)", "alignItems": "center"}}>
+<div style={{"display": "flex", "flexDirection": "column", "gap": "22px"}}>
 <p style={{"margin": "0", "fontSize": "14px", "letterSpacing": "3px", "textTransform": "uppercase", "color": "#E7C766", "fontVariationSettings": "'wght' 534"}}>SIXXAB AI · AI agent teams for business growth</p>
 <h1 className="h1" style={{"margin": "0", "fontSize": "clamp(32px, 3.9vw, 56px)", "lineHeight": "1.12", "fontWeight": "400", "fontVariationSettings": "'wght' 424", "letterSpacing": "-.01em"}}>Your AI executive team.<span style={{"display": "block", "color": "#E7C766"}}>You approve every move.</span></h1>
 <p style={{"margin": "0", "maxWidth": "54ch", "fontSize": "clamp(17px, 1.45vw, 21px)", "lineHeight": "1.55", "color": "#F3EBD8"}}>SIXXAB AI gives founders and business owners a team of AI agents that plan and run marketing, sales, operations and finance every day.</p>
@@ -52,6 +53,8 @@ export default function Landing(props) {
 <a href="#begin" style={{"display": "inline-flex", "alignItems": "center", "justifyContent": "center", "minHeight": "44px", "padding": "10px 22px", "boxSizing": "border-box", "borderRadius": "999px", "fontSize": "15px", "fontVariationSettings": "'wght' 540", "border": "1.6px solid rgba(255,255,255,.6)", "background": "transparent", "color": "#F3EBD8"}}>Book a strategy call</a>
 </div>
 <p style={{"margin": "8px 0 0", "fontSize": "14px", "color": "#9fb0c8"}}>Live with businesses in the US and India · Human approval built in · 12-month plans</p>
+</div>
+<figure className="hero-vis" style={{"margin": "0", "display": "flex", "justifyContent": "center"}}><img src="/media/hero-growth.webp" alt="A founder approving the work of AI agents as they carry the business up a rising gold growth curve" width="1000" height="1241" loading="eager" decoding="async" /></figure>
 </div>
 </div>
 </header>
