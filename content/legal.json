@@ -3,7 +3,7 @@
     "title": "Privacy Policy",
     "effective": "November 2026",
     "sections": [
-      { "h": "Who we are", "p": ["SIXXAB AI (\"SIXXAB\", \"we\") provides an AI agent platform that helps companies plan, market, sell and operate. Questions about this policy: <a href=\"mailto:sunil.kattikar@gmail.com\">sunil.kattikar@gmail.com</a>."] },
+      { "h": "Who we are", "p": ["SIXXAB AI (\"SIXXAB\", \"we\") provides an AI agent platform that helps companies plan, market, sell and operate. Questions about this policy: <a href=\"mailto:support@sunilkattikar.com\">support@sunilkattikar.com</a>."] },
       { "h": "What we collect", "p": ["Account details you give us to sign in: your email address or mobile number.", "Business information you or your team enter, and the work our agents create for you, including drafts, approvals and an activity log.", "Basic technical data needed to run the service securely, such as device and browser type and error logs."] },
       { "h": "How we use it", "p": ["To provide the service you signed up for: running your agents, holding actions for your approval, and sending your morning briefing.", "To keep the service secure and improve how your own agents perform for your company. We do not sell your personal information."] },
       { "h": "Who processes it for us", "p": ["We use trusted providers to run SIXXAB, including Supabase (database and sign-in), Vercel (hosting), Anthropic (AI models) and messaging providers for SMS and email. They process data only to provide their service to us."] },
@@ -22,7 +22,7 @@
       { "h": "Acceptable use", "p": ["Do not use SIXXAB to break the law, send spam, mislead people, or harm others or the service."] },
       { "h": "Plans and payment", "p": ["Paid plans are 12-month contracts billed as stated in your order. Prices on our website are starting prices; your order sets your final terms."] },
       { "h": "Liability", "p": ["The service is provided as is, to the extent the law allows. Our total liability is limited to the fees you paid in the 12 months before the claim."] },
-      { "h": "Contact", "p": ["Questions about these terms: <a href=\"mailto:sunil.kattikar@gmail.com\">sunil.kattikar@gmail.com</a>."] }
+      { "h": "Contact", "p": ["Questions about these terms: <a href=\"mailto:support@sunilkattikar.com\">support@sunilkattikar.com</a>."] }
     ]
   }
 }

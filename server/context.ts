@@ -45,7 +45,7 @@ export function publicConfig() {
     supabaseUrl: supabaseUrl() ?? null,
     supabaseAnonKey: env('SUPABASE_ANON_KEY') ?? null,
     bookingUrl: env('BOOKING_URL') ?? null,
-    contactEmail: env('CONTACT_EMAIL') ?? 'sunil.kattikar@gmail.com',
+    contactEmail: env('CONTACT_EMAIL') ?? 'support@sunilkattikar.com',
   };
 }
 

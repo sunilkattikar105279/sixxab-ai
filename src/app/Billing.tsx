@@ -23,7 +23,7 @@ function printInvoice(b: Business, inv: Invoice) {
     td,th{padding:10px 0;border-bottom:1px solid #ddd;text-align:left} .r{text-align:right} .total td{font-weight:700;border-bottom:0}
     .row{display:flex;justify-content:space-between;gap:24px;margin-top:28px}</style></head><body>
     <h1>Invoice</h1><div class="muted">${esc(inv.number)} · ${esc(inv.period)} · issued ${esc(new Date(inv.createdAt).toLocaleDateString())}</div>
-    <div class="row"><div><strong>SIXXAB AI</strong><br><span class="muted">sixxab.ai · sunil.kattikar@gmail.com</span></div>
+    <div class="row"><div><strong>SIXXAB AI</strong><br><span class="muted">sixxab.ai · support@sunilkattikar.com</span></div>
     <div><strong>Bill to</strong><br>${esc(b.name ?? 'Customer')}${b.location ? `<br><span class="muted">${esc(b.location)}</span>` : ''}</div></div>
     <table><thead><tr><th>Description</th><th class="r">Amount</th></tr></thead><tbody>${rows}
     <tr class="total"><td>Total (${esc(inv.currency)})</td><td class="r">${esc(money(inv.total, inv.currency))}</td></tr></tbody></table>

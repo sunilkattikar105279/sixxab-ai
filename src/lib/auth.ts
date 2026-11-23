@@ -19,7 +19,7 @@ let configPromise: Promise<PublicConfig> | null = null;
 export function getConfig(): Promise<PublicConfig> {
   configPromise ??= fetch('/api/config', { cache: 'no-store' })
     .then((r) => (r.ok ? r.json() : Promise.reject(new Error('config'))))
-    .catch(() => ({ supabaseUrl: null, supabaseAnonKey: null, bookingUrl: null, contactEmail: 'sunil.kattikar@gmail.com' }));
+    .catch(() => ({ supabaseUrl: null, supabaseAnonKey: null, bookingUrl: null, contactEmail: 'support@sunilkattikar.com' }));
   return configPromise;
 }
 

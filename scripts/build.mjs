@@ -91,7 +91,7 @@ ${script ? `<script type="module" src="${script}"></script>` : ''}
 </html>
 `;
 
-const ld = JSON.stringify({ '@context': 'https://schema.org', '@type': 'Organization', name: 'SIXXAB AI', url: SITE, logo: `${SITE}/icons/icon-512.png`, email: 'sunil.kattikar@gmail.com', founder: { '@type': 'Person', name: 'Sunil Kattikar' } });
+const ld = JSON.stringify({ '@context': 'https://schema.org', '@type': 'Organization', name: 'SIXXAB AI', url: SITE, logo: `${SITE}/icons/icon-512.png`, email: 'support@sunilkattikar.com', founder: { '@type': 'Person', name: 'Sunil Kattikar' } });
 fs.writeFileSync(path.join(dist, 'index.html'), page({ body: landingHtml, script: asset('src/entries/landing.tsx'), css: lcName }).replace('</head>', `<script type="application/ld+json">${ld}</script>\n</head>`));
 fs.writeFileSync(path.join(dist, 'login.html'), page({ title: 'Sign in | SIXXAB AI', pathName: '/login', body: '', script: asset('src/entries/login.tsx'), css: acName }));
 fs.mkdirSync(path.join(dist, 'app'), { recursive: true });
