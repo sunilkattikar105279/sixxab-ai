@@ -57,7 +57,7 @@ const head = ({ title = TITLE, desc = DESC, pathName = '/', css }) => `<meta cha
 <title>${title}</title>
 <meta name="description" content="${desc}">
 <link rel="canonical" href="${SITE}${pathName}">
-<meta name="theme-color" content="#02060f">
+<meta name="theme-color" content="#071426">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="SIXXAB AI">
 <meta property="og:title" content="${title}">
@@ -74,7 +74,7 @@ const head = ({ title = TITLE, desc = DESC, pathName = '/', css }) => `<meta cha
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Sora:wght@100..800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500..800;1,500..700&family=Manrope:wght@300..800&family=Montserrat:wght@600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="${css}">`;
 
 const page = ({ body, script, ...h }) => `<!doctype html>
@@ -106,15 +106,18 @@ fs.writeFileSync(path.join(dist, 'investors.html'), page({ title: 'Investors | S
 fs.writeFileSync(path.join(dist, '404.html'), page({ title: 'Not found | SIXXAB AI', body: '<main class="legal"><h1>Page not found</h1><p><a href="/">Go to the SIXXAB AI home page</a></p></main>', css: acName }));
 
 // 5. PWA: icons, manifest, service worker, OG image, robots, sitemap
-const markSvg = (size, pad) => `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><rect width="${size}" height="${size}" fill="#02060f"/><defs><radialGradient id="g" cx="50%" cy="45%" r="60%"><stop offset="0" stop-color="#ffe2b2" stop-opacity=".35"/><stop offset="1" stop-color="#02060f" stop-opacity="0"/></radialGradient></defs><rect width="${size}" height="${size}" fill="url(#g)"/><g transform="translate(${pad} ${(size - (size - 2 * pad) * 17 / 23) / 2}) scale(${(size - 2 * pad) / 23})" fill="#ffffff"><path d="M8.15 0.9 L4.55 0.9 L0.5 9.3 L4.1 9.3 Z"/><path d="M17.0 0 L13.4 0 L6.15 16.4 L9.75 16.4 Z"/><path d="M22.9 0 L19.3 0 L15.0 7.6 L18.6 7.6 Z"/><path d="M22.6 6.9 L19.0 6.9 L14.05 16.4 L17.65 16.4 Z"/></g></svg>`;
+// SIXXAB family SX mark (viewBox 0 0 50 42), gold on navy.
+const SX_PATH = 'M16,0 L49.4,0 L49,1.6 L36.4,19.6 L48.8,40.3 Q49.2,41.8 47.7,41.8 L32.8,41.8 Q30.6,41.7 31.4,40.4 L33.4,37.7 Q34,37.1 35,37.1 L38.3,37.1 L28.2,19.8 L21.8,11.2 Q21.1,9.2 23,9.1 L27,9.2 L32,15.9 L38.9,8.2 L40.3,5.8 Q40.5,5 39.4,5 L16.4,5 Q13.6,5.4 13.9,8.4 L14.3,10.3 L22.4,20.1 C28.5,26 29.5,31 27.6,35.8 C26.1,39.4 23.5,41.6 20.2,41.7 L1.4,41.8 Q0,41.7 0.4,40.2 L1.6,37.6 L6.4,30.9 L10.3,30.9 Q11.2,31.3 10.8,32.2 L9.2,35.4 Q9,36.8 10.3,36.8 L19.8,36.6 C22.8,35.5 23.6,32 21.9,29 L9.3,14.4 C7.6,12 7.4,6.5 9.5,3.5 C11,1.5 13,0.3 16,0 Z';
+const SX_GRAD = '<linearGradient id="sx" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F3D27A"/><stop offset="1" stop-color="#C8962F"/></linearGradient>';
+const markSvg = (size, pad) => `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><rect width="${size}" height="${size}" fill="#071426"/><defs>${SX_GRAD}<radialGradient id="g" cx="50%" cy="45%" r="60%"><stop offset="0" stop-color="#E7C766" stop-opacity=".25"/><stop offset="1" stop-color="#071426" stop-opacity="0"/></radialGradient></defs><rect width="${size}" height="${size}" fill="url(#g)"/><g transform="translate(${pad} ${(size - (size - 2 * pad) * 42 / 50) / 2}) scale(${(size - 2 * pad) / 50})"><path fill="url(#sx)" d="${SX_PATH}"/></g></svg>`;
 const icons = [['icon-192.png', 192, 36], ['icon-512.png', 512, 96], ['maskable-512.png', 512, 140], ['apple-touch-icon.png', 180, 34], ['favicon-32.png', 32, 4]];
 for (const [name, size, pad] of icons) await sharp(Buffer.from(markSvg(size, pad))).png().toFile(path.join(dist, 'icons', name));
-const og = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630"><rect width="1200" height="630" fill="#02060f"/><defs><radialGradient id="g" cx="50%" cy="40%" r="70%"><stop offset="0" stop-color="#ffd696" stop-opacity=".45"/><stop offset=".35" stop-color="#3a5aa0" stop-opacity=".2"/><stop offset="1" stop-color="#02060f" stop-opacity="0"/></radialGradient></defs><rect width="1200" height="630" fill="url(#g)"/><g transform="translate(80 80) scale(2.6)" fill="#fff"><path d="M8.15 0.9 L4.55 0.9 L0.5 9.3 L4.1 9.3 Z"/><path d="M17.0 0 L13.4 0 L6.15 16.4 L9.75 16.4 Z"/><path d="M22.9 0 L19.3 0 L15.0 7.6 L18.6 7.6 Z"/><path d="M22.6 6.9 L19.0 6.9 L14.05 16.4 L17.65 16.4 Z"/></g><text x="160" y="122" font-family="DejaVu Sans, Arial, sans-serif" font-size="40" letter-spacing="8" fill="#fff">SIXXAB <tspan fill="#ffe2b2">AI</tspan></text><text x="80" y="330" font-family="DejaVu Sans, Arial, sans-serif" font-size="72" fill="#fff">Start it. Scale it. Run it.</text><text x="80" y="420" font-family="DejaVu Sans, Arial, sans-serif" font-size="44" fill="#ffe2b2">AI that runs your company.</text><text x="80" y="540" font-family="DejaVu Sans, Arial, sans-serif" font-size="28" fill="#a2a9b8">The solo founder's standing army · sixxab.ai</text></svg>`;
+const og = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630"><rect width="1200" height="630" fill="#071426"/><defs>${SX_GRAD}<radialGradient id="g" cx="50%" cy="40%" r="70%"><stop offset="0" stop-color="#E7C766" stop-opacity=".22"/><stop offset=".35" stop-color="#0f2747" stop-opacity=".6"/><stop offset="1" stop-color="#071426" stop-opacity="0"/></radialGradient></defs><rect width="1200" height="630" fill="url(#g)"/><g transform="translate(80 72) scale(1.3)"><path fill="url(#sx)" d="${SX_PATH}"/></g><text x="160" y="122" font-family="DejaVu Sans, Arial, sans-serif" font-size="40" font-weight="bold" letter-spacing="8" fill="#E7C766">SIXXAB <tspan fill="#C9A227">AI</tspan></text><text x="80" y="330" font-family="DejaVu Serif, Georgia, serif" font-size="72" fill="#F3EBD8">Start it. Scale it. Run it.</text><text x="80" y="420" font-family="DejaVu Sans, Arial, sans-serif" font-size="44" fill="#E7C766">AI that runs your company.</text><text x="80" y="540" font-family="DejaVu Sans, Arial, sans-serif" font-size="28" fill="#9fb0c8">The solo founder's standing army · sixxab.ai</text></svg>`;
 await sharp(Buffer.from(og)).png().toFile(path.join(dist, 'og.png'));
 
 fs.writeFileSync(path.join(dist, 'manifest.webmanifest'), JSON.stringify({
   name: 'SIXXAB AI', short_name: 'SIXXAB', description: DESC, start_url: '/app', scope: '/', display: 'standalone', orientation: 'portrait',
-  background_color: '#02060f', theme_color: '#02060f',
+  background_color: '#071426', theme_color: '#071426',
   icons: [
     { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
     { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },

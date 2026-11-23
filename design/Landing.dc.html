@@ -9,13 +9,13 @@
 <x-dc>
 <helmet>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Sora:wght@100..800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500..800;1,500..700&amp;family=Manrope:wght@300..800&amp;family=Montserrat:wght@600;700&amp;display=swap" rel="stylesheet">
 <style>
-body{margin:0;background:#02060f;color:#ffffff;font-family:'Sora',system-ui,-apple-system,'Segoe UI',sans-serif;-webkit-font-smoothing:antialiased;text-rendering:geometricPrecision}
-a{color:#fbfdff;text-decoration:none}a:hover{color:#ffe2b2}
-a:focus-visible,button:focus-visible{outline:2px solid #9fe0ff;outline-offset:3px;border-radius:6px}
-.glass{position:relative;background:linear-gradient(180deg,rgba(6,12,22,0) 45%,rgba(6,12,22,.12) 78%,rgba(6,12,22,.28) 100%),linear-gradient(90deg,rgba(255,226,178,.17) 0%,rgba(255,236,208,.07) 22%,rgba(176,206,238,.03) 55%,rgba(150,196,244,.09) 100%),linear-gradient(90deg,rgba(255,255,255,.24) 0%,rgba(255,255,255,.11) 26%,rgba(255,255,255,.05) 60%,rgba(255,255,255,.04) 100%);-webkit-backdrop-filter:blur(26px) saturate(.45);backdrop-filter:blur(26px) saturate(.45);box-shadow:0 -2px 20px rgba(255,224,176,.20),0 0 34px rgba(168,204,252,.16),inset 0 1.6px 0 0 rgba(255,251,242,.45)}
-.glass::before{content:'';position:absolute;inset:0;border-radius:inherit;padding:1.6px;pointer-events:none;background:linear-gradient(180deg,rgba(255,252,246,.95) 0%,rgba(255,252,246,.2) 45%,rgba(255,252,246,0) 78%),linear-gradient(90deg,rgba(255,228,182,.95) 0%,rgba(250,236,210,.7) 12%,rgba(226,230,234,.03) 32%,rgba(214,226,240,.02) 62%,rgba(200,228,250,.7) 90%,rgba(186,224,247,.95) 100%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);mask-composite:exclude}
+body{margin:0;background:#071426;color:#F3EBD8;font-family:'Manrope',system-ui,-apple-system,'Segoe UI',sans-serif;-webkit-font-smoothing:antialiased;text-rendering:geometricPrecision}
+a{color:#F3EBD8;text-decoration:none}a:hover{color:#E7C766}
+a:focus-visible,button:focus-visible{outline:2px solid #E7C766;outline-offset:3px;border-radius:6px}
+.glass{position:relative;background:linear-gradient(180deg,rgba(7,20,38,0) 45%,rgba(7,20,38,.12) 78%,rgba(7,20,38,.28) 100%),linear-gradient(90deg,rgba(231,199,102,.17) 0%,rgba(255,236,208,.07) 22%,rgba(201,162,39,.03) 55%,rgba(201,162,39,.09) 100%),linear-gradient(90deg,rgba(255,255,255,.24) 0%,rgba(255,255,255,.11) 26%,rgba(255,255,255,.05) 60%,rgba(255,255,255,.04) 100%);-webkit-backdrop-filter:blur(26px) saturate(.45);backdrop-filter:blur(26px) saturate(.45);box-shadow:0 -2px 20px rgba(255,224,176,.20),0 0 34px rgba(201,162,39,.16),inset 0 1.6px 0 0 rgba(255,251,242,.45)}
+.glass::before{content:'';position:absolute;inset:0;border-radius:inherit;padding:1.6px;pointer-events:none;background:linear-gradient(180deg,rgba(255,252,246,.95) 0%,rgba(255,252,246,.2) 45%,rgba(255,252,246,0) 78%),linear-gradient(90deg,rgba(255,228,182,.95) 0%,rgba(250,236,210,.7) 12%,rgba(231,199,102,.03) 32%,rgba(231,199,102,.02) 62%,rgba(231,199,102,.7) 90%,rgba(231,199,102,.95) 100%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);mask-composite:exclude}
 @keyframes en-wipe{from{clip-path:inset(-.4em 0 calc(100% + .4em) 0);translate:0 9px}to{clip-path:inset(-.4em 0 -.4em 0);translate:0 0}}
 @keyframes en-lift{from{opacity:0;translate:0 9px}}
 @media (prefers-reduced-motion:no-preference){
@@ -40,16 +40,17 @@ a:focus-visible,button:focus-visible{outline:2px solid #9fe0ff;outline-offset:3p
 .split{grid-template-columns:minmax(0,1fr)!important}
 }
 @media (min-width:961px) and (max-width:1200px){.g4{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+h1,h2,h3,.h1,.h2{font-family:'Playfair Display',Georgia,serif!important;font-variation-settings:normal!important;font-weight:700!important;letter-spacing:-.01em}
 </style>
 </helmet>
-<div style="width: 100%; min-width: 0; background: #02060f; color: #ffffff; font-family: 'Sora', system-ui, sans-serif">
+<div style="width: 100%; min-width: 0; background: #071426; color: #F3EBD8; font-family: 'Manrope', system-ui, sans-serif">
 
-<header style="position: relative; background: #02060f; height: 88vh; min-height: 660px; max-height: 900px; overflow: hidden; display: flex; flex-direction: column">
+<header style="position: relative; background: #071426; height: 88vh; min-height: 660px; max-height: 900px; overflow: hidden; display: flex; flex-direction: column">
 
 <nav aria-label="Main" style="position: relative; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 36px clamp(22px, 8vw, 120px) 0">
-<a href="/" style="display: flex; align-items: center; gap: 9px; color: #ffffff">
-<svg viewBox="0 0 23 17" width="24" height="18" aria-hidden="true" style="fill: #ffffff; display: block"><path d="M8.15 0.9 L4.55 0.9 L0.5 9.3 L4.1 9.3 Z"></path><path d="M17.0 0 L13.4 0 L6.15 16.4 L9.75 16.4 Z"></path><path d="M22.9 0 L19.3 0 L15.0 7.6 L18.6 7.6 Z"></path><path d="M22.6 6.9 L19.0 6.9 L14.05 16.4 L17.65 16.4 Z"></path></svg>
-<span style="font-size: 21px; letter-spacing: 4px; font-variation-settings: 'wght' 531">SIXXAB</span><span style="font-size: 21px; letter-spacing: 2px; color: #ffe2b2; font-variation-settings: 'wght' 340">AI</span>
+<a href="/" aria-label="SIXXAB AI home" style="display: flex; align-items: center; gap: 11px; line-height: 1">
+<svg viewBox="0 0 50 42" width="46" height="39" aria-hidden="true" style="display: block"><defs><linearGradient id="sxg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color: #F3D27A"></stop><stop offset="1" style="stop-color: #C8962F"></stop></linearGradient></defs><path fill="url(#sxg)" d="M16,0 L49.4,0 L49,1.6 L36.4,19.6 L48.8,40.3 Q49.2,41.8 47.7,41.8 L32.8,41.8 Q30.6,41.7 31.4,40.4 L33.4,37.7 Q34,37.1 35,37.1 L38.3,37.1 L28.2,19.8 L21.8,11.2 Q21.1,9.2 23,9.1 L27,9.2 L32,15.9 L38.9,8.2 L40.3,5.8 Q40.5,5 39.4,5 L16.4,5 Q13.6,5.4 13.9,8.4 L14.3,10.3 L22.4,20.1 C28.5,26 29.5,31 27.6,35.8 C26.1,39.4 23.5,41.6 20.2,41.7 L1.4,41.8 Q0,41.7 0.4,40.2 L1.6,37.6 L6.4,30.9 L10.3,30.9 Q11.2,31.3 10.8,32.2 L9.2,35.4 Q9,36.8 10.3,36.8 L19.8,36.6 C22.8,35.5 23.6,32 21.9,29 L9.3,14.4 C7.6,12 7.4,6.5 9.5,3.5 C11,1.5 13,0.3 16,0 Z"></path></svg>
+<span style="display: flex; flex-direction: column; align-items: stretch"><span style="font-family: Montserrat, Manrope, sans-serif; font-weight: 700; font-size: 20px; letter-spacing: .2em; padding-left: .2em; white-space: nowrap; background: linear-gradient(180deg, #F3D27A, #C8962F); -webkit-background-clip: text; background-clip: text; color: transparent">SIXXAB</span><span style="display: flex; align-items: center; gap: 7px; margin-top: 5px; font-family: Montserrat, Manrope, sans-serif; font-weight: 600; font-size: 10px; letter-spacing: .34em; padding-left: .34em; color: #E0B95A; white-space: nowrap"><i style="flex: 1; height: 1.5px; min-width: 10px; background: #C8962F; display: block"></i>AI<i style="flex: 1; height: 1.5px; min-width: 10px; background: #C8962F; display: block"></i></span></span>
 </a>
 <div class="navlinks" style="align-items: center; gap: 30px; font-size: 14px; font-variation-settings: 'wght' 506">
 <a href="#outcomes">What you get</a>
@@ -58,69 +59,69 @@ a:focus-visible,button:focus-visible{outline:2px solid #9fe0ff;outline-offset:3p
 <a href="/investors">Investors</a>
 </div>
 <div class="navlinks" style="align-items: center; gap: 24px; font-size: 14px; font-variation-settings: 'wght' 506">
-<a href="/login?next=start" style="color: #ffe2b2; font-variation-settings: 'wght' 581">Start your business</a>
+<a href="/login?next=start" style="color: #E7C766; font-variation-settings: 'wght' 581">Start your business</a>
 <a href="/login">Log in</a>
-<a href="#begin" style="display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 22px; box-sizing: border-box; border-radius: 999px; font-size: 15px; font-variation-settings: 'wght' 540; border: 1.6px solid rgba(255,255,255,.6); background: transparent; color: #ffffff">Book a strategy call</a>
+<a href="#begin" style="display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 22px; box-sizing: border-box; border-radius: 999px; font-size: 15px; font-variation-settings: 'wght' 540; border: 1.6px solid rgba(255,255,255,.6); background: transparent; color: #F3EBD8">Book a strategy call</a>
 </div>
-<button type="button" class="burger" aria-label="Menu" aria-expanded="{{menuOpen}}" onClick="{{toggleMenu}}" style="width: 48px; height: 44px; align-items: center; justify-content: center; border-radius: 999px; border: 1.6px solid rgba(196,214,232,.72); background: rgba(255,255,255,.04); color: #fbfdff; cursor: pointer">
+<button type="button" class="burger" aria-label="Menu" aria-expanded="{{menuOpen}}" onClick="{{toggleMenu}}" style="width: 48px; height: 44px; align-items: center; justify-content: center; border-radius: 999px; border: 1.6px solid rgba(201,162,39,.72); background: rgba(255,255,255,.04); color: #F3EBD8; cursor: pointer">
 <svg viewBox="0 0 22 14" width="20" height="14" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round"><path d="M1 1 H21"></path><path d="M1 7 H21"></path><path d="M1 13 H21"></path></svg>
 </button>
 </nav>
 <sc-if value="{{menuOpen}}" hint-placeholder-val="{{ false }}">
-<div style="position: absolute; z-index: 6; top: 96px; right: 22px; width: min(300px, 82vw); padding: 14px; border-radius: 22px; display: flex; flex-direction: column; gap: 2px; background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.045)), linear-gradient(180deg, rgba(6,12,22,.72), rgba(6,12,22,.82)); backdrop-filter: blur(26px); box-shadow: 0 14px 38px rgba(2,6,14,.45)">
-<a href="/login?next=start" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px; color: #ffe2b2">Start your business</a>
+<div style="position: absolute; z-index: 6; top: 96px; right: 22px; width: min(300px, 82vw); padding: 14px; border-radius: 22px; display: flex; flex-direction: column; gap: 2px; background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.045)), linear-gradient(180deg, rgba(7,20,38,.72), rgba(7,20,38,.82)); backdrop-filter: blur(26px); box-shadow: 0 14px 38px rgba(4,12,24,.45)">
+<a href="/login?next=start" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px; color: #E7C766">Start your business</a>
 <a href="#outcomes" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">What you get</a>
 <a href="#how" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">How it works</a>
 <a href="#pricing" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">Pricing</a>
 <a href="mailto:sunil.kattikar@gmail.com?subject=SIXXAB%20consultant%20certification" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">Consultants</a>
 <a href="/investors" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">Investors</a>
 <a href="/login" style="padding: 13px 14px; min-height: 44px; box-sizing: border-box; font-size: 16px">Log in</a>
-<a href="#begin" style="margin-top: 8px; padding: 13px 18px; text-align: center; border: 1.6px solid rgba(196,214,232,.72); border-radius: 999px; font-size: 16px">Book a strategy call</a>
+<a href="#begin" style="margin-top: 8px; padding: 13px 18px; text-align: center; border: 1.6px solid rgba(201,162,39,.72); border-radius: 999px; font-size: 16px">Book a strategy call</a>
 </div>
 </sc-if>
 
 <div style="position: relative; z-index: 1; flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 0 clamp(22px, 8vw, 120px)">
 <div style="width: 100%; max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px">
-<p style="margin: 0; font-size: 14px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">Start it · Scale it · Run it</p>
+<p style="margin: 0; font-size: 14px; letter-spacing: 3px; text-transform: uppercase; color: #E7C766; font-variation-settings: 'wght' 534">Start it · Scale it · Run it</p>
 <h1 class="h1" style="margin: 0; font-size: clamp(32px, 3.9vw, 56px); line-height: 1.12; font-weight: 400; font-variation-settings: 'wght' 424; letter-spacing: -.01em">The AI team that runs your business.</h1>
-<p style="margin: 0; max-width: 54ch; font-size: clamp(17px, 1.45vw, 21px); line-height: 1.55; color: #e2ebf5">Marketing, sales, operations and finance agents plan the work and do it every day, from your first customer to a $10M month.</p>
-<p style="margin: 0; max-width: 54ch; font-size: clamp(15px, 1.2vw, 17px); line-height: 1.6; color: #a2a9b8">You stay in charge: nothing reaches a customer or spends money without your approval.</p>
+<p style="margin: 0; max-width: 54ch; font-size: clamp(17px, 1.45vw, 21px); line-height: 1.55; color: #F3EBD8">Marketing, sales, operations and finance agents plan the work and do it every day, from your first customer to a $10M month.</p>
+<p style="margin: 0; max-width: 54ch; font-size: clamp(15px, 1.2vw, 17px); line-height: 1.6; color: #9fb0c8">You stay in charge: nothing reaches a customer or spends money without your approval.</p>
 <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 6px">
-<a href="/login?next=start" style="display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 22px; box-sizing: border-box; border-radius: 999px; font-size: 15px; font-variation-settings: 'wght' 540; border: 1.6px solid #ffffff; background: #ffffff; color: #02060f">Start your business</a>
-<a href="#begin" style="display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 22px; box-sizing: border-box; border-radius: 999px; font-size: 15px; font-variation-settings: 'wght' 540; border: 1.6px solid rgba(255,255,255,.6); background: transparent; color: #ffffff">Book a strategy call</a>
+<a href="/login?next=start" style="display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 22px; box-sizing: border-box; border-radius: 999px; font-size: 15px; font-variation-settings: 'wght' 540; border: 1.6px solid #F3EBD8; background: linear-gradient(180deg, #E7C766, #C9A227); color: #1a1405">Start your business</a>
+<a href="#begin" style="display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 22px; box-sizing: border-box; border-radius: 999px; font-size: 15px; font-variation-settings: 'wght' 540; border: 1.6px solid rgba(255,255,255,.6); background: transparent; color: #F3EBD8">Book a strategy call</a>
 </div>
-<p style="margin: 8px 0 0; font-size: 14px; color: #a2a9b8">Live with businesses in the US and India · Human approval built in · 12-month plans</p>
+<p style="margin: 8px 0 0; font-size: 14px; color: #9fb0c8">Live with businesses in the US and India · Human approval built in · 12-month plans</p>
 </div>
 </div>
 </header>
 
-<section id="outcomes" class="sec" style="padding: 96px clamp(22px, 8vw, 120px); border-top: 1px solid rgba(196,214,232,.1)">
+<section id="outcomes" class="sec" style="padding: 96px clamp(22px, 8vw, 120px); border-top: 1px solid rgba(201,162,39,.1)">
 <div style="max-width: 1120px; margin: 0 auto">
-<p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">What you get</p>
+<p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #E7C766; font-variation-settings: 'wght' 534">What you get</p>
 <h2 class="h2" style="margin: 0 0 18px; font-size: 40px; line-height: 1.15; font-weight: 400; font-variation-settings: 'wght' 430; max-width: 26ch">The team you need, without the payroll.</h2>
 <div class="g3" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 36px">
 <sc-for list="{{outcomes}}" as="c" hint-placeholder-count="3">
-<div style="padding: 28px; border-radius: 22px; border: 1px solid rgba(196,214,232,.16); background: rgba(255,255,255,.03); display: flex; flex-direction: column; gap: 10px">
+<div style="padding: 28px; border-radius: 22px; border: 1px solid rgba(201,162,39,.16); background: rgba(255,255,255,.03); display: flex; flex-direction: column; gap: 10px">
 <span style="font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: {{c.color}}; font-variation-settings: 'wght' 560">{{c.tag}}</span>
 <h3 style="margin: 0; font-size: 20px; line-height: 1.3; font-weight: 400; font-variation-settings: 'wght' 540">{{c.title}}</h3>
-<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #a2a9b8">{{c.body}}</p>
+<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #9fb0c8">{{c.body}}</p>
 </div>
 </sc-for>
 </div>
 </div>
 </section>
 
-<section id="paths" class="sec" style="padding: 96px clamp(22px, 8vw, 120px); border-top: 1px solid rgba(196,214,232,.1)">
+<section id="paths" class="sec" style="padding: 96px clamp(22px, 8vw, 120px); border-top: 1px solid rgba(201,162,39,.1)">
 <div style="max-width: 1120px; margin: 0 auto">
-<p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">Your path</p>
+<p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #E7C766; font-variation-settings: 'wght' 534">Your path</p>
 <h2 class="h2" style="margin: 0 0 18px; font-size: 40px; line-height: 1.15; font-weight: 400; font-variation-settings: 'wght' 430; max-width: 26ch">Wherever your business is, start there.</h2>
-<p style="margin: 0; max-width: 58ch; font-size: 18px; line-height: 1.6; color: #a2a9b8">The right agents switch on at each stage, from the first customer to a $10M month, and every milestone is tracked.</p>
+<p style="margin: 0; max-width: 58ch; font-size: 18px; line-height: 1.6; color: #9fb0c8">The right agents switch on at each stage, from the first customer to a $10M month, and every milestone is tracked.</p>
 <div class="g3" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 36px">
 <sc-for list="{{heads}}" as="h" hint-placeholder-count="3">
-<a href="{{h.href}}" style="padding: 28px; border-radius: 22px; border: 1px solid {{h.border}}; background: rgba(255,255,255,.03); display: flex; flex-direction: column; gap: 10px; color: #ffffff">
+<a href="{{h.href}}" style="padding: 28px; border-radius: 22px; border: 1px solid {{h.border}}; background: rgba(255,255,255,.03); display: flex; flex-direction: column; gap: 10px; color: #F3EBD8">
 <span style="font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: {{h.color}}; font-variation-settings: 'wght' 560">{{h.stages}}</span>
 <span style="font-size: 20px; line-height: 1.3; font-variation-settings: 'wght' 540">{{h.name}}</span>
-<span style="font-size: 15px; line-height: 1.6; color: #a2a9b8">{{h.promise}}</span>
+<span style="font-size: 15px; line-height: 1.6; color: #9fb0c8">{{h.promise}}</span>
 <span style="margin-top: auto; padding-top: 8px; display: inline-flex; align-items: center; gap: 10px; font-size: 15px">{{h.cta}} <svg viewBox="0 0 16 11" width="14" height="10" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 1.6"><path d="M0 5.5 H14.6 M10.3 1.2 L14.9 5.5 L10.3 9.8"></path></svg></span>
 </a>
 </sc-for>
@@ -128,57 +129,57 @@ a:focus-visible,button:focus-visible{outline:2px solid #9fe0ff;outline-offset:3p
 </div>
 </section>
 
-<section id="how" class="sec" style="padding: 96px clamp(22px, 8vw, 120px); border-top: 1px solid rgba(196,214,232,.1)">
+<section id="how" class="sec" style="padding: 96px clamp(22px, 8vw, 120px); border-top: 1px solid rgba(201,162,39,.1)">
 <div style="max-width: 1120px; margin: 0 auto">
-<p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">How it works</p>
+<p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #E7C766; font-variation-settings: 'wght' 534">How it works</p>
 <h2 class="h2" style="margin: 0 0 18px; font-size: 40px; line-height: 1.15; font-weight: 400; font-variation-settings: 'wght' 430; max-width: 26ch">Agents do the work. You make the calls.</h2>
 <ol class="g4" style="list-style: none; margin: 36px 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px">
 <sc-for list="{{steps}}" as="st" hint-placeholder-count="4">
-<li style="padding: 28px; border-radius: 22px; border: 1px solid rgba(196,214,232,.16); background: rgba(255,255,255,.03); display: flex; flex-direction: column; gap: 10px">
-<span style="font-size: 32px; line-height: 1; color: #ffe2b2; font-variation-settings: 'wght' 260">{{st.n}}</span>
+<li style="padding: 28px; border-radius: 22px; border: 1px solid rgba(201,162,39,.16); background: rgba(255,255,255,.03); display: flex; flex-direction: column; gap: 10px">
+<span style="font-size: 32px; line-height: 1; color: #E7C766; font-variation-settings: 'wght' 260">{{st.n}}</span>
 <h3 style="margin: 0; font-size: 18px; line-height: 1.3; font-weight: 400; font-variation-settings: 'wght' 540">{{st.k}}</h3>
-<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #a2a9b8">{{st.v}}</p>
+<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #9fb0c8">{{st.v}}</p>
 </li>
 </sc-for>
 </ol>
-<p style="margin: 24px 0 0; font-size: 15px; line-height: 1.6; color: #8d96a8">Autonomy is earned: each kind of task runs on its own only after you have approved enough of its work.</p>
+<p style="margin: 24px 0 0; font-size: 15px; line-height: 1.6; color: #9fb0c8">Autonomy is earned: each kind of task runs on its own only after you have approved enough of its work.</p>
 </div>
 </section>
 
-<section id="proof" class="sec" style="padding: 96px clamp(22px, 8vw, 120px); border-top: 1px solid rgba(196,214,232,.1)">
+<section id="proof" class="sec" style="padding: 96px clamp(22px, 8vw, 120px); border-top: 1px solid rgba(201,162,39,.1)">
 <div class="split" style="max-width: 1120px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 40px; align-items: start">
 <div>
-<p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">Built for real businesses</p>
+<p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #E7C766; font-variation-settings: 'wght' 534">Built for real businesses</p>
 <h2 class="h2" style="margin: 0 0 18px; font-size: 40px; line-height: 1.15; font-weight: 400; font-variation-settings: 'wght' 430; max-width: 26ch">Running today, with you in control.</h2>
 <ul style="list-style: none; margin: 28px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px">
 <sc-for list="{{proof}}" as="pf" hint-placeholder-count="5">
-<li style="display: flex; gap: 12px; align-items: baseline; font-size: 16px; line-height: 1.5; color: #e2ebf5"><svg viewBox="0 0 14 11" width="12" height="10" aria-hidden="true" style="flex: none; fill: none; stroke: #ffe2b2; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><path d="M1 5.5 L5 9.5 L13 1.5"></path></svg>{{pf}}</li>
+<li style="display: flex; gap: 12px; align-items: baseline; font-size: 16px; line-height: 1.5; color: #F3EBD8"><svg viewBox="0 0 14 11" width="12" height="10" aria-hidden="true" style="flex: none; fill: none; stroke: #E7C766; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><path d="M1 5.5 L5 9.5 L13 1.5"></path></svg>{{pf}}</li>
 </sc-for>
 </ul>
 </div>
-<div style="padding: 28px; border-radius: 22px; border: 1px solid rgba(196,214,232,.16); background: rgba(255,255,255,.03); display: flex; flex-direction: column; gap: 10px">
-<span style="font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: #96c4f4; font-variation-settings: 'wght' 560">Also from SIXXAB</span>
+<div style="padding: 28px; border-radius: 22px; border: 1px solid rgba(201,162,39,.16); background: rgba(255,255,255,.03); display: flex; flex-direction: column; gap: 10px">
+<span style="font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: #C9A227; font-variation-settings: 'wght' 560">Also from SIXXAB</span>
 <h3 style="margin: 0; font-size: 20px; line-height: 1.3; font-weight: 400; font-variation-settings: 'wght' 540">AI marketing agency and consultant certification</h3>
-<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #a2a9b8">Hand your marketing to 50 agents you approve, or become a certified SIXXAB consultant and deliver the platform to clients in your country.</p>
-<a href="mailto:sunil.kattikar@gmail.com?subject=SIXXAB%20consultant%20certification" style="margin-top: 6px; font-size: 15px; color: #96c4f4">Ask about certification</a>
+<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #9fb0c8">Hand your marketing to 50 agents you approve, or become a certified SIXXAB consultant and deliver the platform to clients in your country.</p>
+<a href="mailto:sunil.kattikar@gmail.com?subject=SIXXAB%20consultant%20certification" style="margin-top: 6px; font-size: 15px; color: #C9A227">Ask about certification</a>
 </div>
 </div>
 </section>
 
-<section id="pricing" class="sec" style="padding: 96px clamp(22px, 8vw, 120px); border-top: 1px solid rgba(196,214,232,.1)">
+<section id="pricing" class="sec" style="padding: 96px clamp(22px, 8vw, 120px); border-top: 1px solid rgba(201,162,39,.1)">
 <div style="max-width: 1120px; margin: 0 auto">
-<p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 534">Pricing</p>
+<p style="margin: 0 0 16px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #E7C766; font-variation-settings: 'wght' 534">Pricing</p>
 <h2 class="h2" style="margin: 0 0 18px; font-size: 40px; line-height: 1.15; font-weight: 400; font-variation-settings: 'wght' 430; max-width: 26ch">One plan for each stage.</h2>
-<p style="margin: 0; max-width: 58ch; font-size: 18px; line-height: 1.6; color: #a2a9b8">A whole AI-run business for less than one senior hire. Every plan is a 12-month contract.</p>
+<p style="margin: 0; max-width: 58ch; font-size: 18px; line-height: 1.6; color: #9fb0c8">A whole AI-run business for less than one senior hire. Every plan is a 12-month contract.</p>
 <div class="g3" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 36px">
 <sc-for list="{{plans}}" as="p" hint-placeholder-count="3">
 <div style="padding: 30px; border-radius: 22px; border: 1px solid {{p.border}}; background: {{p.bg}}; display: flex; flex-direction: column; gap: 14px">
 <span style="font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: {{p.color}}; font-variation-settings: 'wght' 560">{{p.who}}</span>
 <h3 style="margin: 0; font-size: 22px; font-weight: 400; font-variation-settings: 'wght' 520">{{p.name}}</h3>
-<span style="font-size: 36px; line-height: 1.1; font-variation-settings: 'wght' 360">{{p.price}}<span style="font-size: 15px; color: #a2a9b8"> / month, from</span></span>
-<ul style="list-style: none; margin: 0; padding: 14px 0 0; border-top: 1px solid rgba(196,214,232,.12); display: flex; flex-direction: column; gap: 10px">
+<span style="font-size: 36px; line-height: 1.1; font-variation-settings: 'wght' 360">{{p.price}}<span style="font-size: 15px; color: #9fb0c8"> / month, from</span></span>
+<ul style="list-style: none; margin: 0; padding: 14px 0 0; border-top: 1px solid rgba(201,162,39,.12); display: flex; flex-direction: column; gap: 10px">
 <sc-for list="{{p.features}}" as="ft" hint-placeholder-count="3">
-<li style="display: flex; gap: 10px; align-items: baseline; font-size: 14px; line-height: 1.5; color: #e2ebf5"><svg viewBox="0 0 14 11" width="12" height="10" aria-hidden="true" style="flex: none; fill: none; stroke: #ffe2b2; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><path d="M1 5.5 L5 9.5 L13 1.5"></path></svg>{{ft}}</li>
+<li style="display: flex; gap: 10px; align-items: baseline; font-size: 14px; line-height: 1.5; color: #F3EBD8"><svg viewBox="0 0 14 11" width="12" height="10" aria-hidden="true" style="flex: none; fill: none; stroke: #E7C766; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><path d="M1 5.5 L5 9.5 L13 1.5"></path></svg>{{ft}}</li>
 </sc-for>
 </ul>
 <a href="{{p.href}}" style="margin-top: auto; display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 22px; box-sizing: border-box; border-radius: 999px; font-size: 15px; font-variation-settings: 'wght' 540; border: 1.6px solid {{p.btn}}; background: {{p.btnBg}}; color: {{p.btnInk}}">{{p.cta}}</a>
@@ -188,22 +189,22 @@ a:focus-visible,button:focus-visible{outline:2px solid #9fe0ff;outline-offset:3p
 </div>
 </section>
 
-<section id="begin" class="sec" style="padding: 96px clamp(22px, 8vw, 120px); border-top: 1px solid rgba(196,214,232,.1)">
+<section id="begin" class="sec" style="padding: 96px clamp(22px, 8vw, 120px); border-top: 1px solid rgba(201,162,39,.1)">
 <div style="max-width: 1120px; margin: 0 auto">
-<div style="padding: 28px; border-radius: 22px; border: 1px solid rgba(196,214,232,.16); background: rgba(255,255,255,.03); display: flex; flex-direction: column; gap: 14px">
-<p style="margin: 0; font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: #ffe2b2; font-variation-settings: 'wght' 560">Strategy call</p>
+<div style="padding: 28px; border-radius: 22px; border: 1px solid rgba(201,162,39,.16); background: rgba(255,255,255,.03); display: flex; flex-direction: column; gap: 14px">
+<p style="margin: 0; font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: #E7C766; font-variation-settings: 'wght' 560">Strategy call</p>
 <h2 class="h2" style="margin: 0; font-size: 28px; line-height: 1.25; font-weight: 400; font-variation-settings: 'wght' 480">Hire the co-founder that never sleeps.</h2>
-<p style="margin: 0; max-width: 60ch; font-size: 15px; line-height: 1.6; color: #a2a9b8">Book 30 minutes with Sunil Kattikar, founder of SIXXAB AI. Leave with where your business stands, the plan that fits, and your first 90 days with AI agents.</p>
+<p style="margin: 0; max-width: 60ch; font-size: 15px; line-height: 1.6; color: #9fb0c8">Book 30 minutes with Sunil Kattikar, founder of SIXXAB AI. Leave with where your business stands, the plan that fits, and your first 90 days with AI agents.</p>
 <div style="display: flex; flex-wrap: wrap; gap: 12px">
-<a href="{{bookHref}}" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 22px; box-sizing: border-box; border-radius: 999px; font-size: 15px; font-variation-settings: 'wght' 540; border: 1.6px solid #ffffff; background: #ffffff; color: #02060f">Choose a time</a>
-<a href="mailto:sunil.kattikar@gmail.com?subject=SIXXAB%20AI%20strategy%20call&amp;body=Business%3A%0AStage%3A%0AWhat%20I%20want%20to%20fix%3A%0A" style="display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 22px; box-sizing: border-box; border-radius: 999px; font-size: 15px; font-variation-settings: 'wght' 540; border: 1.6px solid rgba(255,255,255,.6); background: transparent; color: #ffffff">Email Sunil</a>
-<a href="/login?next=start" style="display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 22px; box-sizing: border-box; border-radius: 999px; font-size: 15px; font-variation-settings: 'wght' 540; border: 1.6px solid rgba(255,255,255,.6); background: transparent; color: #ffffff">Start your business</a>
+<a href="{{bookHref}}" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 22px; box-sizing: border-box; border-radius: 999px; font-size: 15px; font-variation-settings: 'wght' 540; border: 1.6px solid #F3EBD8; background: linear-gradient(180deg, #E7C766, #C9A227); color: #1a1405">Choose a time</a>
+<a href="mailto:sunil.kattikar@gmail.com?subject=SIXXAB%20AI%20strategy%20call&amp;body=Business%3A%0AStage%3A%0AWhat%20I%20want%20to%20fix%3A%0A" style="display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 22px; box-sizing: border-box; border-radius: 999px; font-size: 15px; font-variation-settings: 'wght' 540; border: 1.6px solid rgba(255,255,255,.6); background: transparent; color: #F3EBD8">Email Sunil</a>
+<a href="/login?next=start" style="display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 22px; box-sizing: border-box; border-radius: 999px; font-size: 15px; font-variation-settings: 'wght' 540; border: 1.6px solid rgba(255,255,255,.6); background: transparent; color: #F3EBD8">Start your business</a>
 </div>
 </div>
 </div>
 </section>
 
-<footer style="padding: 36px clamp(22px, 8vw, 120px); border-top: 1px solid rgba(196,214,232,.12); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; font-size: 14px; color: #8d96a8">
+<footer style="padding: 36px clamp(22px, 8vw, 120px); border-top: 1px solid rgba(201,162,39,.12); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; font-size: 14px; color: #9fb0c8">
 <span>© 2026 SIXXAB AI · sixxab.ai</span>
 <span style="display: flex; flex-wrap: wrap; gap: 24px"><a href="/investors">Investors</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="mailto:sunil.kattikar@gmail.com">Contact</a></span>
 </footer>
@@ -216,7 +217,7 @@ class Component extends DCLogic {
     this.state = { menuOpen: false };
   }
   renderVals() {
-    const gold = '#ffe2b2', mid = '#cfe3fa', blue = '#96c4f4';
+    const gold = '#E7C766', mid = '#E7C766', blue = '#C9A227';
     return {
       bookHref: (this.props.bookingUrl || '').trim() || 'https://calendar.app.google/NoUzn3rFzoXdmwSh9',
       menuOpen: this.state.menuOpen,
@@ -240,16 +241,16 @@ class Component extends DCLogic {
         'LinkedIn and Gmail today; WhatsApp, Google Business Profile and Instagram next'
       ],
       heads: [
-        { n: '01', href: '/login?next=start', cta: 'Start my business', name: 'Start the business', stages: 'New and small · $0 to $10K a month', promise: 'From an idea to a validated offer and your first paying customers.', color: gold, border: 'rgba(255,226,178,.35)', bg: 'linear-gradient(180deg, rgba(255,226,178,.08), rgba(255,226,178,.015))' },
-        { n: '02', href: '/login?next=scale', cta: 'Scale my business', name: 'Scale the business', stages: 'Growing · $10K to $100K a month', promise: 'Repeatable growth with a built-in AI marketing agency, sales and support.', color: mid, border: 'rgba(207,227,250,.3)', bg: 'linear-gradient(180deg, rgba(207,227,250,.07), rgba(207,227,250,.015))' },
-        { n: '03', href: '/login?next=run', cta: 'Run my business', name: 'Run the business', stages: 'Established · $100K to $10M a month', promise: 'All 18 executive agents on one plan, running the business while you lead.', color: blue, border: 'rgba(150,196,244,.35)', bg: 'linear-gradient(180deg, rgba(150,196,244,.08), rgba(150,196,244,.015))' }
+        { n: '01', href: '/login?next=start', cta: 'Start my business', name: 'Start the business', stages: 'New and small · $0 to $10K a month', promise: 'From an idea to a validated offer and your first paying customers.', color: gold, border: 'rgba(231,199,102,.35)', bg: 'linear-gradient(180deg, rgba(231,199,102,.08), rgba(231,199,102,.015))' },
+        { n: '02', href: '/login?next=scale', cta: 'Scale my business', name: 'Scale the business', stages: 'Growing · $10K to $100K a month', promise: 'Repeatable growth with a built-in AI marketing agency, sales and support.', color: mid, border: 'rgba(231,199,102,.3)', bg: 'linear-gradient(180deg, rgba(231,199,102,.07), rgba(231,199,102,.015))' },
+        { n: '03', href: '/login?next=run', cta: 'Run my business', name: 'Run the business', stages: 'Established · $100K to $10M a month', promise: 'All 18 executive agents on one plan, running the business while you lead.', color: blue, border: 'rgba(201,162,39,.35)', bg: 'linear-gradient(180deg, rgba(201,162,39,.08), rgba(201,162,39,.015))' }
       ],
       plans: [
-        { who: 'Startups & small businesses', name: 'Founder', price: '$5,000', href: '/login?next=start', cta: 'Start my business', color: gold, border: 'rgba(255,226,178,.3)', bg: 'rgba(255,255,255,.03)', btn: 'rgba(196,214,232,.6)', btnBg: 'transparent', btnInk: '#ffffff',
+        { who: 'Startups & small businesses', name: 'Founder', price: '$5,000', href: '/login?next=start', cta: 'Start my business', color: gold, border: 'rgba(231,199,102,.3)', bg: 'rgba(255,255,255,.03)', btn: 'rgba(201,162,39,.6)', btnBg: 'transparent', btnInk: '#F3EBD8',
           features: ['Founder agents: niche, strategy and roadmap', 'Built-in AI marketing agency', 'Daily briefing and approvals'] },
-        { who: 'Medium businesses', name: 'Growth', price: '$20,000', href: '#begin', cta: 'Plan my growth', color: mid, border: 'rgba(207,227,250,.45)', bg: 'linear-gradient(180deg, rgba(207,227,250,.08), rgba(207,227,250,.02))', btn: '#ffffff', btnBg: '#ffffff', btnInk: '#02060f',
+        { who: 'Medium businesses', name: 'Growth', price: '$20,000', href: '#begin', cta: 'Plan my growth', color: mid, border: 'rgba(231,199,102,.45)', bg: 'linear-gradient(180deg, rgba(231,199,102,.08), rgba(231,199,102,.02))', btn: '#C9A227', btnBg: 'linear-gradient(180deg, #E7C766, #C9A227)', btnInk: '#1a1405',
           features: ['Everything in Founder', 'All 18 executive and department agents', 'Your existing systems connected'] },
-        { who: 'Large businesses', name: 'Enterprise', price: '$50,000', href: '#begin', cta: 'Talk to us', color: blue, border: 'rgba(150,196,244,.4)', bg: 'rgba(255,255,255,.03)', btn: 'rgba(196,214,232,.6)', btnBg: 'transparent', btnInk: '#ffffff',
+        { who: 'Large businesses', name: 'Enterprise', price: '$50,000', href: '#begin', cta: 'Talk to us', color: blue, border: 'rgba(201,162,39,.4)', bg: 'rgba(255,255,255,.03)', btn: 'rgba(201,162,39,.6)', btnBg: 'transparent', btnInk: '#F3EBD8',
           features: ['AI governance and value map', 'Agents for each business unit', 'Single sign-on, audit trail, data residency'] }
       ]
     };

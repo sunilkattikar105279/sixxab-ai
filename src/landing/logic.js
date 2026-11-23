@@ -7,7 +7,7 @@ export class Component extends DCLogic {
     this.state = { menuOpen: false };
   }
   renderVals() {
-    const gold = '#ffe2b2', mid = '#cfe3fa', blue = '#96c4f4';
+    const gold = '#E7C766', mid = '#E7C766', blue = '#C9A227';
     return {
       bookHref: (this.props.bookingUrl || '').trim() || 'https://calendar.app.google/NoUzn3rFzoXdmwSh9',
       menuOpen: this.state.menuOpen,
@@ -31,16 +31,16 @@ export class Component extends DCLogic {
         'LinkedIn and Gmail today; WhatsApp, Google Business Profile and Instagram next'
       ],
       heads: [
-        { n: '01', href: '/login?next=start', cta: 'Start my business', name: 'Start the business', stages: 'New and small · $0 to $10K a month', promise: 'From an idea to a validated offer and your first paying customers.', color: gold, border: 'rgba(255,226,178,.35)', bg: 'linear-gradient(180deg, rgba(255,226,178,.08), rgba(255,226,178,.015))' },
-        { n: '02', href: '/login?next=scale', cta: 'Scale my business', name: 'Scale the business', stages: 'Growing · $10K to $100K a month', promise: 'Repeatable growth with a built-in AI marketing agency, sales and support.', color: mid, border: 'rgba(207,227,250,.3)', bg: 'linear-gradient(180deg, rgba(207,227,250,.07), rgba(207,227,250,.015))' },
-        { n: '03', href: '/login?next=run', cta: 'Run my business', name: 'Run the business', stages: 'Established · $100K to $10M a month', promise: 'All 18 executive agents on one plan, running the business while you lead.', color: blue, border: 'rgba(150,196,244,.35)', bg: 'linear-gradient(180deg, rgba(150,196,244,.08), rgba(150,196,244,.015))' }
+        { n: '01', href: '/login?next=start', cta: 'Start my business', name: 'Start the business', stages: 'New and small · $0 to $10K a month', promise: 'From an idea to a validated offer and your first paying customers.', color: gold, border: 'rgba(231,199,102,.35)', bg: 'linear-gradient(180deg, rgba(231,199,102,.08), rgba(231,199,102,.015))' },
+        { n: '02', href: '/login?next=scale', cta: 'Scale my business', name: 'Scale the business', stages: 'Growing · $10K to $100K a month', promise: 'Repeatable growth with a built-in AI marketing agency, sales and support.', color: mid, border: 'rgba(231,199,102,.3)', bg: 'linear-gradient(180deg, rgba(231,199,102,.07), rgba(231,199,102,.015))' },
+        { n: '03', href: '/login?next=run', cta: 'Run my business', name: 'Run the business', stages: 'Established · $100K to $10M a month', promise: 'All 18 executive agents on one plan, running the business while you lead.', color: blue, border: 'rgba(201,162,39,.35)', bg: 'linear-gradient(180deg, rgba(201,162,39,.08), rgba(201,162,39,.015))' }
       ],
       plans: [
-        { who: 'Startups & small businesses', name: 'Founder', price: '$5,000', href: '/login?next=start', cta: 'Start my business', color: gold, border: 'rgba(255,226,178,.3)', bg: 'rgba(255,255,255,.03)', btn: 'rgba(196,214,232,.6)', btnBg: 'transparent', btnInk: '#ffffff',
+        { who: 'Startups & small businesses', name: 'Founder', price: '$5,000', href: '/login?next=start', cta: 'Start my business', color: gold, border: 'rgba(231,199,102,.3)', bg: 'rgba(255,255,255,.03)', btn: 'rgba(201,162,39,.6)', btnBg: 'transparent', btnInk: '#F3EBD8',
           features: ['Founder agents: niche, strategy and roadmap', 'Built-in AI marketing agency', 'Daily briefing and approvals'] },
-        { who: 'Medium businesses', name: 'Growth', price: '$20,000', href: '#begin', cta: 'Plan my growth', color: mid, border: 'rgba(207,227,250,.45)', bg: 'linear-gradient(180deg, rgba(207,227,250,.08), rgba(207,227,250,.02))', btn: '#ffffff', btnBg: '#ffffff', btnInk: '#02060f',
+        { who: 'Medium businesses', name: 'Growth', price: '$20,000', href: '#begin', cta: 'Plan my growth', color: mid, border: 'rgba(231,199,102,.45)', bg: 'linear-gradient(180deg, rgba(231,199,102,.08), rgba(231,199,102,.02))', btn: '#C9A227', btnBg: 'linear-gradient(180deg, #E7C766, #C9A227)', btnInk: '#1a1405',
           features: ['Everything in Founder', 'All 18 executive and department agents', 'Your existing systems connected'] },
-        { who: 'Large businesses', name: 'Enterprise', price: '$50,000', href: '#begin', cta: 'Talk to us', color: blue, border: 'rgba(150,196,244,.4)', bg: 'rgba(255,255,255,.03)', btn: 'rgba(196,214,232,.6)', btnBg: 'transparent', btnInk: '#ffffff',
+        { who: 'Large businesses', name: 'Enterprise', price: '$50,000', href: '#begin', cta: 'Talk to us', color: blue, border: 'rgba(201,162,39,.4)', bg: 'rgba(255,255,255,.03)', btn: 'rgba(201,162,39,.6)', btnBg: 'transparent', btnInk: '#F3EBD8',
           features: ['AI governance and value map', 'Agents for each business unit', 'Single sign-on, audit trail, data residency'] }
       ]
     };
