@@ -29,7 +29,7 @@ await check('landing renders, hydrates without errors, and its controls work', a
   page.on('pageerror', (e) => errors.push(e.message));
   await page.route(/cloudfront\.net|fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
   await page.goto(BASE + '/', { waitUntil: 'networkidle' });
-  assert.match(await page.locator('h1').first().innerText(), /The AI team that runs your business\./);
+  assert.match(await page.locator('h1').first().innerText(), /Your AI executive team\./);
   assert.equal(await page.locator('header video').count(), 0, 'hero background is a still image');
   await page.screenshot({ path: `${SHOTS}/landing-hero.png` });
   // Start your business: header tab and stage buttons lead to sign-in, and the page talks about businesses

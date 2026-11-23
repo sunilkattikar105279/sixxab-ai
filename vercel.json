@@ -8,7 +8,8 @@
   "trailingSlash": false,
   "rewrites": [
     { "source": "/api/:route(me|admin|governance|billing|raise|crm|support|accounts)", "destination": "/api/platform?route=:route" },
-    { "source": "/app/:path*", "destination": "/app/index.html" }
+    { "source": "/app/:path*", "destination": "/app/index.html" },
+    { "source": "/media/:file([0-9a-f-]+\\.jpg)", "destination": "https://media.viewmax.io/users/5CsPXUOC6B2P2tCfo9UCiuCFJXw4Limz/generated/:file" }
   ],
   "functions": {
     "api/agents.js": { "maxDuration": 300 },
