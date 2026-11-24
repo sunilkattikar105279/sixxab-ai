@@ -160,7 +160,7 @@ test('the queue walks a lead from score to outreach, puts approvals first, and h
   crm = await loadCrm(store, ORG);
   assert.ok(!crm.nextActions.some((a) => a.rule === 'icp'));
   assert.ok(crm.nextActions.some((a) => a.key === `${law.id}:sequence`), 'a good lead gets outreach drafted');
-  assert.ok(!crm.nextActions.some((a) => a.contactId === roof.id), 'a weak lead waits');
+  assert.ok(!crm.nextActions.some((a) => a.contactId === roof.id && a.rule !== 'research'), 'a weak lead waits');
 
   await saveSequence(store, ORG, law.id, [{ day: 0, channel: 'email', subject: 'Calls after 6 PM', text: 'Hi Dana' }, { day: 3, channel: 'email', subject: 'Following up', text: 'Second note' }], '', 'Outreach Sequencer');
   crm = await loadCrm(store, ORG);

@@ -1,7 +1,8 @@
 // One deal's sales loop: MEDDIC checklist and call notes, then the GTM agents — prep the call,
 // debrief the notes, write the follow-up, answer an objection (saved onto the deal). Emails wait in Approvals.
 import React, { useState } from 'react';
-import { MEDDIC, EMPTY_MEDDIC, scoreMeddic, callPrepGoal, debriefGoal, followUpGoal, likelyObjectionsGoal, objectionGoal, proposalGoal, winLossGoal, type Meddic, type DealContext } from '../../core/gtm';
+import { proposalDraftGoal } from '../../core/research';
+import { MEDDIC, EMPTY_MEDDIC, scoreMeddic, callPrepGoal, debriefGoal, followUpGoal, likelyObjectionsGoal, objectionGoal, winLossGoal, type Meddic, type DealContext } from '../../core/gtm';
 import type { ObjectionPlay } from '../../core/leadgen-state';
 import { Spinner } from './ui';
 import { AgentRun } from './AgentRun';
@@ -52,7 +53,7 @@ export function DealPanel({ c, busy, post, goApprovals, reload }: { c: DealConta
           <AgentRun agentId="objection-handler" goal={objection.trim() ? objectionGoal(deal, objection) : ''} label="Answer it" emptyText="Type the objection they raised." {...run} />
           {!objection.trim() && <AgentRun agentId="objection-handler" goal={likelyObjectionsGoal(deal)} label="Predict likely objections" emptyText="" {...run} />}
         </div>
-        <div className="stack-sm"><span className="muted small">Proposal · Proposal Writer</span><AgentRun agentId="proposal-writer" goal={proposalGoal(deal)} label="Draft the proposal" emptyText="" {...run} /></div>
+        <div className="stack-sm"><span className="muted small">Proposal · Proposal Writer</span><AgentRun agentId="proposal-writer" goal={proposalDraftGoal(c.id)} label="Draft the proposal" emptyText="" {...run} /><span className="muted small">Saved in Research and proposal above, with the ROI.</span></div>
         <div className="stack-sm"><span className="muted small">Won or lost · Win-Loss Analyst</span><AgentRun agentId="win-loss" goal={c.stage === 'won' || c.stage === 'lost' ? winLossGoal(deal) : ''} label="Review this deal" emptyText="Available once the deal is won or lost." {...run} /></div>
       </div>
       {plays.length > 0 && (

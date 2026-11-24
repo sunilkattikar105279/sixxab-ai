@@ -133,19 +133,19 @@ var PROFILE_PREFIX = "Business profile";
 var LEGACY_PREFIX = "Company profile";
 var MAX_FIELD = 1e3;
 function profileText(p) {
-  const lines = PROFILE_FIELDS.map(({ key, label: label4 }) => {
+  const lines = PROFILE_FIELDS.map(({ key, label: label5 }) => {
     const v = (p[key] ?? "").toString().replace(/\s+/g, " ").trim().slice(0, MAX_FIELD);
-    return v ? `${label4}: ${v}` : null;
+    return v ? `${label5}: ${v}` : null;
   }).filter(Boolean);
   return [PROFILE_PREFIX, ...lines].join("\n");
 }
-function parseProfile(text6) {
+function parseProfile(text7) {
   const out = {};
-  for (const line of text6.split("\n").slice(1)) {
+  for (const line of text7.split("\n").slice(1)) {
     const i = line.indexOf(": ");
     if (i < 0) continue;
-    const label4 = line.slice(0, i);
-    const field2 = PROFILE_FIELDS.find((f) => f.label === label4) ?? PROFILE_FIELDS.find((f) => f.aliases?.includes(label4));
+    const label5 = line.slice(0, i);
+    const field2 = PROFILE_FIELDS.find((f) => f.label === label5) ?? PROFILE_FIELDS.find((f) => f.aliases?.includes(label5));
     if (field2) out[field2.key] = line.slice(i + 2);
   }
   return out;
@@ -269,11 +269,11 @@ var camel = (s) => s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
 var toRow = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== void 0).map(([k, v]) => [snake(k), v]));
 var fromRow = (r) => Object.fromEntries(Object.entries(r).filter(([k]) => k !== "tsv").map(([k, v]) => [camel(k), v]));
 var SupabaseStore = class {
-  constructor(url, serviceKey, fetchImpl = fetch) {
-    this.url = url;
+  constructor(url2, serviceKey, fetchImpl = fetch) {
+    this.url = url2;
     this.serviceKey = serviceKey;
     this.fetchImpl = fetchImpl;
-    if (!url || !serviceKey) throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required");
+    if (!url2 || !serviceKey) throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required");
   }
   url;
   serviceKey;
@@ -291,8 +291,8 @@ var SupabaseStore = class {
       }
     });
     if (!res.ok) throw new Error(`Supabase ${res.status} on ${path.split("?")[0]}: ${(await res.text()).slice(0, 300)}`);
-    const text6 = await res.text();
-    return text6 ? JSON.parse(text6) : [];
+    const text7 = await res.text();
+    return text7 ? JSON.parse(text7) : [];
   }
   one(rows, what) {
     if (!rows[0]) throw new Error(`${what} not found`);
@@ -350,11 +350,11 @@ var SupabaseStore = class {
     return (await this.req(`audit_log?org_id=eq.${orgId}${since}&order=at.desc&limit=500`)).map((r) => fromRow(r));
   }
   async listAuditByActions(orgId, actions) {
-    const list2 = actions.map((a) => `"${a.replace(/[^a-z_.]/gi, "")}"`).join(",");
+    const list3 = actions.map((a) => `"${a.replace(/[^a-z_.]/gi, "")}"`).join(",");
     const PAGE = 1e3;
     const rows = [];
     for (let offset = 0; offset < 20 * PAGE; offset += PAGE) {
-      const page = await this.req(`audit_log?org_id=eq.${orgId}&action=in.(${encodeURIComponent(list2)})&order=at.asc,id.asc&limit=${PAGE}&offset=${offset}`);
+      const page = await this.req(`audit_log?org_id=eq.${orgId}&action=in.(${encodeURIComponent(list3)})&order=at.asc,id.asc&limit=${PAGE}&offset=${offset}`);
       rows.push(...page);
       if (page.length < PAGE) break;
     }
@@ -397,8 +397,8 @@ var SupabaseStore = class {
    * Creates a workspace for a user who has none (for example, an account made before the database
    * trigger existed). Mirrors handle_new_user() in the migration: org, owner membership, default autonomy.
    */
-  async provisionWorkspace(userId, label4) {
-    const org = this.one(await this.req("orgs", { method: "POST", body: JSON.stringify({ name: label4.slice(0, 200) || "My company" }) }), "Org");
+  async provisionWorkspace(userId, label5) {
+    const org = this.one(await this.req("orgs", { method: "POST", body: JSON.stringify({ name: label5.slice(0, 200) || "My company" }) }), "Org");
     await this.req("org_members", { method: "POST", body: JSON.stringify({ org_id: org.id, user_id: userId, role: "owner" }), headers: { prefer: "return=minimal" } });
     const types = DEFAULT_TASK_TYPES.map((t) => taskTypeRow(org.id, t));
     await this.req("task_types", { method: "POST", body: JSON.stringify(types), headers: { prefer: "return=minimal" } });
@@ -424,9 +424,9 @@ var SupabaseStore = class {
     return (await this.req("orgs?select=id")).map((r) => String(r.id));
   }
 };
-async function verifyUser(url, anonKey, accessToken, fetchImpl = fetch) {
+async function verifyUser(url2, anonKey, accessToken, fetchImpl = fetch) {
   if (!accessToken) return null;
-  const res = await fetchImpl(`${url}/auth/v1/user`, { headers: { apikey: anonKey, authorization: `Bearer ${accessToken}` } });
+  const res = await fetchImpl(`${url2}/auth/v1/user`, { headers: { apikey: anonKey, authorization: `Bearer ${accessToken}` } });
   if (!res.ok) return null;
   const u = await res.json();
   return u.id ? { id: u.id, email: u.email, phone: u.phone } : null;
@@ -602,15 +602,172 @@ function crmIssues(deals, now = Date.now()) {
   return out;
 }
 
+// core/research-state.ts
+var RESEARCH_DEAL_EVENTS = ["crm.research", "crm.research_used", "crm.proposal", "crm.proposal_edit", "crm.proposal_sent"];
+var text2 = (v, max) => String(v ?? "").trim().slice(0, max);
+var list = (v, max) => (Array.isArray(v) ? v : []).filter((x) => x && typeof x === "object").slice(0, max);
+function pageUrl(v) {
+  const s = text2(v, 500);
+  try {
+    const u = new URL(s);
+    return (u.protocol === "https:" || u.protocol === "http:") && !u.username && !u.password ? u.toString() : "";
+  } catch {
+    return "";
+  }
+}
+var FOUND_FIELDS = ["email", "phone", "address", "website", "owner", "title", "linkedin", "other"];
+var APPLY_FIELD = {
+  email: "email",
+  phone: "phone",
+  address: "address",
+  website: "website",
+  owner: "name",
+  title: "title"
+};
+var FIELD_LABEL = { email: "Email", phone: "Phone", address: "Address", website: "Website", owner: "Owner", title: "Owner title", linkedin: "LinkedIn", other: "Other" };
+var EMAIL = /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i;
+function cleanResearch(input) {
+  const summary = text2(input.summary, 2e3);
+  if (summary.length < 30) throw new Error("The research needs a summary of the business (a few sentences)");
+  const pains = list(input.pains ?? input.painPoints, 8).map((p) => ({ point: text2(p.point ?? p.title, 200), evidence: text2(p.evidence, 500), source: pageUrl(p.source) })).filter((p) => p.point);
+  const found = list(input.found ?? input.missing, 12).map((f) => {
+    const raw = text2(f.field, 20).toLowerCase();
+    const field2 = FOUND_FIELDS.find((k) => k === raw) ?? (raw === "name" ? "owner" : "other");
+    return { field: field2, value: text2(f.value, 200), source: pageUrl(f.source), note: text2(f.note, 200), usedAt: null };
+  }).filter((f) => f.value && f.source && (f.field !== "email" || EMAIL.test(f.value)));
+  const opportunities = list(input.opportunities, 6).map((o) => ({ title: text2(o.title, 120), how: text2(o.how ?? o.what, 500), impact: text2(o.impact ?? o.benefit, 300) })).filter((o) => o.title);
+  if (!pains.length && !opportunities.length) throw new Error("The research needs at least one pain point or opportunity");
+  const sources = list(input.sources, 15).map((s) => ({ title: text2(s.title, 120), url: pageUrl(s.url) })).filter((s) => s.url);
+  return { summary, owner: text2(input.owner, 1e3), presence: text2(input.presence, 1e3), pains, found, opportunities, unknowns: text2(input.unknowns, 1e3), sources };
+}
+var CURRENCIES = ["USD", "INR", "EUR", "GBP", "CAD", "AUD"];
+var SYMBOL = { USD: "$", INR: "\u20B9", EUR: "\u20AC", GBP: "\xA3", CAD: "C$", AUD: "A$" };
+var money = (v) => {
+  const n = Number(String(v ?? "").replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(n) ? Math.max(0, Math.min(1e9, Math.round(n * 100) / 100)) : 0;
+};
+var cleanBenefits = (v) => list(v, 8).map((b) => ({ label: text2(b.label, 120), monthly: money(b.monthly), basis: text2(b.basis, 300) })).filter((b) => b.label);
+var cleanCosts = (v) => list(v, 6).map((c) => ({ label: text2(c.label, 120), monthly: money(c.monthly), oneTime: money(c.oneTime), basis: text2(c.basis, 300) })).filter((c) => c.label);
+function computeRoi(benefits, costs) {
+  const sum = (xs) => Math.round(xs.reduce((a, b) => a + b, 0) * 100) / 100;
+  const monthlyBenefit = sum(benefits.map((b) => b.monthly));
+  const monthlyCost = sum(costs.map((c) => c.monthly));
+  const oneTime = sum(costs.map((c) => c.oneTime));
+  const netMonthly = Math.round((monthlyBenefit - monthlyCost) * 100) / 100;
+  const yearCost = monthlyCost * 12 + oneTime;
+  const firstYearNet = Math.round((monthlyBenefit * 12 - yearCost) * 100) / 100;
+  const roiPct = yearCost > 0 ? Math.round(firstYearNet / yearCost * 100) : null;
+  const paybackMonths = netMonthly > 0 ? Math.round(oneTime / netMonthly * 10) / 10 : null;
+  return { monthlyBenefit, monthlyCost, oneTime, netMonthly, firstYearNet, roiPct, paybackMonths };
+}
+function fmtMoney(n, cur) {
+  const s = SYMBOL[cur] ?? "";
+  return `${n < 0 ? "-" : ""}${s}${Math.abs(n).toLocaleString(cur === "INR" ? "en-IN" : "en-US", { maximumFractionDigits: 0 })}`;
+}
+function cleanProposal(input) {
+  const body = text2(input.text, 12e3);
+  if (body.length < 80) throw new Error("The proposal needs its full text (a page or so)");
+  const benefits = cleanBenefits(input.benefits);
+  const costs = cleanCosts(input.costs);
+  if (!benefits.length) throw new Error("The proposal needs at least one benefit line with its basis, for the ROI");
+  const cur = text2(input.currency, 3).toUpperCase();
+  const currency = CURRENCIES.find((c) => c === cur) ?? "USD";
+  const title = text2(input.title, 160) || "Proposal";
+  return {
+    title,
+    subject: text2(input.subject, 160) || title,
+    summary: text2(input.summary, 800),
+    opportunities: list(input.opportunities, 6).map((o) => ({ title: text2(o.title, 120), what: text2(o.what ?? o.how, 500), benefit: text2(o.benefit ?? o.impact, 300) })).filter((o) => o.title),
+    benefits,
+    costs,
+    currency,
+    roi: computeRoi(benefits, costs),
+    plan: text2(input.plan, 2e3),
+    nextStep: text2(input.nextStep, 300),
+    text: body
+  };
+}
+function roiSection(p) {
+  const m = (n) => fmtMoney(n, p.currency);
+  const lines = [
+    "Return on investment (estimates; the basis for each number is shown)",
+    ...p.benefits.map((b) => `- ${b.label}: ${m(b.monthly)} a month${b.basis ? ` (${b.basis})` : ""}`),
+    ...p.costs.map((c) => `- ${c.label}: ${[c.monthly ? `${m(c.monthly)} a month` : "", c.oneTime ? `${m(c.oneTime)} one-time` : ""].filter(Boolean).join(" + ") || m(0)}${c.basis ? ` (${c.basis})` : ""}`),
+    `Net gain: ${m(p.roi.netMonthly)} a month; ${m(p.roi.firstYearNet)} in the first year.`
+  ];
+  if (p.roi.roiPct !== null) lines.push(`First-year return: ${p.roi.roiPct}% on ${m(p.roi.monthlyCost * 12 + p.roi.oneTime)}.`);
+  if (p.roi.paybackMonths !== null && p.roi.oneTime > 0) lines.push(`Setup pays back in about ${p.roi.paybackMonths} month${p.roi.paybackMonths === 1 ? "" : "s"}.`);
+  return lines.join("\n");
+}
+function proposalMessage(p) {
+  return `${p.text}
+
+${roiSection(p)}`;
+}
+var EMPTY_DEAL_RESEARCH = { researchReport: null, proposal: null };
+function applyResearchEvent(dr, e) {
+  const d = e.detail;
+  if (e.action === "crm.research") {
+    const r = { ...d.research, at: e.at, by: e.actor };
+    return { dr: { ...dr, researchReport: r }, history: { kind: "research", text: `Business research: ${r.pains.length} pain point${r.pains.length === 1 ? "" : "s"}, ${r.found.length} detail${r.found.length === 1 ? "" : "s"} found, ${r.opportunities.length} opportunit${r.opportunities.length === 1 ? "y" : "ies"}` } };
+  }
+  if (e.action === "crm.research_used") {
+    const r = dr.researchReport;
+    const i = Number(d.index);
+    if (!r || r.id !== d.researchId || !r.found[i]) return { dr };
+    const found = r.found.map((f, j) => j === i ? { ...f, usedAt: e.at } : f);
+    return { dr: { ...dr, researchReport: { ...r, found } }, history: { kind: "update", text: `Added ${FIELD_LABEL[r.found[i].field].toLowerCase()} from research (${hostOf(r.found[i].source)})` } };
+  }
+  if (e.action === "crm.proposal") {
+    const p = { ...d.proposal, at: e.at, by: e.actor, editedAt: null, editedBy: null, sentAt: null };
+    return { dr: { ...dr, proposal: p }, history: { kind: "proposal", text: `Proposal drafted: ${p.title}${p.roi.roiPct !== null ? ` (first-year return ${p.roi.roiPct}%)` : ""}` } };
+  }
+  if (e.action === "crm.proposal_edit") {
+    const p = dr.proposal;
+    if (!p || p.id !== d.proposalId) return { dr };
+    const edit = d.edit;
+    return { dr: { ...dr, proposal: { ...p, ...edit, editedAt: e.at, editedBy: e.actor } }, history: { kind: "proposal", text: "Proposal edited" } };
+  }
+  if (e.action === "crm.proposal_sent") {
+    const p = dr.proposal;
+    if (!p || p.id !== d.proposalId || p.sentAt) return { dr };
+    return { dr: { ...dr, proposal: { ...p, sentAt: e.at } }, history: { kind: "email", text: `Sent proposal: ${p.subject}` }, touch: true };
+  }
+  return { dr };
+}
+function hostOf(url2) {
+  try {
+    return new URL(url2).hostname.replace(/^www\./, "");
+  } catch {
+    return url2.slice(0, 40);
+  }
+}
+function researchLines(dr) {
+  const out = [];
+  const r = dr.researchReport;
+  if (r) {
+    out.push(`Business research (${r.at.slice(0, 10)}, by ${r.by}): ${r.summary}`);
+    if (r.owner) out.push(`Owner: ${r.owner}`);
+    if (r.presence) out.push(`Online presence: ${r.presence}`);
+    for (const p2 of r.pains) out.push(`Pain: ${p2.point}${p2.evidence ? `. Evidence: ${p2.evidence}` : ""}${p2.source ? ` (${p2.source})` : ""}`);
+    for (const f of r.found) out.push(`Found ${FIELD_LABEL[f.field].toLowerCase()}: ${f.value} (${f.source})${f.usedAt ? ", added to the deal" : ", not yet confirmed by the owner"}`);
+    for (const o of r.opportunities) out.push(`Opportunity: ${o.title}. ${o.how}${o.impact ? ` Impact: ${o.impact}` : ""}`);
+    if (r.unknowns) out.push(`Research could not confirm: ${r.unknowns}`);
+  }
+  const p = dr.proposal;
+  if (p) out.push(`Proposal "${p.title}" (${p.at.slice(0, 10)}${p.sentAt ? `, sent ${p.sentAt.slice(0, 10)}` : ", not sent yet"}): net ${fmtMoney(p.roi.netMonthly, p.currency)} a month${p.roi.roiPct !== null ? `, first-year return ${p.roi.roiPct}%` : ""}.`);
+  return out;
+}
+
 // core/salesflow-state.ts
 var FLOW_ORG_EVENTS = ["crm.action_skip", "crm.autopilot"];
 var FLOW_DEAL_EVENTS = ["crm.onboarding", "crm.onboarding_step", "crm.account", "crm.customer_sent"];
 var FLOW_STAGES = [
   { key: "find", name: "Find", does: "Set who you sell to, then find businesses that fit.", agents: ["ICP Builder", "Prospect Generator"], gate: "You tick which prospects join the CRM." },
-  { key: "qualify", name: "Qualify", does: "Score each new lead on fit, size, ease of win and reach.", agents: ["Lead Scorer", "Speed-to-Lead"], gate: "First replies wait in Approvals." },
+  { key: "qualify", name: "Qualify", does: "Research each new lead from public sources, then score it on fit, size, ease of win and reach.", agents: ["Business Research", "Lead Scorer", "Speed-to-Lead"], gate: "You check each found detail before it goes on the deal; first replies wait in Approvals." },
   { key: "outreach", name: "Outreach", does: "Personal email, LinkedIn and call steps in your voice.", agents: ["Outreach Sequencer", "Follow-up Writer"], gate: "You send each step and mark it sent." },
   { key: "discovery", name: "Discovery", does: "Prep the call, capture MEDDIC, debrief the notes.", agents: ["Call Prepper", "Deal Qualifier"], gate: "You approve the move to Proposal." },
-  { key: "proposal", name: "Proposal and close", does: "Proposal, objection answers and the follow-up to a yes.", agents: ["Proposal Writer", "Objection Handler", "Win-Loss Analyst"], gate: "You send the proposal and mark it won or lost." },
+  { key: "proposal", name: "Proposal and close", does: "Proposal with opportunities, benefits and ROI, objection answers and the follow-up to a yes.", agents: ["Proposal Writer", "Objection Handler", "Win-Loss Analyst"], gate: "You edit and send the proposal, and mark it won or lost." },
   { key: "onboard", name: "Onboard", does: "Welcome email, kickoff agenda and a first-30-days plan.", agents: ["Onboarding Manager"], gate: "You send the welcome and tick steps done." },
   { key: "retain", name: "Retain", does: "Monthly health check, check-in message and renewal plan.", agents: ["Customer Success Manager"], gate: "You send each check-in." },
   { key: "expand", name: "Expand", does: "Upsell ideas and a referral ask for healthy customers.", agents: ["Customer Success Manager"], gate: "You choose what to offer and send it." }
@@ -731,6 +888,10 @@ function nextActions(q, now = Date.now()) {
       continue;
     }
     const base = { contactId: c.id, company: label(c), stage };
+    if (c.stage !== "won" && !c.researchReport) add({ ...base, key: `${c.id}:research`, rule: "research", kind: "agent", agentId: "business-research", title: `Research ${label(c)}`, why: "A sourced report on the owner and the business: pain points, missing contact details and where AI agents would help. Uses a few web searches.", priority: c.stage === "lead" ? 38 + Math.min(19, c.rank ?? 19) / 100 : 27 });
+    const prop = c.proposal;
+    if (prop && !prop.sentAt && c.stage !== "won") add({ ...base, key: `${c.id}:psend:${prop.id}`, rule: "proposal_send", kind: "send", draft: { channel: "email", subject: prop.subject, text: proposalMessage(prop), to: c.email }, title: `Send the proposal to ${label(c)}`, why: `Net ${fmtMoney(prop.roi.netMonthly, prop.currency)} a month for them${prop.roi.roiPct !== null ? `, first-year return ${prop.roi.roiPct}%` : ""}. Check the ROI assumptions on the customer page first.`, priority: 12 });
+    if (prop?.sentAt && ["lead", "contacted", "qualified"].includes(c.stage)) add({ ...base, key: `${c.id}:pstage:${prop.id}`, rule: "proposal_stage", kind: "approve", suggestStage: "proposal", title: `Move ${label(c)} to Proposal?`, why: "You sent them the proposal.", priority: 14 });
     if (c.syncSuggestion) add({ ...base, key: `${c.id}:sync`, rule: "sync", kind: "approve", suggestStage: c.syncSuggestion.stage, title: `Move ${label(c)} to ${c.syncSuggestion.stage}?`, why: c.syncSuggestion.reason, priority: 15 });
     if (c.stage === "lead" || c.stage === "contacted") {
       if (!c.leadScore && c.stage === "lead") add({ ...base, key: `${c.id}:score`, rule: "score", kind: "agent", agentId: "lead-scorer", title: `Score ${label(c)}`, why: "Scoring tells you which leads to work first.", priority: 40 + Math.min(19, c.rank ?? 19) / 100 });
@@ -753,8 +914,8 @@ function nextActions(q, now = Date.now()) {
       if (s >= 70) add({ ...base, key: `${c.id}:advance`, rule: "advance", kind: "approve", suggestStage: "proposal", title: `Move ${label(c)} to Proposal?`, why: `MEDDIC ${s}%: the deal is qualified enough to propose.`, priority: 15 });
       else if (!c.callNotes && !ranBy(c, "Call Prepper")) add({ ...base, key: `${c.id}:discovery`, rule: "discovery", kind: "agent", agentId: "call-prepper", title: `Prep the discovery call with ${label(c)}`, why: "Questions to fill the MEDDIC gaps: the pain, the number, who decides and by when.", priority: 30 });
     } else if (c.stage === "proposal") {
-      if (!ranBy(c, "Proposal Writer")) add({ ...base, key: `${c.id}:proposal`, rule: "proposal", kind: "agent", agentId: "proposal-writer", title: `Draft the proposal for ${label(c)}`, why: "Built from their pains, MEDDIC and the offer in the record.", priority: 28 });
-      else if (daysSince(c.lastTouch ?? c.updatedAt, now) >= PROPOSAL_QUIET_DAYS) add({ ...base, key: `${c.id}:pquiet:${(c.lastTouch ?? c.updatedAt).slice(0, 10)}`, rule: "proposal_quiet", kind: "agent", agentId: "follow-up-writer", title: `Follow up on the proposal to ${label(c)}`, why: `Quiet for ${Math.floor(daysSince(c.lastTouch ?? c.updatedAt, now))} days since the proposal.`, priority: 22 });
+      if (!prop && !ranBy(c, "Proposal Writer")) add({ ...base, key: `${c.id}:proposal`, rule: "proposal", kind: "agent", agentId: "proposal-writer", title: `Draft the proposal for ${label(c)}`, why: c.researchReport ? "Built from the research, MEDDIC and your offer: opportunities, benefits and an ROI with its assumptions." : "Opportunities, benefits and an ROI with its assumptions. Research the business first for real pain points.", priority: 28 });
+      else if ((!prop || prop.sentAt) && daysSince(c.lastTouch ?? c.updatedAt, now) >= PROPOSAL_QUIET_DAYS) add({ ...base, key: `${c.id}:pquiet:${(c.lastTouch ?? c.updatedAt).slice(0, 10)}`, rule: "proposal_quiet", kind: "agent", agentId: "follow-up-writer", title: `Follow up on the proposal to ${label(c)}`, why: `Quiet for ${Math.floor(daysSince(c.lastTouch ?? c.updatedAt, now))} days since the proposal.`, priority: 22 });
     } else if (c.stage === "won") {
       const cf = c.customer ?? EMPTY_CUSTOMER;
       const o = cf.onboarding;
@@ -797,51 +958,52 @@ function flowCounts(q, now = Date.now()) {
 var DEAL_STAGES = ["lead", "contacted", "qualified", "proposal", "won", "lost"];
 var SOURCES = ["website", "referral", "linkedin", "whatsapp", "walk-in", "event", "apollo", "web-search", "other"];
 var DEAL_TIERS = ["High", "Medium", "Low"];
-var EMPTY_PROFILE = { rank: null, niche: "", city: "", website: "", size: "", title: "", dealTier: "", ease: "", whyFit: "", pitch: "", sourceDetail: "", checkFirst: "", painPoints: "", offer: "", angle: "", research: "" };
+var EMPTY_PROFILE = { rank: null, niche: "", city: "", website: "", size: "", title: "", dealTier: "", ease: "", whyFit: "", pitch: "", sourceDetail: "", checkFirst: "", painPoints: "", offer: "", angle: "", research: "", address: "" };
 var NOTE_KINDS = ["note", "call", "email", "meeting", "research"];
 var TOUCH_KINDS = ["call", "email", "meeting"];
 var HISTORY_MAX = 100;
-var CRM_EVENTS = ["crm.contact", "crm.stage", "crm.touch", "crm.note", "crm.qualify", "crm.removed", ...LEADGEN_ORG_EVENTS, ...LEADGEN_DEAL_EVENTS, ...FLOW_ORG_EVENTS, ...FLOW_DEAL_EVENTS];
+var CRM_EVENTS = ["crm.contact", "crm.stage", "crm.touch", "crm.note", "crm.qualify", "crm.removed", ...LEADGEN_ORG_EVENTS, ...LEADGEN_DEAL_EVENTS, ...FLOW_ORG_EVENTS, ...FLOW_DEAL_EVENTS, ...RESEARCH_DEAL_EVENTS];
 var EMAIL_RE2 = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 var PHONE_RE = /^\+?[\d\s()-]{7,20}$/;
 var STALE_DAYS2 = 7;
 var NEW_LEAD_HOURS = 48;
 var OPEN = ["lead", "contacted", "qualified", "proposal"];
-var text2 = (v, max) => String(v ?? "").trim().slice(0, max);
+var text3 = (v, max) => String(v ?? "").trim().slice(0, max);
 var record = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
 function clean(i) {
-  const name = text2(i.name, 120);
+  const name = text3(i.name, 120);
   if (!name) throw new Error("A contact needs a name");
-  const email = text2(i.email, 200);
+  const email = text3(i.email, 200);
   if (email && !EMAIL_RE2.test(email)) throw new Error("That email address does not look right");
-  const phone = text2(i.phone, 20);
+  const phone = text3(i.phone, 20);
   if (phone && !PHONE_RE.test(phone)) throw new Error("That phone number does not look right");
   const value = i.value === void 0 || i.value === "" ? 0 : Number(String(i.value).replace(/[,$₹\s]/g, ""));
   if (!Number.isFinite(value) || value < 0) throw new Error("Deal value must be zero or more");
   const source = SOURCES.includes(String(i.source)) ? String(i.source) : "other";
   const apolloId = i.apolloId && /^[a-f0-9]{24}$/.test(i.apolloId) ? i.apolloId : void 0;
-  return { id: i.id && /^[\w-]{6,64}$/.test(i.id) ? i.id : newId(), name, company: text2(i.company, 120), email, phone, source, value, nextStep: text2(i.nextStep, 200), notes: text2(i.notes, 2e3), ...apolloId ? { apolloId } : {}, ...cleanProfile(i) };
+  return { id: i.id && /^[\w-]{6,64}$/.test(i.id) ? i.id : newId(), name, company: text3(i.company, 120), email, phone, source, value, nextStep: text3(i.nextStep, 200), notes: text3(i.notes, 2e3), ...apolloId ? { apolloId } : {}, ...cleanProfile(i) };
 }
-var tier = (v) => DEAL_TIERS.find((t) => t.toLowerCase() === text2(v, 10).toLowerCase()) ?? "";
+var tier = (v) => DEAL_TIERS.find((t) => t.toLowerCase() === text3(v, 10).toLowerCase()) ?? "";
 function cleanProfile(i) {
   const r = i.rank === void 0 || i.rank === null || i.rank === "" ? NaN : Number(i.rank);
   return {
     rank: Number.isInteger(r) && r > 0 && r < 1e6 ? r : null,
-    niche: text2(i.niche, 80),
-    city: text2(i.city, 120),
-    website: text2(i.website, 200).replace(/^https?:\/\//i, "").replace(/\/$/, ""),
-    size: text2(i.size, 80),
-    title: text2(i.title, 120),
+    niche: text3(i.niche, 80),
+    city: text3(i.city, 120),
+    website: text3(i.website, 200).replace(/^https?:\/\//i, "").replace(/\/$/, ""),
+    size: text3(i.size, 80),
+    title: text3(i.title, 120),
     dealTier: tier(i.dealTier),
     ease: tier(i.ease),
-    whyFit: text2(i.whyFit, 1e3),
-    pitch: text2(i.pitch, 300),
-    sourceDetail: text2(i.sourceDetail, 200),
-    checkFirst: text2(i.checkFirst, 300),
-    painPoints: text2(i.painPoints, 1e3),
-    offer: text2(i.offer, 500),
-    angle: text2(i.angle, 500),
-    research: text2(i.research, 8e3)
+    whyFit: text3(i.whyFit, 1e3),
+    pitch: text3(i.pitch, 300),
+    sourceDetail: text3(i.sourceDetail, 200),
+    checkFirst: text3(i.checkFirst, 300),
+    painPoints: text3(i.painPoints, 1e3),
+    offer: text3(i.offer, 500),
+    angle: text3(i.angle, 500),
+    research: text3(i.research, 8e3),
+    address: text3(i.address, 200)
   };
 }
 async function upsertContact(store2, orgId, input, by, summary) {
@@ -865,14 +1027,14 @@ async function setDealStage(store2, orgId, id, stage, by) {
 async function logTouch(store2, orgId, id, note, by) {
   const c = (await loadCrm(store2, orgId)).contacts.find((x) => x.id === id);
   if (!c) throw new Error("Contact not found");
-  await record(store2, orgId, by, "crm.touch", { contactId: id, note: text2(note, 500), summary: `Touched base with ${c.name}` });
+  await record(store2, orgId, by, "crm.touch", { contactId: id, note: text3(note, 500), summary: `Touched base with ${c.name}` });
   return loadCrm(store2, orgId);
 }
 async function addNote(store2, orgId, id, kind, note, by) {
   const c = (await loadCrm(store2, orgId)).contacts.find((x) => x.id === id);
   if (!c) throw new Error("Contact not found");
   const k = NOTE_KINDS.includes(kind) ? kind : "note";
-  const body = text2(note, 8e3);
+  const body = text3(note, 8e3);
   if (!body) throw new Error("Write something to add to the history");
   const touch = TOUCH_KINDS.includes(k);
   await record(store2, orgId, by, touch ? "crm.touch" : "crm.note", { contactId: id, kind: k, note: body, summary: `${touch ? "Touched base with" : "Note on"} ${c.name}` });
@@ -883,7 +1045,7 @@ async function qualifyDeal(store2, orgId, id, meddic, callNotes, by) {
   if (!c) throw new Error("Contact not found");
   const m = cleanMeddic(meddic);
   const { score, verdict } = scoreMeddic(m);
-  await record(store2, orgId, by, "crm.qualify", { contactId: id, meddic: m, callNotes: text2(callNotes, 4e3), summary: `${c.name}: MEDDIC ${score}% (${verdict})` });
+  await record(store2, orgId, by, "crm.qualify", { contactId: id, meddic: m, callNotes: text3(callNotes, 4e3), summary: `${c.name}: MEDDIC ${score}% (${verdict})` });
   return loadCrm(store2, orgId);
 }
 async function removeContact(store2, orgId, id, by) {
@@ -964,7 +1126,8 @@ var COLUMNS = {
   painPoints: ["painpoints", "pains", "painpoint"],
   offer: ["offer", "ouroffer"],
   angle: ["outreachangle", "angle", "openingangle"],
-  research: ["research", "researchnotes"]
+  research: ["research", "researchnotes"],
+  address: ["address", "streetaddress", "businessaddress", "fulladdress"]
 };
 var POSITIONAL = ["name", "company", "email", "phone", "source", "value", "nextStep", "notes"];
 var norm = (h) => h.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -1014,7 +1177,8 @@ function rowToInput(cells, map) {
     painPoints: f.painPoints,
     offer: f.offer,
     angle: f.angle,
-    research: f.research
+    research: f.research,
+    address: f.address
   };
 }
 var dupKey = (name, company) => `${name.toLowerCase().trim()}|${company.toLowerCase().trim()}`;
@@ -1075,7 +1239,8 @@ function computeCrm(events, now = Date.now()) {
       const what = !prev ? summary.startsWith("Contact imported") ? "Imported from a list" : summary.startsWith("Lead from") ? summary.split(":")[0] : "Added to the CRM" : summary.startsWith("Contact updated from a list") ? "Details filled in from a list" : summary.startsWith("Contact updated by CRM Sync") ? "Details filled in by CRM Sync" : "Details updated";
       const history = addHistory(prev?.history ?? [], { at: e.at, by: e.actor, kind: "update", text: what });
       const lg = prev ? { leadScore: prev.leadScore, sequence: prev.sequence, objections: prev.objections, syncSuggestion: prev.syncSuggestion } : EMPTY_DEAL_LEADGEN;
-      map.set(c.id, { ...EMPTY_PROFILE, ...c, ...lg, customer: prev?.customer ?? EMPTY_CUSTOMER, stage: prev?.stage ?? "lead", createdAt: prev?.createdAt ?? e.at, updatedAt: e.at, lastTouch: prev?.lastTouch ?? null, meddic: prev?.meddic ?? null, callNotes: prev?.callNotes ?? "", score: prev?.score ?? null, history });
+      const dr = prev ? { researchReport: prev.researchReport, proposal: prev.proposal } : EMPTY_DEAL_RESEARCH;
+      map.set(c.id, { ...EMPTY_PROFILE, ...c, ...lg, ...dr, customer: prev?.customer ?? EMPTY_CUSTOMER, stage: prev?.stage ?? "lead", createdAt: prev?.createdAt ?? e.at, updatedAt: e.at, lastTouch: prev?.lastTouch ?? null, meddic: prev?.meddic ?? null, callNotes: prev?.callNotes ?? "", score: prev?.score ?? null, history });
     } else if (LEADGEN_ORG_EVENTS.includes(e.action) || FLOW_ORG_EVENTS.includes(e.action)) {
       continue;
     } else {
@@ -1089,6 +1254,9 @@ function computeCrm(events, now = Date.now()) {
       } else if (FLOW_DEAL_EVENTS.includes(e.action)) {
         const r = applyFlowEvent(prev.customer, e);
         map.set(prev.id, { ...prev, customer: r.cf, ...r.touch ? { lastTouch: e.at, updatedAt: e.at } : {}, history: r.history ? log(r.history.kind, r.history.text) : prev.history });
+      } else if (RESEARCH_DEAL_EVENTS.includes(e.action)) {
+        const r = applyResearchEvent({ researchReport: prev.researchReport, proposal: prev.proposal }, e);
+        map.set(prev.id, { ...prev, ...r.dr, ...r.touch ? { lastTouch: e.at, updatedAt: e.at } : {}, history: r.history ? log(r.history.kind, r.history.text) : prev.history });
       } else if (LEADGEN_DEAL_EVENTS.includes(e.action)) {
         const r = applyDealEvent(prev, e, prev.stage);
         map.set(prev.id, { ...prev, ...r.lg, history: r.history ? log(r.history.kind, r.history.text) : prev.history });
@@ -1133,23 +1301,23 @@ function computeCrm(events, now = Date.now()) {
     nextActions: nextActions(flow, now)
   };
 }
-function speedGoal(list2) {
-  if (!list2.length) return "";
+function speedGoal(list3) {
+  if (!list3.length) return "";
   return `These leads are new and have not heard from us yet. Write one short first reply to each and queue it with send_message (channel "email"): thank them, answer what they asked if the notes say, and offer one clear next step such as a call time. Under 90 words each. Each email waits for the owner's approval.
-${list2.map((c) => `- ${c.name}${c.company ? ` (${c.company})` : ""} <${c.email}>, came from ${c.source}${c.notes ? `, notes: ${c.notes.slice(0, 300)}` : ""}`).join("\n")}`;
+${list3.map((c) => `- ${c.name}${c.company ? ` (${c.company})` : ""} <${c.email}>, came from ${c.source}${c.notes ? `, notes: ${c.notes.slice(0, 300)}` : ""}`).join("\n")}`;
 }
-function followUpGoal(list2) {
-  if (!list2.length) return "";
+function followUpGoal(list3) {
+  if (!list3.length) return "";
   return `Draft a short, personal follow-up email to each contact below and queue each with send_message (channel "email"). Mention where we left off, offer one clear next step, and keep it under 120 words. Each email waits for the owner's approval.
-${list2.map((c) => `- ${c.name}${c.company ? ` (${c.company})` : ""} <${c.email}>, stage ${c.stage}${c.nextStep ? `, next step: ${c.nextStep}` : ""}${c.notes ? `, notes: ${c.notes.slice(0, 200)}` : ""}`).join("\n")}`;
+${list3.map((c) => `- ${c.name}${c.company ? ` (${c.company})` : ""} <${c.email}>, stage ${c.stage}${c.nextStep ? `, next step: ${c.nextStep}` : ""}${c.notes ? `, notes: ${c.notes.slice(0, 200)}` : ""}`).join("\n")}`;
 }
 
 // core/leadgen.ts
 var record2 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
-async function dealOf(store2, orgId, contactId3) {
+async function dealOf(store2, orgId, contactId4) {
   const crm = await loadCrm(store2, orgId);
-  const c = crm.contacts.find((x) => x.id === String(contactId3 ?? "").trim());
-  if (!c) throw new Error(`No deal with id "${String(contactId3 ?? "")}" in the CRM. Use read_crm to find the right id.`);
+  const c = crm.contacts.find((x) => x.id === String(contactId4 ?? "").trim());
+  if (!c) throw new Error(`No deal with id "${String(contactId4 ?? "")}" in the CRM. Use read_crm to find the right id.`);
   return { crm, c };
 }
 var label2 = (c) => c.company || c.name;
@@ -1233,8 +1401,8 @@ async function decideProspects(store2, orgId, batchId, addKeys, dismissKeys, by)
   for (const p of batch.items.filter((x) => x.status === "pending")) {
     if (add.has(p.key)) {
       try {
-        const contactId3 = await addNewContact(store2, orgId, prospectToContact(p, batch.icpName), by, `Lead from the Prospect Generator: ${p.company}`);
-        added.push({ key: p.key, contactId: contactId3 });
+        const contactId4 = await addNewContact(store2, orgId, prospectToContact(p, batch.icpName), by, `Lead from the Prospect Generator: ${p.company}`);
+        added.push({ key: p.key, contactId: contactId4 });
       } catch {
         dismissed.push(p.key);
       }
@@ -1243,8 +1411,8 @@ async function decideProspects(store2, orgId, batchId, addKeys, dismissKeys, by)
   if (added.length || dismissed.length) await record2(store2, orgId, by, "crm.prospects_decided", { batchId, added, dismissed, summary: `Prospects: ${added.length} added to New lead, ${dismissed.length} dismissed` });
   return { added: added.length, dismissed: dismissed.length };
 }
-async function saveLeadScore(store2, orgId, contactId3, score, reasons, icpId, by) {
-  const { crm, c } = await dealOf(store2, orgId, contactId3);
+async function saveLeadScore(store2, orgId, contactId4, score, reasons, icpId, by) {
+  const { crm, c } = await dealOf(store2, orgId, contactId4);
   const n = Math.round(Number(score));
   if (!Number.isFinite(n) || n < 0 || n > 100) throw new Error("score must be a whole number from 0 to 100");
   const why = text(reasons, 1200);
@@ -1253,14 +1421,14 @@ async function saveLeadScore(store2, orgId, contactId3, score, reasons, icpId, b
   await record2(store2, orgId, by, "crm.leadscore", { contactId: c.id, score: { score: n, grade: gradeFor(n), reasons: why, icpId: icp?.id ?? null }, summary: `${label2(c)}: lead score ${n} (${gradeFor(n)})` });
   return `Saved lead score ${n} (${gradeFor(n)}) on ${label2(c)}`;
 }
-async function saveSequence(store2, orgId, contactId3, steps, notes, by) {
-  const { c } = await dealOf(store2, orgId, contactId3);
+async function saveSequence(store2, orgId, contactId4, steps, notes, by) {
+  const { c } = await dealOf(store2, orgId, contactId4);
   const clean2 = cleanSteps(steps);
   await record2(store2, orgId, by, "crm.sequence", { contactId: c.id, sequence: { id: newId(), steps: clean2, notes: text(notes, 1e3) }, summary: `${label2(c)}: outreach sequence drafted (${clean2.length} steps, not sent)` });
   return `Saved a ${clean2.length}-step outreach sequence on ${label2(c)} as drafts. Nothing was sent.`;
 }
-async function markStepSent(store2, orgId, contactId3, index, by) {
-  const { c } = await dealOf(store2, orgId, contactId3);
+async function markStepSent(store2, orgId, contactId4, index, by) {
+  const { c } = await dealOf(store2, orgId, contactId4);
   const step = c.sequence?.steps[index];
   if (!c.sequence || !step) throw new Error("That outreach step was not found");
   if (step.sentAt) throw new Error("That step is already marked as sent");
@@ -1269,14 +1437,14 @@ async function markStepSent(store2, orgId, contactId3, index, by) {
   await record2(store2, orgId, by, "crm.touch", { contactId: c.id, kind: step.channel, note: `${what} (step ${index + 1} of ${c.sequence.steps.length})`, summary: `Touched base with ${c.name}` });
   if (c.stage === "lead") await record2(store2, orgId, "crm-sync", "crm.stage", { contactId: c.id, stage: "contacted", summary: `${c.name}: contacted (first outreach step sent)` });
 }
-async function saveObjection(store2, orgId, contactId3, objection, responses, blocker, by) {
-  const { c } = await dealOf(store2, orgId, contactId3);
+async function saveObjection(store2, orgId, contactId4, objection, responses, blocker, by) {
+  const { c } = await dealOf(store2, orgId, contactId4);
   const o = text(objection, 500);
   if (!o) throw new Error("Say which objection this answers");
-  const list2 = (Array.isArray(responses) ? responses : [responses]).map((r) => text(r, 2e3)).filter(Boolean).slice(0, 3);
-  if (!list2.length) throw new Error("Give at least one answer to the objection");
-  await record2(store2, orgId, by, "crm.objection", { contactId: c.id, play: { objection: o, responses: list2, blocker: text(blocker, 500) }, summary: `${label2(c)}: objection answers saved` });
-  return `Saved ${list2.length} answer${list2.length === 1 ? "" : "s"} to "${o.slice(0, 60)}" on ${label2(c)}`;
+  const list3 = (Array.isArray(responses) ? responses : [responses]).map((r) => text(r, 2e3)).filter(Boolean).slice(0, 3);
+  if (!list3.length) throw new Error("Give at least one answer to the objection");
+  await record2(store2, orgId, by, "crm.objection", { contactId: c.id, play: { objection: o, responses: list3, blocker: text(blocker, 500) }, summary: `${label2(c)}: objection answers saved` });
+  return `Saved ${list3.length} answer${list3.length === 1 ? "" : "s"} to "${o.slice(0, 60)}" on ${label2(c)}`;
 }
 var FILLABLE = ["niche", "city", "website", "size", "title", "phone", "email", "nextStep", "painPoints", "offer", "angle"];
 async function syncDeal(store2, orgId, input, by) {
@@ -1307,8 +1475,8 @@ async function syncDeal(store2, orgId, input, by) {
   await record2(store2, orgId, by, "crm.sync", { contactId: c.id, filled, suggestStage, reason, summary: `CRM Sync on ${label2(c)}` });
   return `CRM Sync on ${label2(c)}: ${filled.length ? `filled ${filled.join(", ")}` : "no fields changed"}${suggestStage ? `; suggested moving to ${suggestStage} (the owner decides)` : ""}.`;
 }
-async function dismissSync(store2, orgId, contactId3, by) {
-  const { c } = await dealOf(store2, orgId, contactId3);
+async function dismissSync(store2, orgId, contactId4, by) {
+  const { c } = await dealOf(store2, orgId, contactId4);
   await record2(store2, orgId, by, "crm.sync", { contactId: c.id, dismiss: true, summary: `CRM Sync suggestion dismissed for ${label2(c)}` });
 }
 var cut = (s, n) => s ? s.replace(/\s+/g, " ").trim().slice(0, n) : "";
@@ -1322,7 +1490,7 @@ function dealFull(c) {
   return [
     `Deal id ${c.id}: ${label2(c)}; stage ${c.stage}; source ${c.source}${c.sourceDetail ? ` (${c.sourceDetail})` : ""}`,
     `Decision maker: ${c.name !== c.company ? c.name : "not stated"}${c.title ? `, ${c.title}` : ""}`,
-    [c.niche && `Niche: ${c.niche}`, c.city && `City: ${c.city}`, c.website && `Website: ${c.website}`, c.size && `Size: ${c.size}`, c.phone && `Phone: ${c.phone}`, c.email && `Email: ${c.email}`, c.value && `Value: ${c.value}`, c.dealTier && `Deal size: ${c.dealTier}`, c.ease && `Ease of win: ${c.ease}`, c.rank && `Rank: ${c.rank}`].filter(Boolean).join("; "),
+    [c.niche && `Niche: ${c.niche}`, c.city && `City: ${c.city}`, c.website && `Website: ${c.website}`, c.address && `Address: ${c.address}`, c.size && `Size: ${c.size}`, c.phone && `Phone: ${c.phone}`, c.email && `Email: ${c.email}`, c.value && `Value: ${c.value}`, c.dealTier && `Deal size: ${c.dealTier}`, c.ease && `Ease of win: ${c.ease}`, c.rank && `Rank: ${c.rank}`].filter(Boolean).join("; "),
     c.whyFit && `Why they fit: ${cut(c.whyFit, 1e3)}`,
     c.painPoints && `Pain points: ${cut(c.painPoints, 1e3)}`,
     c.offer && `Our offer: ${cut(c.offer, 500)}`,
@@ -1338,6 +1506,7 @@ function dealFull(c) {
     c.leadScore && `Lead score: ${c.leadScore.score} (${c.leadScore.grade}) \u2014 ${cut(c.leadScore.reasons, 400)}`,
     c.sequence && `Outreach sequence: ${c.sequence.steps.map((s, i) => `step ${i + 1} day ${s.day} ${s.channel}${s.sentAt ? " (sent)" : ""}`).join(", ")}`,
     c.objections.length ? `Objections answered: ${c.objections.map((o) => `"${cut(o.objection, 100)}"`).join("; ")}` : "",
+    ...researchLines(c),
     ...customerLines(c),
     `History (newest first):
 ${c.history.slice(0, 15).map((h) => `  ${h.at.slice(0, 10)} ${h.kind}: ${cut(h.text, 200)}`).join("\n") || "  none"}`
@@ -1359,17 +1528,17 @@ function icpFull(i) {
   return [`ICP id ${i.id}: ${i.name}`, `Summary: ${i.summary}`, i.industries && `Industries: ${i.industries}`, i.locations && `Locations: ${i.locations}`, i.size && `Size: ${i.size}`, i.buyer && `Buyer: ${i.buyer}`, i.pains && `Pains: ${i.pains}`, i.signals && `Buying signals: ${i.signals}`, i.disqualifiers && `Disqualifiers: ${i.disqualifiers}`, i.offer && `Offer: ${i.offer}`, i.valueCase && `Why it pays: ${i.valueCase}`, i.voice && `Voice: ${i.voice}`].filter(Boolean).join("\n");
 }
 var READ_VIEWS = ["pipeline", "deal", "deals", "icps", "icp_notes", "existing", "issues"];
-async function readCrm(store2, orgId, view, contactId3, contactIds) {
+async function readCrm(store2, orgId, view, contactId4, contactIds) {
   const crm = await loadCrm(store2, orgId);
   let out;
   switch (view) {
     case "deal": {
-      const c = crm.contacts.find((x) => x.id === String(contactId3 ?? ""));
-      out = c ? dealFull(c) : `No deal with id "${String(contactId3 ?? "")}". Read the pipeline view for ids.`;
+      const c = crm.contacts.find((x) => x.id === String(contactId4 ?? ""));
+      out = c ? dealFull(c) : `No deal with id "${String(contactId4 ?? "")}". Read the pipeline view for ids.`;
       break;
     }
     case "deals": {
-      const ids = (Array.isArray(contactIds) ? contactIds : [contactId3]).map((x) => String(x ?? "").trim()).filter(Boolean).slice(0, 12);
+      const ids = (Array.isArray(contactIds) ? contactIds : [contactId4]).map((x) => String(x ?? "").trim()).filter(Boolean).slice(0, 12);
       const found = ids.map((id) => crm.contacts.find((x) => x.id === id));
       out = ids.length ? found.map((c, n) => c ? dealFull(c) : `No deal with id "${ids[n]}".`).join("\n\n---\n\n") : "Pass contactIds (up to 12 deal ids).";
       break;
@@ -1522,34 +1691,34 @@ var LEADGEN_TOOLS = {
 // core/salesflow.ts
 var record3 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
 var label3 = (c) => c.company || c.name;
-async function customerOf(store2, orgId, contactId3) {
-  const c = (await loadCrm(store2, orgId)).contacts.find((x) => x.id === String(contactId3 ?? "").trim());
-  if (!c) throw new Error(`No deal with id "${String(contactId3 ?? "")}" in the CRM. Use read_crm to find the right id.`);
+async function customerOf(store2, orgId, contactId4) {
+  const c = (await loadCrm(store2, orgId)).contacts.find((x) => x.id === String(contactId4 ?? "").trim());
+  if (!c) throw new Error(`No deal with id "${String(contactId4 ?? "")}" in the CRM. Use read_crm to find the right id.`);
   return c;
 }
-async function saveOnboarding(store2, orgId, contactId3, input, by) {
-  const c = await customerOf(store2, orgId, contactId3);
+async function saveOnboarding(store2, orgId, contactId4, input, by) {
+  const c = await customerOf(store2, orgId, contactId4);
   if (c.stage !== "won") throw new Error(`${label3(c)} is not a won customer yet (stage ${c.stage}). Onboarding starts after the win.`);
   const plan = { id: newId(), ...cleanOnboarding(input) };
   await record3(store2, orgId, by, "crm.onboarding", { contactId: c.id, onboarding: plan, summary: `${label3(c)}: onboarding plan saved` });
   return `Saved an onboarding plan with ${plan.steps.length} steps${plan.welcome ? " and a welcome email draft" : ""} on ${label3(c)}. Nothing was sent.`;
 }
-async function saveAccountReview(store2, orgId, contactId3, input, by) {
-  const c = await customerOf(store2, orgId, contactId3);
+async function saveAccountReview(store2, orgId, contactId4, input, by) {
+  const c = await customerOf(store2, orgId, contactId4);
   if (c.stage !== "won") throw new Error(`${label3(c)} is not a customer yet (stage ${c.stage}). Account reviews are for won deals.`);
   const review = { id: newId(), ...cleanReview(input) };
   await record3(store2, orgId, by, "crm.account", { contactId: c.id, review, summary: `${label3(c)}: account review, health ${review.health}` });
   return `Saved the account review on ${label3(c)}: health ${review.health} (${review.band.replace("_", " ")}). Nothing was sent.`;
 }
-async function markOnboardingStep(store2, orgId, contactId3, index, by) {
-  const c = await customerOf(store2, orgId, contactId3);
+async function markOnboardingStep(store2, orgId, contactId4, index, by) {
+  const c = await customerOf(store2, orgId, contactId4);
   const o = c.customer.onboarding;
   if (!o || !o.steps[index]) throw new Error("That onboarding step was not found");
   if (o.steps[index].doneAt) throw new Error("That step is already done");
   await record3(store2, orgId, by, "crm.onboarding_step", { contactId: c.id, onboardingId: o.id, index, summary: `${label3(c)}: onboarding step done` });
 }
-async function markCustomerSent(store2, orgId, contactId3, kind, by) {
-  const c = await customerOf(store2, orgId, contactId3);
+async function markCustomerSent(store2, orgId, contactId4, kind, by) {
+  const c = await customerOf(store2, orgId, contactId4);
   const k = CUSTOMER_MSGS.find((x) => x === kind);
   if (!k) throw new Error("Unknown message");
   const ref = k === "welcome" ? c.customer.onboarding?.id : c.customer.review?.id;
@@ -1615,6 +1784,112 @@ var SALESFLOW_TOOLS = {
   }
 };
 
+// core/research.ts
+var record4 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
+var label4 = (c) => c.company || c.name;
+async function dealOf2(store2, orgId, contactId4) {
+  const c = (await loadCrm(store2, orgId)).contacts.find((x) => x.id === String(contactId4 ?? "").trim());
+  if (!c) throw new Error(`No deal with id "${String(contactId4 ?? "")}" in the CRM. Use read_crm to find the right id.`);
+  return c;
+}
+async function saveResearch(store2, orgId, contactId4, input, by) {
+  const c = await dealOf2(store2, orgId, contactId4);
+  const research = { id: newId(), ...cleanResearch(input) };
+  await record4(store2, orgId, by, "crm.research", { contactId: c.id, research, summary: `${label4(c)}: business research saved` });
+  const missing = research.found.filter((f) => APPLY_FIELD[f.field] && !c[APPLY_FIELD[f.field]]).length;
+  return `Saved the research on ${label4(c)}: ${research.pains.length} pain points, ${research.opportunities.length} opportunities, ${research.found.length} details with sources${missing ? ` (${missing} the deal is missing; the owner adds them after checking the source)` : ""}. Nothing was sent.`;
+}
+async function useResearchField(store2, orgId, contactId4, index, by) {
+  const c = await dealOf2(store2, orgId, contactId4);
+  const r = c.researchReport;
+  const f = r?.found[index];
+  if (!r || !f) throw new Error("That detail is no longer in the research");
+  if (f.usedAt) throw new Error("That detail is already on the deal");
+  const field2 = APPLY_FIELD[f.field];
+  if (!field2) throw new Error(`${FIELD_LABEL[f.field]} has no field on the deal; copy it into the notes instead`);
+  await upsertContact(store2, orgId, { id: c.id, name: c.name, [field2]: f.value }, by, `Contact updated from research: ${c.name}`);
+  await record4(store2, orgId, by, "crm.research_used", { contactId: c.id, researchId: r.id, index, summary: `${label4(c)}: ${FIELD_LABEL[f.field].toLowerCase()} added from ${hostOf(f.source)}` });
+}
+async function saveProposal(store2, orgId, contactId4, input, by) {
+  const c = await dealOf2(store2, orgId, contactId4);
+  if (c.stage === "lost") throw new Error(`${label4(c)} is marked lost; reopen the deal before writing a proposal`);
+  const proposal = { id: newId(), ...cleanProposal(input) };
+  await record4(store2, orgId, by, "crm.proposal", { contactId: c.id, proposal, summary: `${label4(c)}: proposal drafted` });
+  const r = proposal.roi;
+  return `Saved the proposal on ${label4(c)}. ROI worked out by the app from your lines: net ${fmtMoney(r.netMonthly, proposal.currency)} a month${r.roiPct !== null ? `, first-year return ${r.roiPct}%` : ""}${r.paybackMonths !== null && r.oneTime > 0 ? `, setup pays back in about ${r.paybackMonths} months` : ""}. Nothing was sent; the owner edits and sends it.`;
+}
+async function editProposal(store2, orgId, contactId4, input, by) {
+  const c = await dealOf2(store2, orgId, contactId4);
+  const p = c.proposal;
+  if (!p) throw new Error("There is no proposal on this deal yet");
+  if (p.sentAt) throw new Error("This proposal was already sent; ask the agent for a new one to change it");
+  const edit = cleanProposal({ ...p, ...input });
+  await record4(store2, orgId, by, "crm.proposal_edit", { contactId: c.id, proposalId: p.id, edit, summary: `${label4(c)}: proposal edited` });
+}
+async function markProposalSent(store2, orgId, contactId4, by) {
+  const c = await dealOf2(store2, orgId, contactId4);
+  const p = c.proposal;
+  if (!p) throw new Error("There is no proposal on this deal yet");
+  if (p.sentAt) throw new Error("That proposal is already marked as sent");
+  await record4(store2, orgId, by, "crm.proposal_sent", { contactId: c.id, proposalId: p.id, summary: `${label4(c)}: proposal sent` });
+}
+
+// core/research-tools.ts
+var str3 = { type: "string" };
+var num2 = { type: "number" };
+var url = { type: "string", description: "The public page address (https://...)" };
+var contactId3 = { type: "string", description: "The deal id from read_crm" };
+var RESEARCH_TOOLS = {
+  save_research: {
+    spec: {
+      name: "save_research",
+      description: "Save a business research report onto a deal: summary, owner background, online presence, pain points with evidence, missing contact details found on public pages (each with its page), opportunities for AI agents, unknowns and sources. Nothing is sent; the owner checks each found detail before adding it to the deal.",
+      input_schema: {
+        type: "object",
+        properties: {
+          contactId: contactId3,
+          summary: str3,
+          owner: str3,
+          presence: str3,
+          pains: { type: "array", maxItems: 8, items: { type: "object", properties: { point: str3, evidence: str3, source: url }, required: ["point"] } },
+          found: { type: "array", maxItems: 12, items: { type: "object", properties: { field: { type: "string", enum: [...FOUND_FIELDS] }, value: str3, source: url, note: str3 }, required: ["field", "value", "source"] } },
+          opportunities: { type: "array", maxItems: 6, items: { type: "object", properties: { title: str3, how: str3, impact: str3 }, required: ["title", "how"] } },
+          unknowns: str3,
+          sources: { type: "array", maxItems: 15, items: { type: "object", properties: { title: str3, url }, required: ["url"] } }
+        },
+        required: ["contactId", "summary"]
+      }
+    },
+    summarize: (i) => `Save business research for ${String(i.contactId ?? "")}`,
+    execute: (i, ctx) => saveResearch(ctx.store, ctx.orgId, i.contactId, i, ctx.agent.name)
+  },
+  save_proposal: {
+    spec: {
+      name: "save_proposal",
+      description: "Save a proposal draft onto a deal: title, subject, summary, opportunities with benefits, ROI lines (monthly benefits with their basis; monthly and one-time costs), currency, plan, next step and the full text. The app works out the ROI totals. Nothing is sent; the owner edits and sends it.",
+      input_schema: {
+        type: "object",
+        properties: {
+          contactId: contactId3,
+          title: str3,
+          subject: str3,
+          summary: str3,
+          opportunities: { type: "array", maxItems: 6, items: { type: "object", properties: { title: str3, what: str3, benefit: str3 }, required: ["title"] } },
+          benefits: { type: "array", minItems: 1, maxItems: 8, items: { type: "object", properties: { label: str3, monthly: num2, basis: str3 }, required: ["label", "monthly", "basis"] } },
+          costs: { type: "array", maxItems: 6, items: { type: "object", properties: { label: str3, monthly: num2, oneTime: num2, basis: str3 }, required: ["label"] } },
+          currency: { type: "string", enum: [...CURRENCIES] },
+          plan: str3,
+          nextStep: str3,
+          text: { type: "string", description: "The full proposal in the owner's voice, without ROI totals" }
+        },
+        required: ["contactId", "title", "benefits", "text"]
+      }
+    },
+    summarize: (i) => `Save a proposal for ${String(i.contactId ?? "")}`,
+    execute: (i, ctx) => saveProposal(ctx.store, ctx.orgId, i.contactId, i, ctx.agent.name)
+  }
+};
+
 // core/tools.ts
 function formatMoney(amountMinor, currency) {
   if (!Number.isFinite(amountMinor)) return `? ${currency}`;
@@ -1633,17 +1908,17 @@ var field = (input, name, max = 4e3) => {
   return t.slice(0, max);
 };
 function parseLinkedInComment(input) {
-  let text6 = input.trim();
+  let text7 = input.trim();
   try {
-    text6 = decodeURIComponent(text6);
+    text7 = decodeURIComponent(text7);
   } catch {
   }
-  const m = text6.match(/urn:li:comment:\((?:urn:li:)?(activity|ugcPost|share):(\d+),(\d+)\)/);
+  const m = text7.match(/urn:li:comment:\((?:urn:li:)?(activity|ugcPost|share):(\d+),(\d+)\)/);
   if (m) {
     const threadUrn2 = `urn:li:${m[1]}:${m[2]}`;
     return { threadUrn: threadUrn2, commentUrn: `urn:li:comment:(${threadUrn2},${m[3]})` };
   }
-  const d = text6.match(/urn:li:fsd_comment:\((\d+),urn:li:(activity|ugcPost|share):(\d+)\)/);
+  const d = text7.match(/urn:li:fsd_comment:\((\d+),urn:li:(activity|ugcPost|share):(\d+)\)/);
   if (!d) return null;
   const threadUrn = `urn:li:${d[2]}:${d[3]}`;
   return { threadUrn, commentUrn: `urn:li:comment:(${threadUrn},${d[1]})` };
@@ -1784,7 +2059,8 @@ ${body}`, agentId: ctx.agent.id, at: nowIso() });
   },
   // Lead generation: read the CRM and save drafts, scores and suggestions onto it (nothing is sent).
   ...LEADGEN_TOOLS,
-  ...SALESFLOW_TOOLS
+  ...SALESFLOW_TOOLS,
+  ...RESEARCH_TOOLS
 };
 var WEB_SEARCH_TOOL = { type: "web_search_20260209", name: "web_search", max_uses: 5 };
 function toolsFor(agent) {
@@ -1792,9 +2068,9 @@ function toolsFor(agent) {
 }
 var WEBHOOK_TIMEOUT_MS = 3e4;
 var RECEIPT_MAX = 500;
-function parseReceipt(text6) {
+function parseReceipt(text7) {
   try {
-    const body = JSON.parse(text6);
+    const body = JSON.parse(text7);
     if (!body || typeof body !== "object") return void 0;
     const { ok, message } = body;
     return {
@@ -1805,11 +2081,11 @@ function parseReceipt(text6) {
     return void 0;
   }
 }
-function webhookIntegrations(url, secret, fetchImpl = fetch, business) {
+function webhookIntegrations(url2, secret, fetchImpl = fetch, business) {
   return {
     async dispatch(action, payload) {
-      if (!url) return `${NOT_SENT_PREFIX} "${action}": automations are not connected for this business yet, so it was not sent.`;
-      const res = await fetchImpl(url, {
+      if (!url2) return `${NOT_SENT_PREFIX} "${action}": automations are not connected for this business yet, so it was not sent.`;
+      const res = await fetchImpl(url2, {
         method: "POST",
         headers: { "content-type": "application/json", ...secret ? { "x-sixxab-secret": secret } : {} },
         body: JSON.stringify(business ? { action, payload, business } : { action, payload }),
@@ -1851,17 +2127,17 @@ var HttpError = class extends Error {
   status;
 };
 function store() {
-  const url = supabaseUrl();
+  const url2 = supabaseUrl();
   const key = env("SUPABASE_SERVICE_ROLE_KEY");
-  if (!url || !key) throw new HttpError(503, "The platform database is not configured yet");
-  return new SupabaseStore(url, key);
+  if (!url2 || !key) throw new HttpError(503, "The platform database is not configured yet");
+  return new SupabaseStore(url2, key);
 }
-async function depsFor(s, orgId, label4) {
+async function depsFor(s, orgId, label5) {
   const apiKey = env("ANTHROPIC_API_KEY");
   if (!apiKey) throw new HttpError(503, "The AI model is not configured yet");
   const base = env("N8N_WEBHOOK_URL");
   const [assigned, profile] = await Promise.all([automationPath(s, orgId), loadBusinessProfile(s, orgId)]);
-  const path = assigned ?? (isAdmin(label4, env("ADMIN_EMAILS")) ? defaultPath(base) : null);
+  const path = assigned ?? (isAdmin(label5, env("ADMIN_EMAILS")) ? defaultPath(base) : null);
   return {
     store: s,
     model: new AnthropicClient({ apiKey, models: modelsFromEnv(process.env) }),
@@ -1869,34 +2145,34 @@ async function depsFor(s, orgId, label4) {
     journey: journeyOptions()
   };
 }
-function requireAdmin(label4) {
-  if (!isAdmin(label4, env("ADMIN_EMAILS"))) throw new HttpError(403, "Admins only");
+function requireAdmin(label5) {
+  if (!isAdmin(label5, env("ADMIN_EMAILS"))) throw new HttpError(403, "Admins only");
 }
 function journeyOptions() {
   const rate = Number(env("INR_PER_USD"));
   return Number.isFinite(rate) && rate > 0 ? { inrPerUsd: rate } : {};
 }
 async function requireUser(request) {
-  const url = supabaseUrl();
+  const url2 = supabaseUrl();
   const anon = env("SUPABASE_ANON_KEY");
-  if (!url || !anon) throw new HttpError(503, "Sign-in is not configured yet");
+  if (!url2 || !anon) throw new HttpError(503, "Sign-in is not configured yet");
   const token = (request.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
-  const user = await verifyUser(url, anon, token);
+  const user = await verifyUser(url2, anon, token);
   if (!user) throw new HttpError(401, "Please sign in again");
   const s = store();
-  const label4 = user.email ?? user.phone ?? user.id;
+  const label5 = user.email ?? user.phone ?? user.id;
   let orgId = await s.orgForUser(user.id);
   if (!orgId) {
-    const created = await s.provisionWorkspace(user.id, label4);
+    const created = await s.provisionWorkspace(user.id, label5);
     orgId = await s.orgForUser(user.id) ?? created;
   }
-  return { userId: user.id, orgId, label: label4, store: s };
+  return { userId: user.id, orgId, label: label5, store: s };
 }
 async function readJson(request, maxBytes = 64e3) {
-  const text6 = await request.text();
-  if (text6.length > maxBytes) throw new HttpError(413, "Request too large");
+  const text7 = await request.text();
+  if (text7.length > maxBytes) throw new HttpError(413, "Request too large");
   try {
-    return JSON.parse(text6 || "{}");
+    return JSON.parse(text7 || "{}");
   } catch {
     throw new HttpError(400, "Invalid JSON");
   }
@@ -1915,8 +2191,8 @@ function handle(fn) {
 
 // server/routes/admin.ts
 var GET = handle(async (request) => {
-  const { label: label4, store: store2 } = await requireUser(request);
-  requireAdmin(label4);
+  const { label: label5, store: store2 } = await requireUser(request);
+  requireAdmin(label5);
   const ids = await store2.listOrgIds();
   const orgs = await Promise.all(ids.map(async (orgId) => {
     const [profile, path] = await Promise.all([loadBusinessProfile(store2, orgId), automationPath(store2, orgId)]);
@@ -1925,13 +2201,13 @@ var GET = handle(async (request) => {
   return json({ orgs });
 });
 var POST = handle(async (request) => {
-  const { label: label4, store: store2 } = await requireUser(request);
-  requireAdmin(label4);
+  const { label: label5, store: store2 } = await requireUser(request);
+  requireAdmin(label5);
   const b = await readJson(request);
   if (!b.orgId || !(await store2.listOrgIds()).includes(b.orgId)) throw new HttpError(404, "Business not found");
   const path = typeof b.path === "string" && b.path.trim() ? b.path.trim().toLowerCase() : null;
   try {
-    await setAutomationPath(store2, b.orgId, path, label4);
+    await setAutomationPath(store2, b.orgId, path, label5);
   } catch (e) {
     throw new HttpError(400, e instanceof Error ? e.message : "Invalid path");
   }
@@ -1947,11 +2223,11 @@ __export(billing_exports, {
 
 // core/billing.ts
 var MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-var CURRENCIES = ["USD", "INR"];
+var CURRENCIES2 = ["USD", "INR"];
 async function setPlan(store2, orgId, plan, by) {
   const name = String(plan.name ?? "").trim().slice(0, 60);
   const fee = Number(plan.monthlyFee);
-  if (!name || !Number.isFinite(fee) || fee < 0 || !CURRENCIES.includes(plan.currency)) throw new Error("A plan needs a name, a monthly fee of zero or more, and USD or INR");
+  if (!name || !Number.isFinite(fee) || fee < 0 || !CURRENCIES2.includes(plan.currency)) throw new Error("A plan needs a name, a monthly fee of zero or more, and USD or INR");
   await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "billing.plan", taskId: null, detail: { name, monthlyFee: fee, currency: plan.currency, summary: `Plan set: ${name}, ${fee} ${plan.currency} a month` } });
 }
 async function loadPlan(store2, orgId) {
@@ -2010,8 +2286,8 @@ async function setInvoiceStatus(store2, orgId, invoiceId, status, by) {
 
 // server/routes/billing.ts
 var GET2 = handle(async (request) => {
-  const { label: label4, store: store2 } = await requireUser(request);
-  requireAdmin(label4);
+  const { label: label5, store: store2 } = await requireUser(request);
+  requireAdmin(label5);
   const ids = await store2.listOrgIds();
   const businesses = await Promise.all(ids.map(async (orgId) => {
     const [profile, plan, invoices] = await Promise.all([loadBusinessProfile(store2, orgId), loadPlan(store2, orgId), listInvoices(store2, orgId)]);
@@ -2020,17 +2296,17 @@ var GET2 = handle(async (request) => {
   return json({ businesses });
 });
 var POST2 = handle(async (request) => {
-  const { label: label4, store: store2 } = await requireUser(request);
-  requireAdmin(label4);
+  const { label: label5, store: store2 } = await requireUser(request);
+  requireAdmin(label5);
   const b = await readJson(request);
   if (!b.orgId || !(await store2.listOrgIds()).includes(b.orgId)) throw new HttpError(404, "Business not found");
   try {
     if (b.action === "plan") {
-      await setPlan(store2, b.orgId, { name: String(b.name ?? ""), monthlyFee: Number(String(b.monthlyFee ?? "").replace(/,/g, "")), currency: String(b.currency ?? "") }, label4);
+      await setPlan(store2, b.orgId, { name: String(b.name ?? ""), monthlyFee: Number(String(b.monthlyFee ?? "").replace(/,/g, "")), currency: String(b.currency ?? "") }, label5);
       return json({ plan: await loadPlan(store2, b.orgId) });
     }
-    if (b.action === "draft") return json({ invoice: await draftInvoice(store2, b.orgId, String(b.period ?? ""), label4) });
-    if (b.action === "status" && b.invoiceId) return json({ invoice: await setInvoiceStatus(store2, b.orgId, b.invoiceId, b.status, label4) });
+    if (b.action === "draft") return json({ invoice: await draftInvoice(store2, b.orgId, String(b.period ?? ""), label5) });
+    if (b.action === "status" && b.invoiceId) return json({ invoice: await setInvoiceStatus(store2, b.orgId, b.invoiceId, b.status, label5) });
   } catch (e) {
     throw new HttpError(400, e instanceof Error ? e.message : "Could not update billing");
   }
@@ -2437,11 +2713,11 @@ Call reply_comment once per comment with the "Copy link to comment" URL the foun
     layer: "department",
     stage: 2,
     reportsTo: "head-of-gtm",
-    job: "Drafts the proposal for a qualified deal: goals, plan, price, terms and the next step to sign.",
+    job: "Drafts the proposal for a qualified deal from the research: opportunities, benefits, ROI with its assumptions, plan, price and the next step to sign.",
     modelTier: "worker",
-    tools: ["recall", "remember", "write_note"],
+    tools: ["recall", "remember", "write_note", "read_crm", "save_proposal"],
     usesModel: true,
-    instructions: `You write sales proposals from what the buyer said and what the business offers. Use only recorded prices and terms; mark anything missing for the owner. Never invent results, customers or guarantees. Save each proposal as a note with the title the task names; the owner sends it. ${SHARED_RULES}`
+    instructions: `You write sales proposals from what the buyer said, the business research on the deal and what the business offers. Tie every opportunity to a pain the record or research shows. Use only recorded prices and terms; when a price is not recorded, estimate it and say "price to be set by the owner". For the ROI, give benefit and cost lines with the basis for each number written out; the app works out the totals, so never state totals yourself. Never invent results, customers or guarantees. When the task names a CRM deal id, read the deal with read_crm and save the proposal onto it with save_proposal; otherwise save it as a note with the title the task names. The owner edits and sends it. ${SHARED_RULES}`
   },
   {
     id: "win-loss",
@@ -2638,6 +2914,20 @@ Call reply_comment once per comment with the "Copy link to comment" URL the foun
     maxTurns: 12,
     starter: "Read the CRM issues with read_crm, then fix up to 10 deals with sync_deal: fill empty fields the record itself answers, set missing next steps, and suggest stages the history supports.",
     instructions: `You keep the CRM tidy and consistent. Fill an empty field only with a value the record's own research, notes or history states; never guess a phone, email or name. Set a next step when an open deal has none. When the history shows a deal has moved, suggest the stage; the owner decides. Report duplicates in the reason, naming the record to keep. You never delete, merge, overwrite or move a deal. Exception to one tool at a time: you may call sync_deal for several deals in one turn. ${SHARED_RULES}`
+  },
+  {
+    id: "business-research",
+    name: "Business Research",
+    layer: "department",
+    stage: 2,
+    reportsTo: "head-of-gtm",
+    job: "Researches a lead from public sources: the owner, the business, pain points with evidence, missing contact details with their sources, and where AI agents would help. Saved on the deal.",
+    modelTier: "worker",
+    tools: ["recall", "read_crm", "save_research", "web_search"],
+    usesModel: true,
+    maxTurns: 10,
+    starter: "Read the pipeline with read_crm, pick the best open lead without business research, and research it from public sources. Save the report with save_research.",
+    instructions: `You research leads for the owner before anyone reaches out. Use only public business information from pages you can cite: the business's own site, its maps listing, directories, review sites, local news and the owner's public professional profile. Confirm each page is about this business by its name, phone number, website or address. Every pain point needs evidence, and every contact detail needs the page that publishes it; never guess or construct an email address, and leave out what you cannot source. Business information only: no people-search or reverse-lookup sites, no personal social accounts, home addresses or family details, nothing behind a login. Say plainly what you could not confirm. Save the report with save_research; the owner checks each detail before it goes on the deal, and contacting anyone is never your job. ${SHARED_RULES}`
   },
   {
     id: "onboarding-manager",
@@ -3430,7 +3720,7 @@ function allocate(items, amount) {
   return Object.fromEntries(items.map((i) => [i.id, r2(total > 0 ? amount * i.usage / total : amount / Math.max(items.length, 1))]));
 }
 function statusChecks(c, failed24h) {
-  const row = (key, label4, state, detail) => ({ key, label: label4, state, detail });
+  const row = (key, label5, state, detail) => ({ key, label: label5, state, detail });
   const checks = [
     row("database", "Database", c.database ? "green" : "red", c.database ? "Reachable, tables present" : "Not reachable or tables missing"),
     row("signIn", "Sign-in", c.signIn ? "green" : "red", c.signIn ? "Supabase Auth reachable" : "Supabase Auth not configured or unreachable"),
@@ -3519,10 +3809,10 @@ function computeGovernance(input) {
 
 // server/build-info.ts
 var BUILD_INFO = {
-  "builtAt": "2026-11-24T02:49:48.219Z",
-  "files": 95,
-  "lines": 10488,
-  "tests": 120,
+  "builtAt": "2026-11-24T03:16:14.390Z",
+  "files": 99,
+  "lines": 11025,
+  "tests": 127,
   "e2e": 11,
   "rlsTables": 9,
   "cspHeader": true,
@@ -3531,12 +3821,12 @@ var BUILD_INFO = {
 
 // server/checks.ts
 var TIMEOUT_MS = 5e3;
-async function probe(url, headers) {
+async function probe(url2, headers) {
   try {
-    const res = await fetch(url, { headers, signal: AbortSignal.timeout(TIMEOUT_MS) });
-    const text6 = await res.text();
+    const res = await fetch(url2, { headers, signal: AbortSignal.timeout(TIMEOUT_MS) });
+    const text7 = await res.text();
     try {
-      return { ok: res.ok, body: JSON.parse(text6) };
+      return { ok: res.ok, body: JSON.parse(text7) };
     } catch {
       return { ok: res.ok, body: null };
     }
@@ -3546,28 +3836,28 @@ async function probe(url, headers) {
 }
 var has2 = (k) => Boolean(process.env[k]?.trim());
 async function liveChecks() {
-  const url = normalizeSupabaseUrl(process.env.SUPABASE_URL);
+  const url2 = normalizeSupabaseUrl(process.env.SUPABASE_URL);
   const anon = process.env.SUPABASE_ANON_KEY?.trim();
   const service = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   let auth = null;
   let tables = null;
-  if (url && anon) {
-    const s = await probe(`${url}/auth/v1/settings`, { apikey: anon });
+  if (url2 && anon) {
+    const s = await probe(`${url2}/auth/v1/settings`, { apikey: anon });
     const ext = s.body?.external ?? {};
     auth = { reachable: s.ok, email: Boolean(ext.email), phone: Boolean(ext.phone) };
   }
-  if (url && service) {
+  if (url2 && service) {
     const headers = { apikey: service };
     if (service.startsWith("eyJ")) headers.authorization = `Bearer ${service}`;
-    tables = (await probe(`${url}/rest/v1/orgs?select=id&limit=1`, headers)).ok;
+    tables = (await probe(`${url2}/rest/v1/orgs?select=id&limit=1`, headers)).ok;
   }
   return {
-    database: Boolean(url && service),
-    signIn: Boolean(url && anon),
+    database: Boolean(url2 && service),
+    signIn: Boolean(url2 && anon),
     model: has2("ANTHROPIC_API_KEY"),
     automations: has2("N8N_WEBHOOK_URL"),
     apollo: has2("APOLLO_API_KEY"),
-    supabaseUrlValid: Boolean(url),
+    supabaseUrlValid: Boolean(url2),
     auth,
     tables,
     webhookSecret: has2("N8N_WEBHOOK_SECRET"),
@@ -3673,19 +3963,19 @@ var REVIEWERS = {
   cfo: { title: "Tech cost review", ask: "Review cost per customer, fixed tech costs and margins: which customers are unprofitable, what drives model cost, and 3 actions to cut cost or adjust pricing." }
 };
 var GET3 = handle(async (request) => {
-  const { orgId, label: label4, store: store2 } = await requireUser(request);
-  requireAdmin(label4);
+  const { orgId, label: label5, store: store2 } = await requireUser(request);
+  requireAdmin(label5);
   return json({ governance: await governanceSnapshot(store2, orgId), reviewers: Object.entries(REVIEWERS).map(([id, r]) => ({ id, title: r.title })) });
 });
 var POST3 = handle(async (request) => {
-  const { orgId, label: label4, store: store2 } = await requireUser(request);
-  requireAdmin(label4);
+  const { orgId, label: label5, store: store2 } = await requireUser(request);
+  requireAdmin(label5);
   const b = await readJson(request);
   if (b.action === "costs") {
     const entries = Object.entries(b.fixedCosts ?? {}).slice(0, 20).map(([k, v]) => [k.trim().slice(0, 40), Number(v)]);
     if (entries.some(([k, v]) => !k || !Number.isFinite(v) || v < 0)) throw new HttpError(400, "Each cost needs a name and an amount of zero or more (USD a month)");
     const costs = Object.fromEntries(entries);
-    await store2.audit({ id: crypto.randomUUID(), orgId, at: (/* @__PURE__ */ new Date()).toISOString(), actor: label4, action: "settings.techcost", taskId: null, detail: { costs, summary: `Fixed tech costs set: $${entries.reduce((s, [, v]) => s + v, 0)} a month` } });
+    await store2.audit({ id: crypto.randomUUID(), orgId, at: (/* @__PURE__ */ new Date()).toISOString(), actor: label5, action: "settings.techcost", taskId: null, detail: { costs, summary: `Fixed tech costs set: $${entries.reduce((s, [, v]) => s + v, 0)} a month` } });
     return json({ fixedCosts: costs });
   }
   if (b.action === "review") {
@@ -3697,7 +3987,7 @@ var POST3 = handle(async (request) => {
 Platform snapshot (JSON):
 ${JSON.stringify(snapshot).slice(0, 14e3)}`;
     const task = await createTask(store2, orgId, b.agentId, goal);
-    const run = await runTask(await depsFor(store2, orgId, label4), task.id);
+    const run = await runTask(await depsFor(store2, orgId, label5), task.id);
     return json({ taskId: task.id, status: run.task.status, output: run.task.output });
   }
   throw new HttpError(400, "action must be costs or review");
@@ -3709,8 +3999,8 @@ __export(me_exports, {
   GET: () => GET4
 });
 var GET4 = handle(async (request) => {
-  const { label: label4 } = await requireUser(request);
-  return json({ label: label4, admin: isAdmin(label4, process.env.ADMIN_EMAILS) });
+  const { label: label5 } = await requireUser(request);
+  return json({ label: label5, admin: isAdmin(label5, process.env.ADMIN_EMAILS) });
 });
 
 // server/routes/raise.ts
@@ -3877,74 +4167,74 @@ var RAISE_EVENTS = ["raise.round", "raise.investor", "raise.investor_stage", "ra
 var COMMITTED = ["committed", "signed", "funded"];
 var EMAIL_RE3 = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 var MAX_MONEY = 1e10;
-var text3 = (v, max) => String(v ?? "").trim().slice(0, max);
-var money = (v, label4, required = false) => {
+var text4 = (v, max) => String(v ?? "").trim().slice(0, max);
+var money2 = (v, label5, required = false) => {
   if (v === void 0 || v === null || v === "") {
-    if (required) throw new Error(`${label4} must be more than zero`);
+    if (required) throw new Error(`${label5} must be more than zero`);
     return void 0;
   }
   const n = typeof v === "string" ? Number(v.replace(/[,$\s]/g, "")) : Number(v);
-  if (!Number.isFinite(n) || n < 0 || n > MAX_MONEY || required && n === 0) throw new Error(`${label4} must be ${required ? "more than zero" : "zero or more"}`);
+  if (!Number.isFinite(n) || n < 0 || n > MAX_MONEY || required && n === 0) throw new Error(`${label5} must be ${required ? "more than zero" : "zero or more"}`);
   return n;
 };
-var oneOf = (list2, v, label4) => {
-  if (!list2.includes(v)) throw new Error(`${label4} must be one of: ${list2.join(", ")}`);
+var oneOf = (list3, v, label5) => {
+  if (!list3.includes(v)) throw new Error(`${label5} must be one of: ${list3.join(", ")}`);
   return v;
 };
 var fmt = (n) => n.toLocaleString("en-US", { maximumFractionDigits: 0 });
-var record4 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
+var record5 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
 async function setRound(store2, orgId, r, by) {
   const round3 = {
-    name: text3(r.name, 60) || "Pre-seed",
+    name: text4(r.name, 60) || "Pre-seed",
     instrument: oneOf(INSTRUMENTS, r.instrument, "instrument"),
     exemption: oneOf(EXEMPTIONS, r.exemption, "exemption"),
-    target: money(r.target, "The target", true),
-    cap: r.instrument === "priced" ? void 0 : money(r.cap, "The valuation cap"),
-    preMoney: r.instrument === "priced" ? money(r.preMoney, "The pre-money valuation") : void 0,
+    target: money2(r.target, "The target", true),
+    cap: r.instrument === "priced" ? void 0 : money2(r.cap, "The valuation cap"),
+    preMoney: r.instrument === "priced" ? money2(r.preMoney, "The pre-money valuation") : void 0,
     discount: r.discount === void 0 || r.discount === null ? void 0 : Number(r.discount),
-    minCheck: money(r.minCheck, "The minimum cheque"),
+    minCheck: money2(r.minCheck, "The minimum cheque"),
     currency: "USD"
   };
   if (round3.discount !== void 0 && !(round3.discount >= 0 && round3.discount <= 50)) throw new Error("The discount must be between 0 and 50 percent");
-  await record4(store2, orgId, by, "raise.round", { ...round3, summary: `Round set: ${round3.name}, $${fmt(round3.target)} (${round3.instrument}, ${round3.exemption})${round3.preMoney ? ` at $${fmt(round3.preMoney)} pre-money` : ""}` });
+  await record5(store2, orgId, by, "raise.round", { ...round3, summary: `Round set: ${round3.name}, $${fmt(round3.target)} (${round3.instrument}, ${round3.exemption})${round3.preMoney ? ` at $${fmt(round3.preMoney)} pre-money` : ""}` });
   return loadRaise(store2, orgId);
 }
 function cleanInvestor(i) {
-  const name = text3(i.name, 120);
+  const name = text4(i.name, 120);
   if (!name) throw new Error("An investor needs a name");
-  const email = text3(i.email, 200);
+  const email = text4(i.email, 200);
   if (email && !EMAIL_RE3.test(email)) throw new Error("That email address does not look right");
   return {
     id: i.id && /^[\w-]{6,64}$/.test(i.id) ? i.id : newId(),
     name,
     email,
-    firm: text3(i.firm, 120),
+    firm: text4(i.firm, 120),
     type: oneOf(INVESTOR_TYPES, i.type, "type"),
-    relationship: text3(i.relationship, 200),
+    relationship: text4(i.relationship, 200),
     accredited: i.accredited ? oneOf(ACCREDITATION, i.accredited, "accredited") : "unknown",
-    nextStep: text3(i.nextStep, 200),
-    notes: text3(i.notes, 2e3)
+    nextStep: text4(i.nextStep, 200),
+    notes: text4(i.notes, 2e3)
   };
 }
 async function upsertInvestor(store2, orgId, input, by) {
   const inv = cleanInvestor(input);
-  await record4(store2, orgId, by, "raise.investor", { investor: inv, summary: `Investor saved: ${inv.name}` });
+  await record5(store2, orgId, by, "raise.investor", { investor: inv, summary: `Investor saved: ${inv.name}` });
   const found = (await loadRaise(store2, orgId)).investors.find((x) => x.id === inv.id);
   return found;
 }
 async function removeInvestor(store2, orgId, id, by) {
-  await record4(store2, orgId, by, "raise.investor_removed", { investorId: id, summary: "Investor removed from the pipeline" });
+  await record5(store2, orgId, by, "raise.investor_removed", { investorId: id, summary: "Investor removed from the pipeline" });
 }
 async function setInvestorStage(store2, orgId, id, stage, by, amount) {
   const st = oneOf(STAGES2, stage, "stage");
   const state = await loadRaise(store2, orgId);
   const inv = state.investors.find((x) => x.id === id);
   if (!inv) throw new Error("Investor not found");
-  const amt = money(amount, "The amount") ?? inv.amount;
+  const amt = money2(amount, "The amount") ?? inv.amount;
   if (st === "funded" && state.round?.exemption === "506c" && inv.accredited !== "verified") {
     throw new Error("Under 506(c), verify this investor is accredited before accepting their money");
   }
-  await record4(store2, orgId, by, "raise.investor_stage", { investorId: id, stage: st, amount: amt, summary: `${inv.name}: ${st}${amt ? ` ($${fmt(amt)})` : ""}` });
+  await record5(store2, orgId, by, "raise.investor_stage", { investorId: id, stage: st, amount: amt, summary: `${inv.name}: ${st}${amt ? ` ($${fmt(amt)})` : ""}` });
   return loadRaise(store2, orgId);
 }
 var DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -3952,23 +4242,23 @@ function cleanTiers(tiers) {
   if (!Array.isArray(tiers)) return [];
   if (tiers.length > MAX_TIERS) throw new Error(`A campaign can have at most ${MAX_TIERS} tiers`);
   return tiers.map((t, i) => {
-    const name = text3(t?.name, 60);
-    const reward = text3(t?.reward, 300);
+    const name = text4(t?.name, 60);
+    const reward = text4(t?.reward, 300);
     if (!name || !reward) throw new Error(`Tier ${i + 1} needs a name and what the backer gets`);
-    return { name, reward, price: money(t?.price, `Tier ${i + 1} price`, true), limit: money(t?.limit, `Tier ${i + 1} limit`) };
+    return { name, reward, price: money2(t?.price, `Tier ${i + 1} price`, true), limit: money2(t?.limit, `Tier ${i + 1} limit`) };
   });
 }
 async function setCampaign(store2, orgId, c, by) {
   const channel = oneOf(CHANNELS, c.channel, "The channel");
-  const url = text3(c.url, 300);
-  if (url && !/^https:\/\/[\w.-]+(\/[\w\-./?=&%#]*)?$/i.test(url)) throw new Error("The campaign url must start with https://");
+  const url2 = text4(c.url, 300);
+  if (url2 && !/^https:\/\/[\w.-]+(\/[\w\-./?=&%#]*)?$/i.test(url2)) throw new Error("The campaign url must start with https://");
   const campaign = {
     channel,
-    url,
+    url: url2,
     stage: oneOf(CAMPAIGN_STAGES, c.stage, "The campaign stage"),
-    goal: money(c.goal, "The goal"),
-    pledged: money(c.pledged, "The amount pledged"),
-    backers: money(c.backers, "The number of backers"),
+    goal: money2(c.goal, "The goal"),
+    pledged: money2(c.pledged, "The amount pledged"),
+    backers: money2(c.backers, "The number of backers"),
     deadline: DATE_RE.test(String(c.deadline ?? "")) ? String(c.deadline) : void 0,
     deliverBy: DATE_RE.test(String(c.deliverBy ?? "")) ? String(c.deliverBy) : void 0,
     tiers: cleanTiers(c.tiers)
@@ -3976,7 +4266,7 @@ async function setCampaign(store2, orgId, c, by) {
   if (campaign.stage === "live" && (!campaign.tiers.length || !campaign.deliverBy)) {
     throw new Error("Before going live, add at least one tier and the date you promise to deliver by");
   }
-  await record4(store2, orgId, by, "raise.campaign", { ...campaign, summary: `Founding-member pre-orders (${channel}): ${campaign.stage}` });
+  await record5(store2, orgId, by, "raise.campaign", { ...campaign, summary: `Founding-member pre-orders (${channel}): ${campaign.stage}` });
   return loadRaise(store2, orgId);
 }
 async function completeRaiseStep(store2, orgId, stepId, by) {
@@ -3985,12 +4275,12 @@ async function completeRaiseStep(store2, orgId, stepId, by) {
   if (!step) throw new Error("Unknown step");
   if (step.status === "blocked") throw new Error(`Finish first: ${step.blockedBy.join(", ")}`);
   if (stepId === "terms" && !state.round) throw new Error("Set the round terms before marking this done");
-  await record4(store2, orgId, by, "raise.step", { step: stepId, done: true, summary: `Raise step done: ${step.title}` });
+  await record5(store2, orgId, by, "raise.step", { step: stepId, done: true, summary: `Raise step done: ${step.title}` });
   return loadRaise(store2, orgId);
 }
 async function reopenRaiseStep(store2, orgId, stepId, by) {
   if (!RAISE_STEPS.some((s) => s.id === stepId)) throw new Error("Unknown step");
-  await record4(store2, orgId, by, "raise.step", { step: stepId, done: false, summary: `Raise step reopened: ${stepId}` });
+  await record5(store2, orgId, by, "raise.step", { step: stepId, done: false, summary: `Raise step reopened: ${stepId}` });
   return loadRaise(store2, orgId);
 }
 async function importInvestors(store2, orgId, csv, by) {
@@ -4002,7 +4292,7 @@ async function importInvestors(store2, orgId, csv, by) {
     const [name, firm, email, type, relationship] = row.split(",").map((x) => x.trim());
     try {
       const inv = cleanInvestor({ name, firm, email, type: INVESTOR_TYPES.includes(type) ? type : "angel", relationship });
-      await record4(store2, orgId, by, "raise.investor", { investor: inv, summary: `Investor imported: ${inv.name}` });
+      await record5(store2, orgId, by, "raise.investor", { investor: inv, summary: `Investor imported: ${inv.name}` });
       added++;
     } catch {
       skipped++;
@@ -4044,11 +4334,11 @@ function computeRaise(events) {
     } else if (e.action === "raise.investor_removed") investors.delete(String(d.investorId));
     else if (e.action === "raise.step") d.done ? done.add(String(d.step)) : done.delete(String(d.step));
   }
-  const list2 = [...investors.values()].map((i) => ({ ...i, ...investorWarnings(i, round3?.exemption) })).sort((a, b) => STAGES2.indexOf(b.stage) - STAGES2.indexOf(a.stage) || a.name.localeCompare(b.name));
-  const pipeline = Object.fromEntries(STAGES2.map((s) => [s, list2.filter((i) => i.stage === s).length]));
+  const list3 = [...investors.values()].map((i) => ({ ...i, ...investorWarnings(i, round3?.exemption) })).sort((a, b) => STAGES2.indexOf(b.stage) - STAGES2.indexOf(a.stage) || a.name.localeCompare(b.name));
+  const pipeline = Object.fromEntries(STAGES2.map((s) => [s, list3.filter((i) => i.stage === s).length]));
   const preorders = campaign && campaign.stage !== "cancelled" ? Number(campaign.pledged ?? 0) : 0;
-  const committed = list2.filter((i) => COMMITTED.includes(i.stage)).reduce((s, i) => s + i.amount, 0);
-  const funded = list2.filter((i) => i.stage === "funded").reduce((s, i) => s + i.amount, 0);
+  const committed = list3.filter((i) => COMMITTED.includes(i.stage)).reduce((s, i) => s + i.amount, 0);
+  const funded = list3.filter((i) => i.stage === "funded").reduce((s, i) => s + i.amount, 0);
   const target = round3?.target ?? 0;
   const cap = round3?.cap ?? 0;
   const pre = round3?.preMoney ?? 0;
@@ -4062,12 +4352,12 @@ function computeRaise(events) {
     dilutionPct: dilution === null ? null : Math.round(dilution * 1e4) / 100,
     postMoney: round3?.instrument === "priced" && pre ? pre + target : null
   };
-  const state = { round: round3, investors: list2, campaign, steps: [], pipeline, totals };
+  const state = { round: round3, investors: list3, campaign, steps: [], pipeline, totals };
   const context = raiseForPrompt(state);
   const preorderContext = raiseForPrompt({ ...state, round: null }).replace(/^Raise: No round[^\n]*\n?/, "") || "No pre-order campaign is recorded yet.";
   state.steps = RAISE_STEPS.map((s) => {
     const blockedBy = s.hard.filter((h) => !done.has(h)).map((h) => RAISE_STEPS.find((x) => x.id === h).title);
-    const base = s.id === "outreach" ? outreachGoal(list2) : s.goal;
+    const base = s.id === "outreach" ? outreachGoal(list3) : s.goal;
     if (s.track === "Pre-orders") {
       return {
         id: s.id,
@@ -4099,8 +4389,8 @@ ${context}` : ""
   });
   return state;
 }
-function outreachGoal(list2) {
-  const ready = list2.filter((i) => i.canEmail && (i.stage === "target" || i.stage === "contacted")).slice(0, 10);
+function outreachGoal(list3) {
+  const ready = list3.filter((i) => i.canEmail && (i.stage === "target" || i.stage === "contacted")).slice(0, 10);
   if (!ready.length) return 'No investors can be emailed yet. Explain what to add to the pipeline (name, email and how the founder knows them) and save it as a note titled "Raise: outreach".';
   return `Draft a short, personal first email to each investor below and queue each with send_message (channel "email"). Each email: who we are in one line, why this investor, the traction we have recorded, and a request for a 20-minute call. Share terms only with these known investors, never in public posts. Each email waits for the founder's approval.
 ${ready.map((i) => `- ${i.name}${i.firm ? ` (${i.firm})` : ""} <${i.email}>, ${i.type}; how we know them: ${i.relationship || "n/a"}`).join("\n")}`;
@@ -4139,29 +4429,29 @@ var GET5 = handle(async (request) => {
   return json({ raise: await loadRaise(store2, orgId), sources: RAISE_SOURCES });
 });
 var POST4 = handle(async (request) => {
-  const { orgId, label: label4, store: store2 } = await requireUser(request);
+  const { orgId, label: label5, store: store2 } = await requireUser(request);
   const b = await readJson(request, 1e5);
   const id = String(b.investorId ?? "");
   try {
     switch (b.action) {
       case "round":
-        return json({ raise: await setRound(store2, orgId, b.round ?? {}, label4) });
+        return json({ raise: await setRound(store2, orgId, b.round ?? {}, label5) });
       case "investor":
-        await upsertInvestor(store2, orgId, b.investor ?? {}, label4);
+        await upsertInvestor(store2, orgId, b.investor ?? {}, label5);
         break;
       case "stage":
-        return json({ raise: await setInvestorStage(store2, orgId, id, b.stage, label4, b.amount === void 0 || b.amount === "" ? void 0 : Number(String(b.amount).replace(/[,$\s]/g, ""))) });
+        return json({ raise: await setInvestorStage(store2, orgId, id, b.stage, label5, b.amount === void 0 || b.amount === "" ? void 0 : Number(String(b.amount).replace(/[,$\s]/g, ""))) });
       case "remove":
-        await removeInvestor(store2, orgId, id, label4);
+        await removeInvestor(store2, orgId, id, label5);
         break;
       case "import":
-        return json({ ...await importInvestors(store2, orgId, String(b.csv ?? ""), label4), raise: await loadRaise(store2, orgId) });
+        return json({ ...await importInvestors(store2, orgId, String(b.csv ?? ""), label5), raise: await loadRaise(store2, orgId) });
       case "campaign":
-        return json({ raise: await setCampaign(store2, orgId, b.campaign ?? {}, label4) });
+        return json({ raise: await setCampaign(store2, orgId, b.campaign ?? {}, label5) });
       case "complete":
-        return json({ raise: await completeRaiseStep(store2, orgId, String(b.step ?? ""), label4) });
+        return json({ raise: await completeRaiseStep(store2, orgId, String(b.step ?? ""), label5) });
       case "reopen":
-        return json({ raise: await reopenRaiseStep(store2, orgId, String(b.step ?? ""), label4) });
+        return json({ raise: await reopenRaiseStep(store2, orgId, String(b.step ?? ""), label5) });
       default:
         throw new HttpError(400, "Unknown action");
     }
@@ -4183,12 +4473,12 @@ __export(crm_exports, {
 var APOLLO_BASE = "https://api.apollo.io/api/v1";
 var TIMEOUT_MS2 = 2e4;
 var MAX_PER_PAGE = 25;
-var list = (v, max = 10) => (Array.isArray(v) ? v : String(v ?? "").split(",")).map((x) => String(x).trim()).filter(Boolean).slice(0, max).map((x) => x.slice(0, 80));
+var list2 = (v, max = 10) => (Array.isArray(v) ? v : String(v ?? "").split(",")).map((x) => String(x).trim()).filter(Boolean).slice(0, max).map((x) => x.slice(0, 80));
 var EMPLOYEE_RANGE = /^\d{1,6},\d{1,6}$/;
 function apolloBody(f) {
   const body = { page: Math.min(Math.max(1, Number(f.page) || 1), 20), per_page: MAX_PER_PAGE };
-  const titles = list(f.titles), locations = list(f.locations), industries = list(f.industries);
-  const employees = list(f.employees).filter((r) => EMPLOYEE_RANGE.test(r));
+  const titles = list2(f.titles), locations = list2(f.locations), industries = list2(f.industries);
+  const employees = list2(f.employees).filter((r) => EMPLOYEE_RANGE.test(r));
   if (titles.length) body.person_titles = titles;
   if (locations.length) body.person_locations = locations;
   if (industries.length) body.q_organization_keyword_tags = industries;
@@ -4198,31 +4488,31 @@ function apolloBody(f) {
   if (!titles.length && !locations.length && !industries.length && !kw) throw new Error("Add at least a title, a location, an industry or a keyword");
   return body;
 }
-var str3 = (v) => typeof v === "string" ? v : "";
+var str4 = (v) => typeof v === "string" ? v : "";
 function parsePerson(p) {
-  const id = str3(p.id);
+  const id = str4(p.id);
   if (!/^[a-f0-9]{24}$/.test(id)) return null;
   const org = p.organization ?? {};
-  const last = str3(p.last_name) || str3(p.last_name_obfuscated);
-  const name = (str3(p.name) || [str3(p.first_name), last].filter(Boolean).join(" ")).trim();
-  const location = [str3(p.city), str3(p.state), str3(p.country)].filter(Boolean).join(", ");
+  const last = str4(p.last_name) || str4(p.last_name_obfuscated);
+  const name = (str4(p.name) || [str4(p.first_name), last].filter(Boolean).join(" ")).trim();
+  const location = [str4(p.city), str4(p.state), str4(p.country)].filter(Boolean).join(", ");
   return {
     apolloId: id,
     name: name || "Unknown",
-    title: str3(p.title),
-    company: str3(org.name) || str3(p.organization_name),
-    domain: str3(org.primary_domain) || str3(org.website_url).replace(/^https?:\/\//, "").replace(/\/.*$/, ""),
+    title: str4(p.title),
+    company: str4(org.name) || str4(p.organization_name),
+    domain: str4(org.primary_domain) || str4(org.website_url).replace(/^https?:\/\//, "").replace(/\/.*$/, ""),
     location,
-    linkedin: str3(p.linkedin_url)
+    linkedin: str4(p.linkedin_url)
   };
 }
 async function apolloReason(res) {
   try {
-    const text6 = await res.text();
-    let msg = text6;
+    const text7 = await res.text();
+    let msg = text7;
     try {
-      const j = JSON.parse(text6);
-      msg = str3(j.error) || str3(j.message) || text6;
+      const j = JSON.parse(text7);
+      msg = str4(j.error) || str4(j.message) || text7;
     } catch {
     }
     msg = msg.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().slice(0, 200);
@@ -4258,12 +4548,12 @@ async function apolloEnrich(apiKey, apolloId, fetchImpl = fetch) {
   if (!/^[a-f0-9]{24}$/.test(apolloId)) throw new Error("This contact did not come from Apollo");
   const json2 = await call(apiKey, "/people/match", { id: apolloId, reveal_personal_emails: false, reveal_phone_number: false }, fetchImpl);
   const p = json2.person ?? {};
-  const email = str3(p.email);
-  return { email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && !/email_not_unlocked/.test(email) ? email : "", status: str3(p.email_status) || (email ? "unknown" : "unavailable") };
+  const email = str4(p.email);
+  return { email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && !/email_not_unlocked/.test(email) ? email : "", status: str4(p.email_status) || (email ? "unknown" : "unavailable") };
 }
 
 // server/routes/crm.ts
-var apolloFor = (label4) => isAdmin(label4, process.env.ADMIN_EMAILS) && process.env.APOLLO_API_KEY?.trim() || "";
+var apolloFor = (label5) => isAdmin(label5, process.env.ADMIN_EMAILS) && process.env.APOLLO_API_KEY?.trim() || "";
 async function crmView(store2, orgId) {
   const [crm, pending] = await Promise.all([loadCrm(store2, orgId), store2.listApprovals(orgId, "pending").catch(() => [])]);
   if (pending.length && !crm.flowOrg.skipped.approvals) {
@@ -4274,83 +4564,93 @@ async function crmView(store2, orgId) {
   return crm;
 }
 var GET6 = handle(async (request) => {
-  const { orgId, label: label4, store: store2 } = await requireUser(request);
-  return json({ crm: await crmView(store2, orgId), apollo: Boolean(apolloFor(label4)), admin: isAdmin(label4, process.env.ADMIN_EMAILS) });
+  const { orgId, label: label5, store: store2 } = await requireUser(request);
+  return json({ crm: await crmView(store2, orgId), apollo: Boolean(apolloFor(label5)), admin: isAdmin(label5, process.env.ADMIN_EMAILS) });
 });
 var POST5 = handle(async (request) => {
-  const { orgId, label: label4, store: store2 } = await requireUser(request);
+  const { orgId, label: label5, store: store2 } = await requireUser(request);
   const b = await readJson(request, 2e5);
   const id = String(b.contactId ?? "");
   try {
     switch (b.action) {
       case "contact":
-        return json({ crm: await upsertContact(store2, orgId, b.contact ?? {}, label4) });
+        return json({ crm: await upsertContact(store2, orgId, b.contact ?? {}, label5) });
       case "stage":
-        return json({ crm: await setDealStage(store2, orgId, id, b.stage, label4) });
+        return json({ crm: await setDealStage(store2, orgId, id, b.stage, label5) });
       case "touch":
-        return json({ crm: await logTouch(store2, orgId, id, String(b.note ?? ""), label4) });
+        return json({ crm: await logTouch(store2, orgId, id, String(b.note ?? ""), label5) });
       case "note":
-        return json({ crm: await addNote(store2, orgId, id, String(b.kind ?? "note"), String(b.note ?? ""), label4) });
+        return json({ crm: await addNote(store2, orgId, id, String(b.kind ?? "note"), String(b.note ?? ""), label5) });
       case "qualify":
-        return json({ crm: await qualifyDeal(store2, orgId, id, b.meddic, String(b.callNotes ?? ""), label4) });
+        return json({ crm: await qualifyDeal(store2, orgId, id, b.meddic, String(b.callNotes ?? ""), label5) });
       case "remove":
-        return json({ crm: await removeContact(store2, orgId, id, label4) });
+        return json({ crm: await removeContact(store2, orgId, id, label5) });
       case "apollo_search": {
-        const key = apolloFor(label4);
+        const key = apolloFor(label5);
         if (!key) throw new HttpError(403, "Apollo is available to SIXXAB admins once APOLLO_API_KEY is set");
         return json(await apolloSearch(key, b.filters ?? {}));
       }
       case "apollo_import": {
-        if (!apolloFor(label4)) throw new HttpError(403, "Apollo is available to SIXXAB admins once APOLLO_API_KEY is set");
-        return json({ ...await importApolloPeople(store2, orgId, b.people ?? [], label4), crm: await loadCrm(store2, orgId) });
+        if (!apolloFor(label5)) throw new HttpError(403, "Apollo is available to SIXXAB admins once APOLLO_API_KEY is set");
+        return json({ ...await importApolloPeople(store2, orgId, b.people ?? [], label5), crm: await loadCrm(store2, orgId) });
       }
       case "apollo_enrich": {
-        const key = apolloFor(label4);
+        const key = apolloFor(label5);
         if (!key) throw new HttpError(403, "Apollo is available to SIXXAB admins once APOLLO_API_KEY is set");
         const c = (await loadCrm(store2, orgId)).contacts.find((x) => x.id === id);
         if (!c) throw new HttpError(404, "Contact not found");
         const r = await apolloEnrich(key, c.apolloId ?? "");
-        await store2.audit({ id: newId(), orgId, at: nowIso(), actor: label4, action: "apollo.enriched", taskId: null, detail: { contactId: id, found: Boolean(r.email), status: r.status, summary: `Apollo email ${r.email ? "found" : "not found"} for ${c.name} (1 credit)` } });
+        await store2.audit({ id: newId(), orgId, at: nowIso(), actor: label5, action: "apollo.enriched", taskId: null, detail: { contactId: id, found: Boolean(r.email), status: r.status, summary: `Apollo email ${r.email ? "found" : "not found"} for ${c.name} (1 credit)` } });
         if (!r.email) return json({ crm: await loadCrm(store2, orgId), found: false, status: r.status });
-        return json({ crm: await setContactEmail(store2, orgId, id, r.email, label4), found: true, status: r.status });
+        return json({ crm: await setContactEmail(store2, orgId, id, r.email, label5), found: true, status: r.status });
       }
       case "import":
-        return json({ ...await importContacts(store2, orgId, String(b.csv ?? ""), label4), crm: await loadCrm(store2, orgId) });
+        return json({ ...await importContacts(store2, orgId, String(b.csv ?? ""), label5), crm: await loadCrm(store2, orgId) });
       // Lead generation: the owner's side of the agents' work. Nothing here contacts anyone.
       case "icp_notes":
-        await saveIcpNotes(store2, orgId, String(b.notes ?? ""), label4);
+        await saveIcpNotes(store2, orgId, String(b.notes ?? ""), label5);
         return json({ crm: await loadCrm(store2, orgId) });
       case "icp_save":
-        await saveIcp(store2, orgId, b.icp ?? {}, label4);
+        await saveIcp(store2, orgId, b.icp ?? {}, label5);
         return json({ crm: await loadCrm(store2, orgId) });
       case "icp_remove":
-        await removeIcp(store2, orgId, String(b.icpId ?? ""), label4);
+        await removeIcp(store2, orgId, String(b.icpId ?? ""), label5);
         return json({ crm: await loadCrm(store2, orgId) });
       case "prospects_decide":
-        return json({ ...await decideProspects(store2, orgId, String(b.batchId ?? ""), b.add ?? [], b.dismiss ?? [], label4), crm: await loadCrm(store2, orgId) });
+        return json({ ...await decideProspects(store2, orgId, String(b.batchId ?? ""), b.add ?? [], b.dismiss ?? [], label5), crm: await loadCrm(store2, orgId) });
       case "sequence_sent":
-        await markStepSent(store2, orgId, id, Number(b.index), label4);
+        await markStepSent(store2, orgId, id, Number(b.index), label5);
         return json({ crm: await loadCrm(store2, orgId) });
       case "sync_dismiss":
-        await dismissSync(store2, orgId, id, label4);
+        await dismissSync(store2, orgId, id, label5);
         return json({ crm: await loadCrm(store2, orgId) });
       case "sync_apply": {
         const c = (await loadCrm(store2, orgId)).contacts.find((x) => x.id === id);
         if (!c?.syncSuggestion) throw new HttpError(404, "That suggestion is no longer there");
-        return json({ crm: await setDealStage(store2, orgId, id, c.syncSuggestion.stage, label4) });
+        return json({ crm: await setDealStage(store2, orgId, id, c.syncSuggestion.stage, label5) });
       }
       // Sales flow: the owner's side of the next-action queue. Nothing here contacts anyone.
       case "customer_sent":
-        await markCustomerSent(store2, orgId, id, String(b.kind ?? ""), label4);
+        await markCustomerSent(store2, orgId, id, String(b.kind ?? ""), label5);
         return json({ crm: await crmView(store2, orgId) });
       case "onboarding_step":
-        await markOnboardingStep(store2, orgId, id, Number(b.index), label4);
+        await markOnboardingStep(store2, orgId, id, Number(b.index), label5);
         return json({ crm: await crmView(store2, orgId) });
       case "action_skip":
-        await skipAction(store2, orgId, String(b.key ?? ""), label4);
+        await skipAction(store2, orgId, String(b.key ?? ""), label5);
         return json({ crm: await crmView(store2, orgId) });
       case "autopilot":
-        await setAutopilot(store2, orgId, Boolean(b.on), label4);
+        await setAutopilot(store2, orgId, Boolean(b.on), label5);
+        return json({ crm: await crmView(store2, orgId) });
+      // Research and proposals: the owner adds a checked detail, edits the proposal, or marks it sent.
+      case "research_use":
+        await useResearchField(store2, orgId, id, Number(b.index), label5);
+        return json({ crm: await crmView(store2, orgId) });
+      case "proposal_edit":
+        await editProposal(store2, orgId, id, b.edit ?? {}, label5);
+        return json({ crm: await crmView(store2, orgId) });
+      case "proposal_sent":
+        await markProposalSent(store2, orgId, id, label5);
         return json({ crm: await crmView(store2, orgId) });
       default:
         throw new HttpError(400, "Unknown action");
@@ -4374,13 +4674,13 @@ var PRIORITIES = ["low", "normal", "high", "urgent"];
 var CHANNELS2 = ["email", "whatsapp", "phone", "website", "walk-in"];
 var SUPPORT_EVENTS = ["support.ticket", "support.status", "support.note"];
 var SLA_ORDER = ["urgent", "high", "normal", "low"];
-var text4 = (v, max) => String(v ?? "").trim().slice(0, max);
-var oneOf2 = (list2, v, fallback) => list2.includes(String(v)) ? String(v) : fallback;
-var record5 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
+var text5 = (v, max) => String(v ?? "").trim().slice(0, max);
+var oneOf2 = (list3, v, fallback) => list3.includes(String(v)) ? String(v) : fallback;
+var record6 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
 async function openTicket(store2, orgId, input, by) {
-  const subject = text4(input.subject, 160);
-  const customer = text4(input.customer, 120);
-  const message = text4(input.message, 4e3);
+  const subject = text5(input.subject, 160);
+  const customer = text5(input.customer, 120);
+  const message = text5(input.message, 4e3);
   if (!subject || !customer || !message) throw new Error("A ticket needs a subject, a customer and their message");
   const number = (await loadSupport(store2, orgId)).tickets.reduce((m, t) => Math.max(m, t.number), 1e3) + 1;
   const ticket = {
@@ -4388,27 +4688,27 @@ async function openTicket(store2, orgId, input, by) {
     number,
     subject,
     customer,
-    contact: text4(input.contact, 200),
+    contact: text5(input.contact, 200),
     channel: oneOf2(CHANNELS2, input.channel, "email"),
     priority: oneOf2(PRIORITIES, input.priority, "normal"),
     message
   };
-  await record5(store2, orgId, by, "support.ticket", { ticket, summary: `Ticket #${number} opened: ${subject}` });
+  await record6(store2, orgId, by, "support.ticket", { ticket, summary: `Ticket #${number} opened: ${subject}` });
   return loadSupport(store2, orgId);
 }
 async function setTicketStatus(store2, orgId, id, status, by) {
   if (!TICKET_STATUSES.includes(status)) throw new Error(`status must be one of: ${TICKET_STATUSES.join(", ")}`);
   const t = (await loadSupport(store2, orgId)).tickets.find((x) => x.id === id);
   if (!t) throw new Error("Ticket not found");
-  await record5(store2, orgId, by, "support.status", { ticketId: id, status, summary: `Ticket #${t.number} ${status}` });
+  await record6(store2, orgId, by, "support.status", { ticketId: id, status, summary: `Ticket #${t.number} ${status}` });
   return loadSupport(store2, orgId);
 }
 async function addTicketNote(store2, orgId, id, note, by) {
   const t = (await loadSupport(store2, orgId)).tickets.find((x) => x.id === id);
   if (!t) throw new Error("Ticket not found");
-  const body = text4(note, 4e3);
+  const body = text5(note, 4e3);
   if (!body) throw new Error("Write a note first");
-  await record5(store2, orgId, by, "support.note", { ticketId: id, text: body, summary: `Note on ticket #${t.number}` });
+  await record6(store2, orgId, by, "support.note", { ticketId: id, text: body, summary: `Note on ticket #${t.number}` });
   return loadSupport(store2, orgId);
 }
 async function loadSupport(store2, orgId) {
@@ -4462,17 +4762,17 @@ var GET7 = handle(async (request) => {
   return json({ support: await loadSupport(store2, orgId) });
 });
 var POST6 = handle(async (request) => {
-  const { orgId, label: label4, store: store2 } = await requireUser(request);
+  const { orgId, label: label5, store: store2 } = await requireUser(request);
   const b = await readJson(request, 5e4);
   const id = String(b.ticketId ?? "");
   try {
     switch (b.action) {
       case "open":
-        return json({ support: await openTicket(store2, orgId, b.ticket ?? {}, label4) });
+        return json({ support: await openTicket(store2, orgId, b.ticket ?? {}, label5) });
       case "status":
-        return json({ support: await setTicketStatus(store2, orgId, id, b.status, label4) });
+        return json({ support: await setTicketStatus(store2, orgId, id, b.status, label5) });
       case "note":
-        return json({ support: await addTicketNote(store2, orgId, id, String(b.note ?? ""), label4) });
+        return json({ support: await addTicketNote(store2, orgId, id, String(b.note ?? ""), label5) });
       default:
         throw new HttpError(400, "Unknown action");
     }
@@ -4496,18 +4796,18 @@ var ACCOUNT_EVENTS = ["acct.entry", "acct.removed"];
 var DATE_RE2 = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 var MAX_AMOUNT = 1e11;
 var round2 = (n) => Math.round(n * 100) / 100;
-var text5 = (v, max) => String(v ?? "").trim().slice(0, max);
-var record6 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
+var text6 = (v, max) => String(v ?? "").trim().slice(0, max);
+var record7 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
 async function addEntry(store2, orgId, input, by, currency = "USD") {
   if (input.kind !== "income" && input.kind !== "expense") throw new Error("kind must be income or expense");
-  const date = text5(input.date, 10);
+  const date = text6(input.date, 10);
   if (!DATE_RE2.test(date)) throw new Error("date must look like 2026-11-04");
   const amount = Number(String(input.amount).replace(/[,$₹\s]/g, ""));
   if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_AMOUNT) throw new Error("amount must be more than zero");
   const cats = input.kind === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
   const category = cats.includes(input.category) ? input.category : input.kind === "income" ? "other income" : "other";
-  const entry = { id: newId(), kind: input.kind, date, amount: round2(amount), category, party: text5(input.party, 120), note: text5(input.note, 300) };
-  await record6(store2, orgId, by, "acct.entry", { entry, summary: `${input.kind === "income" ? "Income" : "Expense"} recorded: ${entry.amount} ${currency} (${category})` });
+  const entry = { id: newId(), kind: input.kind, date, amount: round2(amount), category, party: text6(input.party, 120), note: text6(input.note, 300) };
+  await record7(store2, orgId, by, "acct.entry", { entry, summary: `${input.kind === "income" ? "Income" : "Expense"} recorded: ${entry.amount} ${currency} (${category})` });
   return loadAccounts(store2, orgId, currency);
 }
 var RULES = [
@@ -4551,13 +4851,13 @@ async function importStatement(store2, orgId, csv, by, currency = "USD") {
     const category = categorize(description, kind);
     if (category === "other" || category === "other income") uncategorized++;
     const entry = { id: newId(), kind, date, amount, category, party: "", note: description };
-    await record6(store2, orgId, by, "acct.entry", { entry, source: "statement", summary: `Imported ${kind}: ${amount} ${currency} (${category})` });
+    await record7(store2, orgId, by, "acct.entry", { entry, source: "statement", summary: `Imported ${kind}: ${amount} ${currency} (${category})` });
     added++;
   }
   return { added, skipped, uncategorized };
 }
 async function removeEntry(store2, orgId, id, by, currency = "USD") {
-  await record6(store2, orgId, by, "acct.removed", { entryId: id, summary: "Ledger entry removed" });
+  await record7(store2, orgId, by, "acct.removed", { entryId: id, summary: "Ledger entry removed" });
   return loadAccounts(store2, orgId, currency);
 }
 async function loadAccounts(store2, orgId, currency = "USD", today = /* @__PURE__ */ new Date()) {
@@ -4609,17 +4909,17 @@ var GET8 = handle(async (request) => {
   return json({ accounts: await loadAccounts(store2, orgId, currency) });
 });
 var POST7 = handle(async (request) => {
-  const { orgId, label: label4, store: store2 } = await requireUser(request);
+  const { orgId, label: label5, store: store2 } = await requireUser(request);
   const b = await readJson(request, 3e5);
   const currency = (await loadBusinessProfile(store2, orgId))?.currency ?? "USD";
   try {
     switch (b.action) {
       case "entry":
-        return json({ accounts: await addEntry(store2, orgId, b.entry ?? {}, label4, currency) });
+        return json({ accounts: await addEntry(store2, orgId, b.entry ?? {}, label5, currency) });
       case "import":
-        return json({ ...await importStatement(store2, orgId, String(b.csv ?? ""), label4, currency), accounts: await loadAccounts(store2, orgId, currency) });
+        return json({ ...await importStatement(store2, orgId, String(b.csv ?? ""), label5, currency), accounts: await loadAccounts(store2, orgId, currency) });
       case "remove":
-        return json({ accounts: await removeEntry(store2, orgId, String(b.entryId ?? ""), label4, currency) });
+        return json({ accounts: await removeEntry(store2, orgId, String(b.entryId ?? ""), label5, currency) });
       default:
         throw new HttpError(400, "Unknown action");
     }
@@ -4633,8 +4933,8 @@ var POST7 = handle(async (request) => {
 var ROUTES = { admin: admin_exports, billing: billing_exports, governance: governance_exports, me: me_exports, raise: raise_exports, crm: crm_exports, support: support_exports, accounts: accounts_exports };
 function dispatch(method) {
   return async (request) => {
-    const url = new URL(request.url);
-    const name = url.searchParams.get("route") ?? url.pathname.replace(/\/$/, "").split("/").pop() ?? "";
+    const url2 = new URL(request.url);
+    const name = url2.searchParams.get("route") ?? url2.pathname.replace(/\/$/, "").split("/").pop() ?? "";
     const route = Object.prototype.hasOwnProperty.call(ROUTES, name) ? ROUTES[name] : void 0;
     if (!route) return json({ error: "not found" }, 404);
     const handler = route[method];

@@ -4,6 +4,7 @@ import type { Memory, RoleCard, Task, ToolSpec } from './types.js';
 import { newId, nowIso, type Store } from './store.js';
 import { LEADGEN_TOOLS } from './leadgen-tools.js';
 import { SALESFLOW_TOOLS } from './salesflow-tools.js';
+import { RESEARCH_TOOLS } from './research-tools.js';
 
 /** Formats minor units (cents, paise) as money for people: 5000 USD → $50.00. */
 export function formatMoney(amountMinor: number, currency: string): string {
@@ -209,6 +210,7 @@ export const TOOLS: Record<string, Tool> = {
   // Lead generation: read the CRM and save drafts, scores and suggestions onto it (nothing is sent).
   ...LEADGEN_TOOLS,
   ...SALESFLOW_TOOLS,
+  ...RESEARCH_TOOLS,
 };
 
 /** Claude's own web search, for agents whose role card lists "web_search" ($10 per 1,000 searches). */

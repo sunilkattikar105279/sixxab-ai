@@ -40,11 +40,11 @@ var camel = (s) => s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
 var toRow = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== void 0).map(([k, v]) => [snake(k), v]));
 var fromRow = (r) => Object.fromEntries(Object.entries(r).filter(([k]) => k !== "tsv").map(([k, v]) => [camel(k), v]));
 var SupabaseStore = class {
-  constructor(url, serviceKey, fetchImpl = fetch) {
-    this.url = url;
+  constructor(url2, serviceKey, fetchImpl = fetch) {
+    this.url = url2;
     this.serviceKey = serviceKey;
     this.fetchImpl = fetchImpl;
-    if (!url || !serviceKey) throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required");
+    if (!url2 || !serviceKey) throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required");
   }
   url;
   serviceKey;
@@ -62,8 +62,8 @@ var SupabaseStore = class {
       }
     });
     if (!res.ok) throw new Error(`Supabase ${res.status} on ${path.split("?")[0]}: ${(await res.text()).slice(0, 300)}`);
-    const text3 = await res.text();
-    return text3 ? JSON.parse(text3) : [];
+    const text4 = await res.text();
+    return text4 ? JSON.parse(text4) : [];
   }
   one(rows, what) {
     if (!rows[0]) throw new Error(`${what} not found`);
@@ -121,11 +121,11 @@ var SupabaseStore = class {
     return (await this.req(`audit_log?org_id=eq.${orgId}${since}&order=at.desc&limit=500`)).map((r) => fromRow(r));
   }
   async listAuditByActions(orgId, actions) {
-    const list = actions.map((a) => `"${a.replace(/[^a-z_.]/gi, "")}"`).join(",");
+    const list2 = actions.map((a) => `"${a.replace(/[^a-z_.]/gi, "")}"`).join(",");
     const PAGE = 1e3;
     const rows = [];
     for (let offset = 0; offset < 20 * PAGE; offset += PAGE) {
-      const page = await this.req(`audit_log?org_id=eq.${orgId}&action=in.(${encodeURIComponent(list)})&order=at.asc,id.asc&limit=${PAGE}&offset=${offset}`);
+      const page = await this.req(`audit_log?org_id=eq.${orgId}&action=in.(${encodeURIComponent(list2)})&order=at.asc,id.asc&limit=${PAGE}&offset=${offset}`);
       rows.push(...page);
       if (page.length < PAGE) break;
     }
@@ -168,8 +168,8 @@ var SupabaseStore = class {
    * Creates a workspace for a user who has none (for example, an account made before the database
    * trigger existed). Mirrors handle_new_user() in the migration: org, owner membership, default autonomy.
    */
-  async provisionWorkspace(userId, label4) {
-    const org = this.one(await this.req("orgs", { method: "POST", body: JSON.stringify({ name: label4.slice(0, 200) || "My company" }) }), "Org");
+  async provisionWorkspace(userId, label5) {
+    const org = this.one(await this.req("orgs", { method: "POST", body: JSON.stringify({ name: label5.slice(0, 200) || "My company" }) }), "Org");
     await this.req("org_members", { method: "POST", body: JSON.stringify({ org_id: org.id, user_id: userId, role: "owner" }), headers: { prefer: "return=minimal" } });
     const types = DEFAULT_TASK_TYPES.map((t) => taskTypeRow(org.id, t));
     await this.req("task_types", { method: "POST", body: JSON.stringify(types), headers: { prefer: "return=minimal" } });
@@ -195,9 +195,9 @@ var SupabaseStore = class {
     return (await this.req("orgs?select=id")).map((r) => String(r.id));
   }
 };
-async function verifyUser(url, anonKey, accessToken, fetchImpl = fetch) {
+async function verifyUser(url2, anonKey, accessToken, fetchImpl = fetch) {
   if (!accessToken) return null;
-  const res = await fetchImpl(`${url}/auth/v1/user`, { headers: { apikey: anonKey, authorization: `Bearer ${accessToken}` } });
+  const res = await fetchImpl(`${url2}/auth/v1/user`, { headers: { apikey: anonKey, authorization: `Bearer ${accessToken}` } });
   if (!res.ok) return null;
   const u = await res.json();
   return u.id ? { id: u.id, email: u.email, phone: u.phone } : null;
@@ -372,15 +372,172 @@ function crmIssues(deals, now = Date.now()) {
   return out;
 }
 
+// core/research-state.ts
+var RESEARCH_DEAL_EVENTS = ["crm.research", "crm.research_used", "crm.proposal", "crm.proposal_edit", "crm.proposal_sent"];
+var text2 = (v, max) => String(v ?? "").trim().slice(0, max);
+var list = (v, max) => (Array.isArray(v) ? v : []).filter((x) => x && typeof x === "object").slice(0, max);
+function pageUrl(v) {
+  const s = text2(v, 500);
+  try {
+    const u = new URL(s);
+    return (u.protocol === "https:" || u.protocol === "http:") && !u.username && !u.password ? u.toString() : "";
+  } catch {
+    return "";
+  }
+}
+var FOUND_FIELDS = ["email", "phone", "address", "website", "owner", "title", "linkedin", "other"];
+var APPLY_FIELD = {
+  email: "email",
+  phone: "phone",
+  address: "address",
+  website: "website",
+  owner: "name",
+  title: "title"
+};
+var FIELD_LABEL = { email: "Email", phone: "Phone", address: "Address", website: "Website", owner: "Owner", title: "Owner title", linkedin: "LinkedIn", other: "Other" };
+var EMAIL = /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i;
+function cleanResearch(input) {
+  const summary = text2(input.summary, 2e3);
+  if (summary.length < 30) throw new Error("The research needs a summary of the business (a few sentences)");
+  const pains = list(input.pains ?? input.painPoints, 8).map((p) => ({ point: text2(p.point ?? p.title, 200), evidence: text2(p.evidence, 500), source: pageUrl(p.source) })).filter((p) => p.point);
+  const found = list(input.found ?? input.missing, 12).map((f) => {
+    const raw = text2(f.field, 20).toLowerCase();
+    const field2 = FOUND_FIELDS.find((k) => k === raw) ?? (raw === "name" ? "owner" : "other");
+    return { field: field2, value: text2(f.value, 200), source: pageUrl(f.source), note: text2(f.note, 200), usedAt: null };
+  }).filter((f) => f.value && f.source && (f.field !== "email" || EMAIL.test(f.value)));
+  const opportunities = list(input.opportunities, 6).map((o) => ({ title: text2(o.title, 120), how: text2(o.how ?? o.what, 500), impact: text2(o.impact ?? o.benefit, 300) })).filter((o) => o.title);
+  if (!pains.length && !opportunities.length) throw new Error("The research needs at least one pain point or opportunity");
+  const sources = list(input.sources, 15).map((s) => ({ title: text2(s.title, 120), url: pageUrl(s.url) })).filter((s) => s.url);
+  return { summary, owner: text2(input.owner, 1e3), presence: text2(input.presence, 1e3), pains, found, opportunities, unknowns: text2(input.unknowns, 1e3), sources };
+}
+var CURRENCIES = ["USD", "INR", "EUR", "GBP", "CAD", "AUD"];
+var SYMBOL = { USD: "$", INR: "\u20B9", EUR: "\u20AC", GBP: "\xA3", CAD: "C$", AUD: "A$" };
+var money = (v) => {
+  const n = Number(String(v ?? "").replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(n) ? Math.max(0, Math.min(1e9, Math.round(n * 100) / 100)) : 0;
+};
+var cleanBenefits = (v) => list(v, 8).map((b) => ({ label: text2(b.label, 120), monthly: money(b.monthly), basis: text2(b.basis, 300) })).filter((b) => b.label);
+var cleanCosts = (v) => list(v, 6).map((c) => ({ label: text2(c.label, 120), monthly: money(c.monthly), oneTime: money(c.oneTime), basis: text2(c.basis, 300) })).filter((c) => c.label);
+function computeRoi(benefits, costs) {
+  const sum = (xs) => Math.round(xs.reduce((a, b) => a + b, 0) * 100) / 100;
+  const monthlyBenefit = sum(benefits.map((b) => b.monthly));
+  const monthlyCost = sum(costs.map((c) => c.monthly));
+  const oneTime = sum(costs.map((c) => c.oneTime));
+  const netMonthly = Math.round((monthlyBenefit - monthlyCost) * 100) / 100;
+  const yearCost = monthlyCost * 12 + oneTime;
+  const firstYearNet = Math.round((monthlyBenefit * 12 - yearCost) * 100) / 100;
+  const roiPct = yearCost > 0 ? Math.round(firstYearNet / yearCost * 100) : null;
+  const paybackMonths = netMonthly > 0 ? Math.round(oneTime / netMonthly * 10) / 10 : null;
+  return { monthlyBenefit, monthlyCost, oneTime, netMonthly, firstYearNet, roiPct, paybackMonths };
+}
+function fmtMoney(n, cur) {
+  const s = SYMBOL[cur] ?? "";
+  return `${n < 0 ? "-" : ""}${s}${Math.abs(n).toLocaleString(cur === "INR" ? "en-IN" : "en-US", { maximumFractionDigits: 0 })}`;
+}
+function cleanProposal(input) {
+  const body = text2(input.text, 12e3);
+  if (body.length < 80) throw new Error("The proposal needs its full text (a page or so)");
+  const benefits = cleanBenefits(input.benefits);
+  const costs = cleanCosts(input.costs);
+  if (!benefits.length) throw new Error("The proposal needs at least one benefit line with its basis, for the ROI");
+  const cur = text2(input.currency, 3).toUpperCase();
+  const currency = CURRENCIES.find((c) => c === cur) ?? "USD";
+  const title = text2(input.title, 160) || "Proposal";
+  return {
+    title,
+    subject: text2(input.subject, 160) || title,
+    summary: text2(input.summary, 800),
+    opportunities: list(input.opportunities, 6).map((o) => ({ title: text2(o.title, 120), what: text2(o.what ?? o.how, 500), benefit: text2(o.benefit ?? o.impact, 300) })).filter((o) => o.title),
+    benefits,
+    costs,
+    currency,
+    roi: computeRoi(benefits, costs),
+    plan: text2(input.plan, 2e3),
+    nextStep: text2(input.nextStep, 300),
+    text: body
+  };
+}
+function roiSection(p) {
+  const m = (n) => fmtMoney(n, p.currency);
+  const lines = [
+    "Return on investment (estimates; the basis for each number is shown)",
+    ...p.benefits.map((b) => `- ${b.label}: ${m(b.monthly)} a month${b.basis ? ` (${b.basis})` : ""}`),
+    ...p.costs.map((c) => `- ${c.label}: ${[c.monthly ? `${m(c.monthly)} a month` : "", c.oneTime ? `${m(c.oneTime)} one-time` : ""].filter(Boolean).join(" + ") || m(0)}${c.basis ? ` (${c.basis})` : ""}`),
+    `Net gain: ${m(p.roi.netMonthly)} a month; ${m(p.roi.firstYearNet)} in the first year.`
+  ];
+  if (p.roi.roiPct !== null) lines.push(`First-year return: ${p.roi.roiPct}% on ${m(p.roi.monthlyCost * 12 + p.roi.oneTime)}.`);
+  if (p.roi.paybackMonths !== null && p.roi.oneTime > 0) lines.push(`Setup pays back in about ${p.roi.paybackMonths} month${p.roi.paybackMonths === 1 ? "" : "s"}.`);
+  return lines.join("\n");
+}
+function proposalMessage(p) {
+  return `${p.text}
+
+${roiSection(p)}`;
+}
+var EMPTY_DEAL_RESEARCH = { researchReport: null, proposal: null };
+function applyResearchEvent(dr, e) {
+  const d = e.detail;
+  if (e.action === "crm.research") {
+    const r = { ...d.research, at: e.at, by: e.actor };
+    return { dr: { ...dr, researchReport: r }, history: { kind: "research", text: `Business research: ${r.pains.length} pain point${r.pains.length === 1 ? "" : "s"}, ${r.found.length} detail${r.found.length === 1 ? "" : "s"} found, ${r.opportunities.length} opportunit${r.opportunities.length === 1 ? "y" : "ies"}` } };
+  }
+  if (e.action === "crm.research_used") {
+    const r = dr.researchReport;
+    const i = Number(d.index);
+    if (!r || r.id !== d.researchId || !r.found[i]) return { dr };
+    const found = r.found.map((f, j) => j === i ? { ...f, usedAt: e.at } : f);
+    return { dr: { ...dr, researchReport: { ...r, found } }, history: { kind: "update", text: `Added ${FIELD_LABEL[r.found[i].field].toLowerCase()} from research (${hostOf(r.found[i].source)})` } };
+  }
+  if (e.action === "crm.proposal") {
+    const p = { ...d.proposal, at: e.at, by: e.actor, editedAt: null, editedBy: null, sentAt: null };
+    return { dr: { ...dr, proposal: p }, history: { kind: "proposal", text: `Proposal drafted: ${p.title}${p.roi.roiPct !== null ? ` (first-year return ${p.roi.roiPct}%)` : ""}` } };
+  }
+  if (e.action === "crm.proposal_edit") {
+    const p = dr.proposal;
+    if (!p || p.id !== d.proposalId) return { dr };
+    const edit = d.edit;
+    return { dr: { ...dr, proposal: { ...p, ...edit, editedAt: e.at, editedBy: e.actor } }, history: { kind: "proposal", text: "Proposal edited" } };
+  }
+  if (e.action === "crm.proposal_sent") {
+    const p = dr.proposal;
+    if (!p || p.id !== d.proposalId || p.sentAt) return { dr };
+    return { dr: { ...dr, proposal: { ...p, sentAt: e.at } }, history: { kind: "email", text: `Sent proposal: ${p.subject}` }, touch: true };
+  }
+  return { dr };
+}
+function hostOf(url2) {
+  try {
+    return new URL(url2).hostname.replace(/^www\./, "");
+  } catch {
+    return url2.slice(0, 40);
+  }
+}
+function researchLines(dr) {
+  const out = [];
+  const r = dr.researchReport;
+  if (r) {
+    out.push(`Business research (${r.at.slice(0, 10)}, by ${r.by}): ${r.summary}`);
+    if (r.owner) out.push(`Owner: ${r.owner}`);
+    if (r.presence) out.push(`Online presence: ${r.presence}`);
+    for (const p2 of r.pains) out.push(`Pain: ${p2.point}${p2.evidence ? `. Evidence: ${p2.evidence}` : ""}${p2.source ? ` (${p2.source})` : ""}`);
+    for (const f of r.found) out.push(`Found ${FIELD_LABEL[f.field].toLowerCase()}: ${f.value} (${f.source})${f.usedAt ? ", added to the deal" : ", not yet confirmed by the owner"}`);
+    for (const o of r.opportunities) out.push(`Opportunity: ${o.title}. ${o.how}${o.impact ? ` Impact: ${o.impact}` : ""}`);
+    if (r.unknowns) out.push(`Research could not confirm: ${r.unknowns}`);
+  }
+  const p = dr.proposal;
+  if (p) out.push(`Proposal "${p.title}" (${p.at.slice(0, 10)}${p.sentAt ? `, sent ${p.sentAt.slice(0, 10)}` : ", not sent yet"}): net ${fmtMoney(p.roi.netMonthly, p.currency)} a month${p.roi.roiPct !== null ? `, first-year return ${p.roi.roiPct}%` : ""}.`);
+  return out;
+}
+
 // core/salesflow-state.ts
 var FLOW_ORG_EVENTS = ["crm.action_skip", "crm.autopilot"];
 var FLOW_DEAL_EVENTS = ["crm.onboarding", "crm.onboarding_step", "crm.account", "crm.customer_sent"];
 var FLOW_STAGES = [
   { key: "find", name: "Find", does: "Set who you sell to, then find businesses that fit.", agents: ["ICP Builder", "Prospect Generator"], gate: "You tick which prospects join the CRM." },
-  { key: "qualify", name: "Qualify", does: "Score each new lead on fit, size, ease of win and reach.", agents: ["Lead Scorer", "Speed-to-Lead"], gate: "First replies wait in Approvals." },
+  { key: "qualify", name: "Qualify", does: "Research each new lead from public sources, then score it on fit, size, ease of win and reach.", agents: ["Business Research", "Lead Scorer", "Speed-to-Lead"], gate: "You check each found detail before it goes on the deal; first replies wait in Approvals." },
   { key: "outreach", name: "Outreach", does: "Personal email, LinkedIn and call steps in your voice.", agents: ["Outreach Sequencer", "Follow-up Writer"], gate: "You send each step and mark it sent." },
   { key: "discovery", name: "Discovery", does: "Prep the call, capture MEDDIC, debrief the notes.", agents: ["Call Prepper", "Deal Qualifier"], gate: "You approve the move to Proposal." },
-  { key: "proposal", name: "Proposal and close", does: "Proposal, objection answers and the follow-up to a yes.", agents: ["Proposal Writer", "Objection Handler", "Win-Loss Analyst"], gate: "You send the proposal and mark it won or lost." },
+  { key: "proposal", name: "Proposal and close", does: "Proposal with opportunities, benefits and ROI, objection answers and the follow-up to a yes.", agents: ["Proposal Writer", "Objection Handler", "Win-Loss Analyst"], gate: "You edit and send the proposal, and mark it won or lost." },
   { key: "onboard", name: "Onboard", does: "Welcome email, kickoff agenda and a first-30-days plan.", agents: ["Onboarding Manager"], gate: "You send the welcome and tick steps done." },
   { key: "retain", name: "Retain", does: "Monthly health check, check-in message and renewal plan.", agents: ["Customer Success Manager"], gate: "You send each check-in." },
   { key: "expand", name: "Expand", does: "Upsell ideas and a referral ask for healthy customers.", agents: ["Customer Success Manager"], gate: "You choose what to offer and send it." }
@@ -500,6 +657,10 @@ function nextActions(q, now = Date.now()) {
       continue;
     }
     const base = { contactId: c.id, company: label(c), stage };
+    if (c.stage !== "won" && !c.researchReport) add({ ...base, key: `${c.id}:research`, rule: "research", kind: "agent", agentId: "business-research", title: `Research ${label(c)}`, why: "A sourced report on the owner and the business: pain points, missing contact details and where AI agents would help. Uses a few web searches.", priority: c.stage === "lead" ? 38 + Math.min(19, c.rank ?? 19) / 100 : 27 });
+    const prop = c.proposal;
+    if (prop && !prop.sentAt && c.stage !== "won") add({ ...base, key: `${c.id}:psend:${prop.id}`, rule: "proposal_send", kind: "send", draft: { channel: "email", subject: prop.subject, text: proposalMessage(prop), to: c.email }, title: `Send the proposal to ${label(c)}`, why: `Net ${fmtMoney(prop.roi.netMonthly, prop.currency)} a month for them${prop.roi.roiPct !== null ? `, first-year return ${prop.roi.roiPct}%` : ""}. Check the ROI assumptions on the customer page first.`, priority: 12 });
+    if (prop?.sentAt && ["lead", "contacted", "qualified"].includes(c.stage)) add({ ...base, key: `${c.id}:pstage:${prop.id}`, rule: "proposal_stage", kind: "approve", suggestStage: "proposal", title: `Move ${label(c)} to Proposal?`, why: "You sent them the proposal.", priority: 14 });
     if (c.syncSuggestion) add({ ...base, key: `${c.id}:sync`, rule: "sync", kind: "approve", suggestStage: c.syncSuggestion.stage, title: `Move ${label(c)} to ${c.syncSuggestion.stage}?`, why: c.syncSuggestion.reason, priority: 15 });
     if (c.stage === "lead" || c.stage === "contacted") {
       if (!c.leadScore && c.stage === "lead") add({ ...base, key: `${c.id}:score`, rule: "score", kind: "agent", agentId: "lead-scorer", title: `Score ${label(c)}`, why: "Scoring tells you which leads to work first.", priority: 40 + Math.min(19, c.rank ?? 19) / 100 });
@@ -522,8 +683,8 @@ function nextActions(q, now = Date.now()) {
       if (s >= 70) add({ ...base, key: `${c.id}:advance`, rule: "advance", kind: "approve", suggestStage: "proposal", title: `Move ${label(c)} to Proposal?`, why: `MEDDIC ${s}%: the deal is qualified enough to propose.`, priority: 15 });
       else if (!c.callNotes && !ranBy(c, "Call Prepper")) add({ ...base, key: `${c.id}:discovery`, rule: "discovery", kind: "agent", agentId: "call-prepper", title: `Prep the discovery call with ${label(c)}`, why: "Questions to fill the MEDDIC gaps: the pain, the number, who decides and by when.", priority: 30 });
     } else if (c.stage === "proposal") {
-      if (!ranBy(c, "Proposal Writer")) add({ ...base, key: `${c.id}:proposal`, rule: "proposal", kind: "agent", agentId: "proposal-writer", title: `Draft the proposal for ${label(c)}`, why: "Built from their pains, MEDDIC and the offer in the record.", priority: 28 });
-      else if (daysSince(c.lastTouch ?? c.updatedAt, now) >= PROPOSAL_QUIET_DAYS) add({ ...base, key: `${c.id}:pquiet:${(c.lastTouch ?? c.updatedAt).slice(0, 10)}`, rule: "proposal_quiet", kind: "agent", agentId: "follow-up-writer", title: `Follow up on the proposal to ${label(c)}`, why: `Quiet for ${Math.floor(daysSince(c.lastTouch ?? c.updatedAt, now))} days since the proposal.`, priority: 22 });
+      if (!prop && !ranBy(c, "Proposal Writer")) add({ ...base, key: `${c.id}:proposal`, rule: "proposal", kind: "agent", agentId: "proposal-writer", title: `Draft the proposal for ${label(c)}`, why: c.researchReport ? "Built from the research, MEDDIC and your offer: opportunities, benefits and an ROI with its assumptions." : "Opportunities, benefits and an ROI with its assumptions. Research the business first for real pain points.", priority: 28 });
+      else if ((!prop || prop.sentAt) && daysSince(c.lastTouch ?? c.updatedAt, now) >= PROPOSAL_QUIET_DAYS) add({ ...base, key: `${c.id}:pquiet:${(c.lastTouch ?? c.updatedAt).slice(0, 10)}`, rule: "proposal_quiet", kind: "agent", agentId: "follow-up-writer", title: `Follow up on the proposal to ${label(c)}`, why: `Quiet for ${Math.floor(daysSince(c.lastTouch ?? c.updatedAt, now))} days since the proposal.`, priority: 22 });
     } else if (c.stage === "won") {
       const cf = c.customer ?? EMPTY_CUSTOMER;
       const o = cf.onboarding;
@@ -566,49 +727,50 @@ function flowCounts(q, now = Date.now()) {
 var DEAL_STAGES = ["lead", "contacted", "qualified", "proposal", "won", "lost"];
 var SOURCES = ["website", "referral", "linkedin", "whatsapp", "walk-in", "event", "apollo", "web-search", "other"];
 var DEAL_TIERS = ["High", "Medium", "Low"];
-var EMPTY_PROFILE = { rank: null, niche: "", city: "", website: "", size: "", title: "", dealTier: "", ease: "", whyFit: "", pitch: "", sourceDetail: "", checkFirst: "", painPoints: "", offer: "", angle: "", research: "" };
+var EMPTY_PROFILE = { rank: null, niche: "", city: "", website: "", size: "", title: "", dealTier: "", ease: "", whyFit: "", pitch: "", sourceDetail: "", checkFirst: "", painPoints: "", offer: "", angle: "", research: "", address: "" };
 var HISTORY_MAX = 100;
-var CRM_EVENTS = ["crm.contact", "crm.stage", "crm.touch", "crm.note", "crm.qualify", "crm.removed", ...LEADGEN_ORG_EVENTS, ...LEADGEN_DEAL_EVENTS, ...FLOW_ORG_EVENTS, ...FLOW_DEAL_EVENTS];
+var CRM_EVENTS = ["crm.contact", "crm.stage", "crm.touch", "crm.note", "crm.qualify", "crm.removed", ...LEADGEN_ORG_EVENTS, ...LEADGEN_DEAL_EVENTS, ...FLOW_ORG_EVENTS, ...FLOW_DEAL_EVENTS, ...RESEARCH_DEAL_EVENTS];
 var EMAIL_RE2 = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 var PHONE_RE = /^\+?[\d\s()-]{7,20}$/;
 var STALE_DAYS2 = 7;
 var NEW_LEAD_HOURS = 48;
 var OPEN = ["lead", "contacted", "qualified", "proposal"];
-var text2 = (v, max) => String(v ?? "").trim().slice(0, max);
+var text3 = (v, max) => String(v ?? "").trim().slice(0, max);
 var record = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
 function clean(i) {
-  const name = text2(i.name, 120);
+  const name = text3(i.name, 120);
   if (!name) throw new Error("A contact needs a name");
-  const email = text2(i.email, 200);
+  const email = text3(i.email, 200);
   if (email && !EMAIL_RE2.test(email)) throw new Error("That email address does not look right");
-  const phone = text2(i.phone, 20);
+  const phone = text3(i.phone, 20);
   if (phone && !PHONE_RE.test(phone)) throw new Error("That phone number does not look right");
   const value = i.value === void 0 || i.value === "" ? 0 : Number(String(i.value).replace(/[,$₹\s]/g, ""));
   if (!Number.isFinite(value) || value < 0) throw new Error("Deal value must be zero or more");
   const source = SOURCES.includes(String(i.source)) ? String(i.source) : "other";
   const apolloId = i.apolloId && /^[a-f0-9]{24}$/.test(i.apolloId) ? i.apolloId : void 0;
-  return { id: i.id && /^[\w-]{6,64}$/.test(i.id) ? i.id : newId(), name, company: text2(i.company, 120), email, phone, source, value, nextStep: text2(i.nextStep, 200), notes: text2(i.notes, 2e3), ...apolloId ? { apolloId } : {}, ...cleanProfile(i) };
+  return { id: i.id && /^[\w-]{6,64}$/.test(i.id) ? i.id : newId(), name, company: text3(i.company, 120), email, phone, source, value, nextStep: text3(i.nextStep, 200), notes: text3(i.notes, 2e3), ...apolloId ? { apolloId } : {}, ...cleanProfile(i) };
 }
-var tier = (v) => DEAL_TIERS.find((t) => t.toLowerCase() === text2(v, 10).toLowerCase()) ?? "";
+var tier = (v) => DEAL_TIERS.find((t) => t.toLowerCase() === text3(v, 10).toLowerCase()) ?? "";
 function cleanProfile(i) {
   const r = i.rank === void 0 || i.rank === null || i.rank === "" ? NaN : Number(i.rank);
   return {
     rank: Number.isInteger(r) && r > 0 && r < 1e6 ? r : null,
-    niche: text2(i.niche, 80),
-    city: text2(i.city, 120),
-    website: text2(i.website, 200).replace(/^https?:\/\//i, "").replace(/\/$/, ""),
-    size: text2(i.size, 80),
-    title: text2(i.title, 120),
+    niche: text3(i.niche, 80),
+    city: text3(i.city, 120),
+    website: text3(i.website, 200).replace(/^https?:\/\//i, "").replace(/\/$/, ""),
+    size: text3(i.size, 80),
+    title: text3(i.title, 120),
     dealTier: tier(i.dealTier),
     ease: tier(i.ease),
-    whyFit: text2(i.whyFit, 1e3),
-    pitch: text2(i.pitch, 300),
-    sourceDetail: text2(i.sourceDetail, 200),
-    checkFirst: text2(i.checkFirst, 300),
-    painPoints: text2(i.painPoints, 1e3),
-    offer: text2(i.offer, 500),
-    angle: text2(i.angle, 500),
-    research: text2(i.research, 8e3)
+    whyFit: text3(i.whyFit, 1e3),
+    pitch: text3(i.pitch, 300),
+    sourceDetail: text3(i.sourceDetail, 200),
+    checkFirst: text3(i.checkFirst, 300),
+    painPoints: text3(i.painPoints, 1e3),
+    offer: text3(i.offer, 500),
+    angle: text3(i.angle, 500),
+    research: text3(i.research, 8e3),
+    address: text3(i.address, 200)
   };
 }
 async function upsertContact(store2, orgId, input, by, summary) {
@@ -632,7 +794,8 @@ function computeCrm(events, now = Date.now()) {
       const what = !prev ? summary.startsWith("Contact imported") ? "Imported from a list" : summary.startsWith("Lead from") ? summary.split(":")[0] : "Added to the CRM" : summary.startsWith("Contact updated from a list") ? "Details filled in from a list" : summary.startsWith("Contact updated by CRM Sync") ? "Details filled in by CRM Sync" : "Details updated";
       const history = addHistory(prev?.history ?? [], { at: e.at, by: e.actor, kind: "update", text: what });
       const lg = prev ? { leadScore: prev.leadScore, sequence: prev.sequence, objections: prev.objections, syncSuggestion: prev.syncSuggestion } : EMPTY_DEAL_LEADGEN;
-      map.set(c.id, { ...EMPTY_PROFILE, ...c, ...lg, customer: prev?.customer ?? EMPTY_CUSTOMER, stage: prev?.stage ?? "lead", createdAt: prev?.createdAt ?? e.at, updatedAt: e.at, lastTouch: prev?.lastTouch ?? null, meddic: prev?.meddic ?? null, callNotes: prev?.callNotes ?? "", score: prev?.score ?? null, history });
+      const dr = prev ? { researchReport: prev.researchReport, proposal: prev.proposal } : EMPTY_DEAL_RESEARCH;
+      map.set(c.id, { ...EMPTY_PROFILE, ...c, ...lg, ...dr, customer: prev?.customer ?? EMPTY_CUSTOMER, stage: prev?.stage ?? "lead", createdAt: prev?.createdAt ?? e.at, updatedAt: e.at, lastTouch: prev?.lastTouch ?? null, meddic: prev?.meddic ?? null, callNotes: prev?.callNotes ?? "", score: prev?.score ?? null, history });
     } else if (LEADGEN_ORG_EVENTS.includes(e.action) || FLOW_ORG_EVENTS.includes(e.action)) {
       continue;
     } else {
@@ -646,6 +809,9 @@ function computeCrm(events, now = Date.now()) {
       } else if (FLOW_DEAL_EVENTS.includes(e.action)) {
         const r = applyFlowEvent(prev.customer, e);
         map.set(prev.id, { ...prev, customer: r.cf, ...r.touch ? { lastTouch: e.at, updatedAt: e.at } : {}, history: r.history ? log(r.history.kind, r.history.text) : prev.history });
+      } else if (RESEARCH_DEAL_EVENTS.includes(e.action)) {
+        const r = applyResearchEvent({ researchReport: prev.researchReport, proposal: prev.proposal }, e);
+        map.set(prev.id, { ...prev, ...r.dr, ...r.touch ? { lastTouch: e.at, updatedAt: e.at } : {}, history: r.history ? log(r.history.kind, r.history.text) : prev.history });
       } else if (LEADGEN_DEAL_EVENTS.includes(e.action)) {
         const r = applyDealEvent(prev, e, prev.stage);
         map.set(prev.id, { ...prev, ...r.lg, history: r.history ? log(r.history.kind, r.history.text) : prev.history });
@@ -690,23 +856,23 @@ function computeCrm(events, now = Date.now()) {
     nextActions: nextActions(flow, now)
   };
 }
-function speedGoal(list) {
-  if (!list.length) return "";
+function speedGoal(list2) {
+  if (!list2.length) return "";
   return `These leads are new and have not heard from us yet. Write one short first reply to each and queue it with send_message (channel "email"): thank them, answer what they asked if the notes say, and offer one clear next step such as a call time. Under 90 words each. Each email waits for the owner's approval.
-${list.map((c) => `- ${c.name}${c.company ? ` (${c.company})` : ""} <${c.email}>, came from ${c.source}${c.notes ? `, notes: ${c.notes.slice(0, 300)}` : ""}`).join("\n")}`;
+${list2.map((c) => `- ${c.name}${c.company ? ` (${c.company})` : ""} <${c.email}>, came from ${c.source}${c.notes ? `, notes: ${c.notes.slice(0, 300)}` : ""}`).join("\n")}`;
 }
-function followUpGoal(list) {
-  if (!list.length) return "";
+function followUpGoal(list2) {
+  if (!list2.length) return "";
   return `Draft a short, personal follow-up email to each contact below and queue each with send_message (channel "email"). Mention where we left off, offer one clear next step, and keep it under 120 words. Each email waits for the owner's approval.
-${list.map((c) => `- ${c.name}${c.company ? ` (${c.company})` : ""} <${c.email}>, stage ${c.stage}${c.nextStep ? `, next step: ${c.nextStep}` : ""}${c.notes ? `, notes: ${c.notes.slice(0, 200)}` : ""}`).join("\n")}`;
+${list2.map((c) => `- ${c.name}${c.company ? ` (${c.company})` : ""} <${c.email}>, stage ${c.stage}${c.nextStep ? `, next step: ${c.nextStep}` : ""}${c.notes ? `, notes: ${c.notes.slice(0, 200)}` : ""}`).join("\n")}`;
 }
 
 // core/leadgen.ts
 var record2 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
-async function dealOf(store2, orgId, contactId3) {
+async function dealOf(store2, orgId, contactId4) {
   const crm = await loadCrm(store2, orgId);
-  const c = crm.contacts.find((x) => x.id === String(contactId3 ?? "").trim());
-  if (!c) throw new Error(`No deal with id "${String(contactId3 ?? "")}" in the CRM. Use read_crm to find the right id.`);
+  const c = crm.contacts.find((x) => x.id === String(contactId4 ?? "").trim());
+  if (!c) throw new Error(`No deal with id "${String(contactId4 ?? "")}" in the CRM. Use read_crm to find the right id.`);
   return { crm, c };
 }
 var label2 = (c) => c.company || c.name;
@@ -752,8 +918,8 @@ async function proposeProspects(store2, orgId, icpId, items, by) {
   await record2(store2, orgId, by, "crm.prospects", { batch, summary: `${kept.length} prospects found${icp ? ` for ${icp.name}` : ""}, waiting for your yes` });
   return { kept: kept.length, skipped };
 }
-async function saveLeadScore(store2, orgId, contactId3, score, reasons, icpId, by) {
-  const { crm, c } = await dealOf(store2, orgId, contactId3);
+async function saveLeadScore(store2, orgId, contactId4, score, reasons, icpId, by) {
+  const { crm, c } = await dealOf(store2, orgId, contactId4);
   const n = Math.round(Number(score));
   if (!Number.isFinite(n) || n < 0 || n > 100) throw new Error("score must be a whole number from 0 to 100");
   const why = text(reasons, 1200);
@@ -762,20 +928,20 @@ async function saveLeadScore(store2, orgId, contactId3, score, reasons, icpId, b
   await record2(store2, orgId, by, "crm.leadscore", { contactId: c.id, score: { score: n, grade: gradeFor(n), reasons: why, icpId: icp?.id ?? null }, summary: `${label2(c)}: lead score ${n} (${gradeFor(n)})` });
   return `Saved lead score ${n} (${gradeFor(n)}) on ${label2(c)}`;
 }
-async function saveSequence(store2, orgId, contactId3, steps, notes, by) {
-  const { c } = await dealOf(store2, orgId, contactId3);
+async function saveSequence(store2, orgId, contactId4, steps, notes, by) {
+  const { c } = await dealOf(store2, orgId, contactId4);
   const clean2 = cleanSteps(steps);
   await record2(store2, orgId, by, "crm.sequence", { contactId: c.id, sequence: { id: newId(), steps: clean2, notes: text(notes, 1e3) }, summary: `${label2(c)}: outreach sequence drafted (${clean2.length} steps, not sent)` });
   return `Saved a ${clean2.length}-step outreach sequence on ${label2(c)} as drafts. Nothing was sent.`;
 }
-async function saveObjection(store2, orgId, contactId3, objection, responses, blocker, by) {
-  const { c } = await dealOf(store2, orgId, contactId3);
+async function saveObjection(store2, orgId, contactId4, objection, responses, blocker, by) {
+  const { c } = await dealOf(store2, orgId, contactId4);
   const o = text(objection, 500);
   if (!o) throw new Error("Say which objection this answers");
-  const list = (Array.isArray(responses) ? responses : [responses]).map((r) => text(r, 2e3)).filter(Boolean).slice(0, 3);
-  if (!list.length) throw new Error("Give at least one answer to the objection");
-  await record2(store2, orgId, by, "crm.objection", { contactId: c.id, play: { objection: o, responses: list, blocker: text(blocker, 500) }, summary: `${label2(c)}: objection answers saved` });
-  return `Saved ${list.length} answer${list.length === 1 ? "" : "s"} to "${o.slice(0, 60)}" on ${label2(c)}`;
+  const list2 = (Array.isArray(responses) ? responses : [responses]).map((r) => text(r, 2e3)).filter(Boolean).slice(0, 3);
+  if (!list2.length) throw new Error("Give at least one answer to the objection");
+  await record2(store2, orgId, by, "crm.objection", { contactId: c.id, play: { objection: o, responses: list2, blocker: text(blocker, 500) }, summary: `${label2(c)}: objection answers saved` });
+  return `Saved ${list2.length} answer${list2.length === 1 ? "" : "s"} to "${o.slice(0, 60)}" on ${label2(c)}`;
 }
 var FILLABLE = ["niche", "city", "website", "size", "title", "phone", "email", "nextStep", "painPoints", "offer", "angle"];
 async function syncDeal(store2, orgId, input, by) {
@@ -817,7 +983,7 @@ function dealFull(c) {
   return [
     `Deal id ${c.id}: ${label2(c)}; stage ${c.stage}; source ${c.source}${c.sourceDetail ? ` (${c.sourceDetail})` : ""}`,
     `Decision maker: ${c.name !== c.company ? c.name : "not stated"}${c.title ? `, ${c.title}` : ""}`,
-    [c.niche && `Niche: ${c.niche}`, c.city && `City: ${c.city}`, c.website && `Website: ${c.website}`, c.size && `Size: ${c.size}`, c.phone && `Phone: ${c.phone}`, c.email && `Email: ${c.email}`, c.value && `Value: ${c.value}`, c.dealTier && `Deal size: ${c.dealTier}`, c.ease && `Ease of win: ${c.ease}`, c.rank && `Rank: ${c.rank}`].filter(Boolean).join("; "),
+    [c.niche && `Niche: ${c.niche}`, c.city && `City: ${c.city}`, c.website && `Website: ${c.website}`, c.address && `Address: ${c.address}`, c.size && `Size: ${c.size}`, c.phone && `Phone: ${c.phone}`, c.email && `Email: ${c.email}`, c.value && `Value: ${c.value}`, c.dealTier && `Deal size: ${c.dealTier}`, c.ease && `Ease of win: ${c.ease}`, c.rank && `Rank: ${c.rank}`].filter(Boolean).join("; "),
     c.whyFit && `Why they fit: ${cut(c.whyFit, 1e3)}`,
     c.painPoints && `Pain points: ${cut(c.painPoints, 1e3)}`,
     c.offer && `Our offer: ${cut(c.offer, 500)}`,
@@ -833,6 +999,7 @@ function dealFull(c) {
     c.leadScore && `Lead score: ${c.leadScore.score} (${c.leadScore.grade}) \u2014 ${cut(c.leadScore.reasons, 400)}`,
     c.sequence && `Outreach sequence: ${c.sequence.steps.map((s, i) => `step ${i + 1} day ${s.day} ${s.channel}${s.sentAt ? " (sent)" : ""}`).join(", ")}`,
     c.objections.length ? `Objections answered: ${c.objections.map((o) => `"${cut(o.objection, 100)}"`).join("; ")}` : "",
+    ...researchLines(c),
     ...customerLines(c),
     `History (newest first):
 ${c.history.slice(0, 15).map((h) => `  ${h.at.slice(0, 10)} ${h.kind}: ${cut(h.text, 200)}`).join("\n") || "  none"}`
@@ -854,17 +1021,17 @@ function icpFull(i) {
   return [`ICP id ${i.id}: ${i.name}`, `Summary: ${i.summary}`, i.industries && `Industries: ${i.industries}`, i.locations && `Locations: ${i.locations}`, i.size && `Size: ${i.size}`, i.buyer && `Buyer: ${i.buyer}`, i.pains && `Pains: ${i.pains}`, i.signals && `Buying signals: ${i.signals}`, i.disqualifiers && `Disqualifiers: ${i.disqualifiers}`, i.offer && `Offer: ${i.offer}`, i.valueCase && `Why it pays: ${i.valueCase}`, i.voice && `Voice: ${i.voice}`].filter(Boolean).join("\n");
 }
 var READ_VIEWS = ["pipeline", "deal", "deals", "icps", "icp_notes", "existing", "issues"];
-async function readCrm(store2, orgId, view, contactId3, contactIds) {
+async function readCrm(store2, orgId, view, contactId4, contactIds) {
   const crm = await loadCrm(store2, orgId);
   let out;
   switch (view) {
     case "deal": {
-      const c = crm.contacts.find((x) => x.id === String(contactId3 ?? ""));
-      out = c ? dealFull(c) : `No deal with id "${String(contactId3 ?? "")}". Read the pipeline view for ids.`;
+      const c = crm.contacts.find((x) => x.id === String(contactId4 ?? ""));
+      out = c ? dealFull(c) : `No deal with id "${String(contactId4 ?? "")}". Read the pipeline view for ids.`;
       break;
     }
     case "deals": {
-      const ids = (Array.isArray(contactIds) ? contactIds : [contactId3]).map((x) => String(x ?? "").trim()).filter(Boolean).slice(0, 12);
+      const ids = (Array.isArray(contactIds) ? contactIds : [contactId4]).map((x) => String(x ?? "").trim()).filter(Boolean).slice(0, 12);
       const found = ids.map((id) => crm.contacts.find((x) => x.id === id));
       out = ids.length ? found.map((c, n) => c ? dealFull(c) : `No deal with id "${ids[n]}".`).join("\n\n---\n\n") : "Pass contactIds (up to 12 deal ids).";
       break;
@@ -1017,20 +1184,20 @@ var LEADGEN_TOOLS = {
 // core/salesflow.ts
 var record3 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
 var label3 = (c) => c.company || c.name;
-async function customerOf(store2, orgId, contactId3) {
-  const c = (await loadCrm(store2, orgId)).contacts.find((x) => x.id === String(contactId3 ?? "").trim());
-  if (!c) throw new Error(`No deal with id "${String(contactId3 ?? "")}" in the CRM. Use read_crm to find the right id.`);
+async function customerOf(store2, orgId, contactId4) {
+  const c = (await loadCrm(store2, orgId)).contacts.find((x) => x.id === String(contactId4 ?? "").trim());
+  if (!c) throw new Error(`No deal with id "${String(contactId4 ?? "")}" in the CRM. Use read_crm to find the right id.`);
   return c;
 }
-async function saveOnboarding(store2, orgId, contactId3, input, by) {
-  const c = await customerOf(store2, orgId, contactId3);
+async function saveOnboarding(store2, orgId, contactId4, input, by) {
+  const c = await customerOf(store2, orgId, contactId4);
   if (c.stage !== "won") throw new Error(`${label3(c)} is not a won customer yet (stage ${c.stage}). Onboarding starts after the win.`);
   const plan = { id: newId(), ...cleanOnboarding(input) };
   await record3(store2, orgId, by, "crm.onboarding", { contactId: c.id, onboarding: plan, summary: `${label3(c)}: onboarding plan saved` });
   return `Saved an onboarding plan with ${plan.steps.length} steps${plan.welcome ? " and a welcome email draft" : ""} on ${label3(c)}. Nothing was sent.`;
 }
-async function saveAccountReview(store2, orgId, contactId3, input, by) {
-  const c = await customerOf(store2, orgId, contactId3);
+async function saveAccountReview(store2, orgId, contactId4, input, by) {
+  const c = await customerOf(store2, orgId, contactId4);
   if (c.stage !== "won") throw new Error(`${label3(c)} is not a customer yet (stage ${c.stage}). Account reviews are for won deals.`);
   const review = { id: newId(), ...cleanReview(input) };
   await record3(store2, orgId, by, "crm.account", { contactId: c.id, review, summary: `${label3(c)}: account review, health ${review.health}` });
@@ -1086,6 +1253,86 @@ var SALESFLOW_TOOLS = {
   }
 };
 
+// core/research.ts
+var record4 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
+var label4 = (c) => c.company || c.name;
+async function dealOf2(store2, orgId, contactId4) {
+  const c = (await loadCrm(store2, orgId)).contacts.find((x) => x.id === String(contactId4 ?? "").trim());
+  if (!c) throw new Error(`No deal with id "${String(contactId4 ?? "")}" in the CRM. Use read_crm to find the right id.`);
+  return c;
+}
+async function saveResearch(store2, orgId, contactId4, input, by) {
+  const c = await dealOf2(store2, orgId, contactId4);
+  const research = { id: newId(), ...cleanResearch(input) };
+  await record4(store2, orgId, by, "crm.research", { contactId: c.id, research, summary: `${label4(c)}: business research saved` });
+  const missing = research.found.filter((f) => APPLY_FIELD[f.field] && !c[APPLY_FIELD[f.field]]).length;
+  return `Saved the research on ${label4(c)}: ${research.pains.length} pain points, ${research.opportunities.length} opportunities, ${research.found.length} details with sources${missing ? ` (${missing} the deal is missing; the owner adds them after checking the source)` : ""}. Nothing was sent.`;
+}
+async function saveProposal(store2, orgId, contactId4, input, by) {
+  const c = await dealOf2(store2, orgId, contactId4);
+  if (c.stage === "lost") throw new Error(`${label4(c)} is marked lost; reopen the deal before writing a proposal`);
+  const proposal = { id: newId(), ...cleanProposal(input) };
+  await record4(store2, orgId, by, "crm.proposal", { contactId: c.id, proposal, summary: `${label4(c)}: proposal drafted` });
+  const r = proposal.roi;
+  return `Saved the proposal on ${label4(c)}. ROI worked out by the app from your lines: net ${fmtMoney(r.netMonthly, proposal.currency)} a month${r.roiPct !== null ? `, first-year return ${r.roiPct}%` : ""}${r.paybackMonths !== null && r.oneTime > 0 ? `, setup pays back in about ${r.paybackMonths} months` : ""}. Nothing was sent; the owner edits and sends it.`;
+}
+
+// core/research-tools.ts
+var str3 = { type: "string" };
+var num2 = { type: "number" };
+var url = { type: "string", description: "The public page address (https://...)" };
+var contactId3 = { type: "string", description: "The deal id from read_crm" };
+var RESEARCH_TOOLS = {
+  save_research: {
+    spec: {
+      name: "save_research",
+      description: "Save a business research report onto a deal: summary, owner background, online presence, pain points with evidence, missing contact details found on public pages (each with its page), opportunities for AI agents, unknowns and sources. Nothing is sent; the owner checks each found detail before adding it to the deal.",
+      input_schema: {
+        type: "object",
+        properties: {
+          contactId: contactId3,
+          summary: str3,
+          owner: str3,
+          presence: str3,
+          pains: { type: "array", maxItems: 8, items: { type: "object", properties: { point: str3, evidence: str3, source: url }, required: ["point"] } },
+          found: { type: "array", maxItems: 12, items: { type: "object", properties: { field: { type: "string", enum: [...FOUND_FIELDS] }, value: str3, source: url, note: str3 }, required: ["field", "value", "source"] } },
+          opportunities: { type: "array", maxItems: 6, items: { type: "object", properties: { title: str3, how: str3, impact: str3 }, required: ["title", "how"] } },
+          unknowns: str3,
+          sources: { type: "array", maxItems: 15, items: { type: "object", properties: { title: str3, url }, required: ["url"] } }
+        },
+        required: ["contactId", "summary"]
+      }
+    },
+    summarize: (i) => `Save business research for ${String(i.contactId ?? "")}`,
+    execute: (i, ctx) => saveResearch(ctx.store, ctx.orgId, i.contactId, i, ctx.agent.name)
+  },
+  save_proposal: {
+    spec: {
+      name: "save_proposal",
+      description: "Save a proposal draft onto a deal: title, subject, summary, opportunities with benefits, ROI lines (monthly benefits with their basis; monthly and one-time costs), currency, plan, next step and the full text. The app works out the ROI totals. Nothing is sent; the owner edits and sends it.",
+      input_schema: {
+        type: "object",
+        properties: {
+          contactId: contactId3,
+          title: str3,
+          subject: str3,
+          summary: str3,
+          opportunities: { type: "array", maxItems: 6, items: { type: "object", properties: { title: str3, what: str3, benefit: str3 }, required: ["title"] } },
+          benefits: { type: "array", minItems: 1, maxItems: 8, items: { type: "object", properties: { label: str3, monthly: num2, basis: str3 }, required: ["label", "monthly", "basis"] } },
+          costs: { type: "array", maxItems: 6, items: { type: "object", properties: { label: str3, monthly: num2, oneTime: num2, basis: str3 }, required: ["label"] } },
+          currency: { type: "string", enum: [...CURRENCIES] },
+          plan: str3,
+          nextStep: str3,
+          text: { type: "string", description: "The full proposal in the owner's voice, without ROI totals" }
+        },
+        required: ["contactId", "title", "benefits", "text"]
+      }
+    },
+    summarize: (i) => `Save a proposal for ${String(i.contactId ?? "")}`,
+    execute: (i, ctx) => saveProposal(ctx.store, ctx.orgId, i.contactId, i, ctx.agent.name)
+  }
+};
+
 // core/tools.ts
 function formatMoney(amountMinor, currency) {
   if (!Number.isFinite(amountMinor)) return `? ${currency}`;
@@ -1103,17 +1350,17 @@ var field = (input, name, max = 4e3) => {
   return t.slice(0, max);
 };
 function parseLinkedInComment(input) {
-  let text3 = input.trim();
+  let text4 = input.trim();
   try {
-    text3 = decodeURIComponent(text3);
+    text4 = decodeURIComponent(text4);
   } catch {
   }
-  const m = text3.match(/urn:li:comment:\((?:urn:li:)?(activity|ugcPost|share):(\d+),(\d+)\)/);
+  const m = text4.match(/urn:li:comment:\((?:urn:li:)?(activity|ugcPost|share):(\d+),(\d+)\)/);
   if (m) {
     const threadUrn2 = `urn:li:${m[1]}:${m[2]}`;
     return { threadUrn: threadUrn2, commentUrn: `urn:li:comment:(${threadUrn2},${m[3]})` };
   }
-  const d = text3.match(/urn:li:fsd_comment:\((\d+),urn:li:(activity|ugcPost|share):(\d+)\)/);
+  const d = text4.match(/urn:li:fsd_comment:\((\d+),urn:li:(activity|ugcPost|share):(\d+)\)/);
   if (!d) return null;
   const threadUrn = `urn:li:${d[2]}:${d[3]}`;
   return { threadUrn, commentUrn: `urn:li:comment:(${threadUrn},${d[1]})` };
@@ -1254,7 +1501,8 @@ ${body}`, agentId: ctx.agent.id, at: nowIso() });
   },
   // Lead generation: read the CRM and save drafts, scores and suggestions onto it (nothing is sent).
   ...LEADGEN_TOOLS,
-  ...SALESFLOW_TOOLS
+  ...SALESFLOW_TOOLS,
+  ...RESEARCH_TOOLS
 };
 
 // core/profile.ts
@@ -1362,32 +1610,32 @@ var HttpError = class extends Error {
   status;
 };
 function store() {
-  const url = supabaseUrl();
+  const url2 = supabaseUrl();
   const key = env("SUPABASE_SERVICE_ROLE_KEY");
-  if (!url || !key) throw new HttpError(503, "The platform database is not configured yet");
-  return new SupabaseStore(url, key);
+  if (!url2 || !key) throw new HttpError(503, "The platform database is not configured yet");
+  return new SupabaseStore(url2, key);
 }
 async function requireUser(request) {
-  const url = supabaseUrl();
+  const url2 = supabaseUrl();
   const anon = env("SUPABASE_ANON_KEY");
-  if (!url || !anon) throw new HttpError(503, "Sign-in is not configured yet");
+  if (!url2 || !anon) throw new HttpError(503, "Sign-in is not configured yet");
   const token = (request.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
-  const user = await verifyUser(url, anon, token);
+  const user = await verifyUser(url2, anon, token);
   if (!user) throw new HttpError(401, "Please sign in again");
   const s = store();
-  const label4 = user.email ?? user.phone ?? user.id;
+  const label5 = user.email ?? user.phone ?? user.id;
   let orgId = await s.orgForUser(user.id);
   if (!orgId) {
-    const created = await s.provisionWorkspace(user.id, label4);
+    const created = await s.provisionWorkspace(user.id, label5);
     orgId = await s.orgForUser(user.id) ?? created;
   }
-  return { userId: user.id, orgId, label: label4, store: s };
+  return { userId: user.id, orgId, label: label5, store: s };
 }
 async function readJson(request, maxBytes = 64e3) {
-  const text3 = await request.text();
-  if (text3.length > maxBytes) throw new HttpError(413, "Request too large");
+  const text4 = await request.text();
+  if (text4.length > maxBytes) throw new HttpError(413, "Request too large");
   try {
-    return JSON.parse(text3 || "{}");
+    return JSON.parse(text4 || "{}");
   } catch {
     throw new HttpError(400, "Invalid JSON");
   }
@@ -1407,16 +1655,16 @@ function handle(fn) {
 // server/api/autonomy.ts
 var isLevel = (n) => n === 1 || n === 2 || n === 3;
 var POST = handle(async (request) => {
-  const { orgId, label: label4, store: store2 } = await requireUser(request);
+  const { orgId, label: label5, store: store2 } = await requireUser(request);
   const b = await readJson(request);
   if (!b.taskType || !isLevel(b.from) || !isLevel(b.to)) throw new HttpError(400, "taskType, from and to (1-3) are required");
   if (b.to > b.from && b.to - b.from !== 1) throw new HttpError(400, "Autonomy goes up one level at a time");
   try {
     if (b.to > b.from) {
-      await applyPromotion(store2, orgId, { taskType: b.taskType, from: b.from, to: b.to, because: "confirmed by a person" }, label4);
+      await applyPromotion(store2, orgId, { taskType: b.taskType, from: b.from, to: b.to, because: "confirmed by a person" }, label5);
     } else {
       await store2.setTaskTypeLevel(orgId, b.taskType, b.to);
-      await store2.audit({ id: crypto.randomUUID(), orgId, at: (/* @__PURE__ */ new Date()).toISOString(), actor: label4, action: "autonomy.lowered", taskId: null, detail: b });
+      await store2.audit({ id: crypto.randomUUID(), orgId, at: (/* @__PURE__ */ new Date()).toISOString(), actor: label5, action: "autonomy.lowered", taskId: null, detail: b });
     }
   } catch (e) {
     throw new HttpError(409, e instanceof Error ? e.message : "Could not change the level");

@@ -3,6 +3,7 @@
 // Agents prepare the work on their own; anything that leaves the app or changes a stage waits for the owner.
 // Pure: everything is built from crm.* audit events, so it needs no migration.
 import type { AuditEvent } from './types.js';
+import { fmtMoney, proposalMessage } from './research-state.js';
 import type { Contact } from './crm.js';
 import type { Icp, ProspectBatch } from './leadgen-state.js';
 import { text } from './leadgen-state.js';
@@ -14,10 +15,10 @@ export const FLOW_DEAL_EVENTS = ['crm.onboarding', 'crm.onboarding_step', 'crm.a
 
 export const FLOW_STAGES = [
   { key: 'find', name: 'Find', does: 'Set who you sell to, then find businesses that fit.', agents: ['ICP Builder', 'Prospect Generator'], gate: 'You tick which prospects join the CRM.' },
-  { key: 'qualify', name: 'Qualify', does: 'Score each new lead on fit, size, ease of win and reach.', agents: ['Lead Scorer', 'Speed-to-Lead'], gate: 'First replies wait in Approvals.' },
+  { key: 'qualify', name: 'Qualify', does: 'Research each new lead from public sources, then score it on fit, size, ease of win and reach.', agents: ['Business Research', 'Lead Scorer', 'Speed-to-Lead'], gate: 'You check each found detail before it goes on the deal; first replies wait in Approvals.' },
   { key: 'outreach', name: 'Outreach', does: 'Personal email, LinkedIn and call steps in your voice.', agents: ['Outreach Sequencer', 'Follow-up Writer'], gate: 'You send each step and mark it sent.' },
   { key: 'discovery', name: 'Discovery', does: 'Prep the call, capture MEDDIC, debrief the notes.', agents: ['Call Prepper', 'Deal Qualifier'], gate: 'You approve the move to Proposal.' },
-  { key: 'proposal', name: 'Proposal and close', does: 'Proposal, objection answers and the follow-up to a yes.', agents: ['Proposal Writer', 'Objection Handler', 'Win-Loss Analyst'], gate: 'You send the proposal and mark it won or lost.' },
+  { key: 'proposal', name: 'Proposal and close', does: 'Proposal with opportunities, benefits and ROI, objection answers and the follow-up to a yes.', agents: ['Proposal Writer', 'Objection Handler', 'Win-Loss Analyst'], gate: 'You edit and send the proposal, and mark it won or lost.' },
   { key: 'onboard', name: 'Onboard', does: 'Welcome email, kickoff agenda and a first-30-days plan.', agents: ['Onboarding Manager'], gate: 'You send the welcome and tick steps done.' },
   { key: 'retain', name: 'Retain', does: 'Monthly health check, check-in message and renewal plan.', agents: ['Customer Success Manager'], gate: 'You send each check-in.' },
   { key: 'expand', name: 'Expand', does: 'Upsell ideas and a referral ask for healthy customers.', agents: ['Customer Success Manager'], gate: 'You choose what to offer and send it.' },
@@ -145,7 +146,7 @@ export function flowStageOf(c: Contact, now = Date.now()): FlowStage | 'closed' 
 
 export type Rule =
   | 'icp' | 'prospects' | 'approvals' | 'score' | 'sequence' | 'send_step' | 'sync' | 'quiet' | 'discovery' | 'advance'
-  | 'proposal' | 'proposal_quiet' | 'winloss' | 'onboard' | 'welcome' | 'onboard_task' | 'review' | 'checkin' | 'renewal' | 'referral';
+  | 'research' | 'proposal' | 'proposal_send' | 'proposal_stage' | 'proposal_quiet' | 'winloss' | 'onboard' | 'welcome' | 'onboard_task' | 'review' | 'checkin' | 'renewal' | 'referral';
 export type ActionKind = 'agent' | 'send' | 'approve' | 'task' | 'open';
 
 export interface NextAction {
@@ -185,6 +186,10 @@ export function nextActions(q: QueueInput, now = Date.now()): NextAction[] {
       continue;
     }
     const base = { contactId: c.id, company: label(c), stage };
+    if (c.stage !== 'won' && !c.researchReport) add({ ...base, key: `${c.id}:research`, rule: 'research', kind: 'agent', agentId: 'business-research', title: `Research ${label(c)}`, why: 'A sourced report on the owner and the business: pain points, missing contact details and where AI agents would help. Uses a few web searches.', priority: c.stage === 'lead' ? 38 + Math.min(19, c.rank ?? 19) / 100 : 27 });
+    const prop = c.proposal;
+    if (prop && !prop.sentAt && c.stage !== 'won') add({ ...base, key: `${c.id}:psend:${prop.id}`, rule: 'proposal_send', kind: 'send', draft: { channel: 'email', subject: prop.subject, text: proposalMessage(prop), to: c.email }, title: `Send the proposal to ${label(c)}`, why: `Net ${fmtMoney(prop.roi.netMonthly, prop.currency)} a month for them${prop.roi.roiPct !== null ? `, first-year return ${prop.roi.roiPct}%` : ''}. Check the ROI assumptions on the customer page first.`, priority: 12 });
+    if (prop?.sentAt && ['lead', 'contacted', 'qualified'].includes(c.stage)) add({ ...base, key: `${c.id}:pstage:${prop.id}`, rule: 'proposal_stage', kind: 'approve', suggestStage: 'proposal', title: `Move ${label(c)} to Proposal?`, why: 'You sent them the proposal.', priority: 14 });
     if (c.syncSuggestion) add({ ...base, key: `${c.id}:sync`, rule: 'sync', kind: 'approve', suggestStage: c.syncSuggestion.stage, title: `Move ${label(c)} to ${c.syncSuggestion.stage}?`, why: c.syncSuggestion.reason, priority: 15 });
 
     if (c.stage === 'lead' || c.stage === 'contacted') {
@@ -208,8 +213,8 @@ export function nextActions(q: QueueInput, now = Date.now()): NextAction[] {
       if (s >= 70) add({ ...base, key: `${c.id}:advance`, rule: 'advance', kind: 'approve', suggestStage: 'proposal', title: `Move ${label(c)} to Proposal?`, why: `MEDDIC ${s}%: the deal is qualified enough to propose.`, priority: 15 });
       else if (!c.callNotes && !ranBy(c, 'Call Prepper')) add({ ...base, key: `${c.id}:discovery`, rule: 'discovery', kind: 'agent', agentId: 'call-prepper', title: `Prep the discovery call with ${label(c)}`, why: 'Questions to fill the MEDDIC gaps: the pain, the number, who decides and by when.', priority: 30 });
     } else if (c.stage === 'proposal') {
-      if (!ranBy(c, 'Proposal Writer')) add({ ...base, key: `${c.id}:proposal`, rule: 'proposal', kind: 'agent', agentId: 'proposal-writer', title: `Draft the proposal for ${label(c)}`, why: 'Built from their pains, MEDDIC and the offer in the record.', priority: 28 });
-      else if (daysSince(c.lastTouch ?? c.updatedAt, now) >= PROPOSAL_QUIET_DAYS) add({ ...base, key: `${c.id}:pquiet:${(c.lastTouch ?? c.updatedAt).slice(0, 10)}`, rule: 'proposal_quiet', kind: 'agent', agentId: 'follow-up-writer', title: `Follow up on the proposal to ${label(c)}`, why: `Quiet for ${Math.floor(daysSince(c.lastTouch ?? c.updatedAt, now))} days since the proposal.`, priority: 22 });
+      if (!prop && !ranBy(c, 'Proposal Writer')) add({ ...base, key: `${c.id}:proposal`, rule: 'proposal', kind: 'agent', agentId: 'proposal-writer', title: `Draft the proposal for ${label(c)}`, why: c.researchReport ? 'Built from the research, MEDDIC and your offer: opportunities, benefits and an ROI with its assumptions.' : 'Opportunities, benefits and an ROI with its assumptions. Research the business first for real pain points.', priority: 28 });
+      else if ((!prop || prop.sentAt) && daysSince(c.lastTouch ?? c.updatedAt, now) >= PROPOSAL_QUIET_DAYS) add({ ...base, key: `${c.id}:pquiet:${(c.lastTouch ?? c.updatedAt).slice(0, 10)}`, rule: 'proposal_quiet', kind: 'agent', agentId: 'follow-up-writer', title: `Follow up on the proposal to ${label(c)}`, why: `Quiet for ${Math.floor(daysSince(c.lastTouch ?? c.updatedAt, now))} days since the proposal.`, priority: 22 });
     } else if (c.stage === 'won') {
       const cf = c.customer ?? EMPTY_CUSTOMER;
       const o = cf.onboarding;

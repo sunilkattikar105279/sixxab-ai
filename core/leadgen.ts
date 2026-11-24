@@ -4,6 +4,7 @@
 import { newId, nowIso, type Store } from './store.js';
 import { addNewContact, DEAL_STAGES, loadCrm, upsertContact, type Contact, type ContactInput, type CrmState } from './crm.js';
 import { MEDDIC } from './gtm.js';
+import { researchLines } from './research-state.js';
 import {
   cleanIcp, cleanProspect, cleanSteps, gradeFor, ICP_NOTES_MAX, text, type Icp, type Prospect, type SequenceStep,
 } from './leadgen-state.js';
@@ -211,7 +212,7 @@ function dealFull(c: Contact): string {
   return [
     `Deal id ${c.id}: ${label(c)}; stage ${c.stage}; source ${c.source}${c.sourceDetail ? ` (${c.sourceDetail})` : ''}`,
     `Decision maker: ${c.name !== c.company ? c.name : 'not stated'}${c.title ? `, ${c.title}` : ''}`,
-    [c.niche && `Niche: ${c.niche}`, c.city && `City: ${c.city}`, c.website && `Website: ${c.website}`, c.size && `Size: ${c.size}`, c.phone && `Phone: ${c.phone}`, c.email && `Email: ${c.email}`, c.value && `Value: ${c.value}`, c.dealTier && `Deal size: ${c.dealTier}`, c.ease && `Ease of win: ${c.ease}`, c.rank && `Rank: ${c.rank}`].filter(Boolean).join('; '),
+    [c.niche && `Niche: ${c.niche}`, c.city && `City: ${c.city}`, c.website && `Website: ${c.website}`, c.address && `Address: ${c.address}`, c.size && `Size: ${c.size}`, c.phone && `Phone: ${c.phone}`, c.email && `Email: ${c.email}`, c.value && `Value: ${c.value}`, c.dealTier && `Deal size: ${c.dealTier}`, c.ease && `Ease of win: ${c.ease}`, c.rank && `Rank: ${c.rank}`].filter(Boolean).join('; '),
     c.whyFit && `Why they fit: ${cut(c.whyFit, 1000)}`, c.painPoints && `Pain points: ${cut(c.painPoints, 1000)}`, c.offer && `Our offer: ${cut(c.offer, 500)}`,
     c.angle && `Outreach angle: ${cut(c.angle, 500)}`, c.pitch && `Agent to pitch: ${cut(c.pitch, 300)}`, c.checkFirst && `Check before outreach: ${cut(c.checkFirst, 300)}`,
     c.research && `Research notes: ${cut(c.research, 3000)}`, c.notes && `Other notes: ${cut(c.notes, 1000)}`, c.nextStep && `Next step: ${c.nextStep}`,
@@ -221,6 +222,7 @@ function dealFull(c: Contact): string {
     c.leadScore && `Lead score: ${c.leadScore.score} (${c.leadScore.grade}) — ${cut(c.leadScore.reasons, 400)}`,
     c.sequence && `Outreach sequence: ${c.sequence.steps.map((s, i) => `step ${i + 1} day ${s.day} ${s.channel}${s.sentAt ? ' (sent)' : ''}`).join(', ')}`,
     c.objections.length ? `Objections answered: ${c.objections.map((o) => `"${cut(o.objection, 100)}"`).join('; ')}` : '',
+    ...researchLines(c),
     ...customerLines(c),
     `History (newest first):\n${c.history.slice(0, 15).map((h) => `  ${h.at.slice(0, 10)} ${h.kind}: ${cut(h.text, 200)}`).join('\n') || '  none'}`,
   ].filter(Boolean).join('\n');

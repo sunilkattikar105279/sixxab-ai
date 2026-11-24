@@ -8,13 +8,15 @@ import type { Meddic } from '../../core/gtm';
 import type { LeadScore, ObjectionPlay, Sequence, SyncSuggestion } from '../../core/leadgen-state';
 import { DealAgents, gradeTone } from './DealAgents';
 import { CustomerSuccess } from './CustomerSuccess';
+import { ResearchPanel } from './ResearchPanel';
 import { ActionCard } from './SalesFlow';
 import type { CustomerFlow, NextAction } from '../../core/salesflow-state';
+import type { BusinessResearch, ProposalDraft } from '../../core/research-state';
 
 export interface HistoryItem { at: string; by: string; kind: string; text: string }
 export interface LeadProfile {
   rank?: number | null; niche?: string; city?: string; website?: string; size?: string; title?: string; dealTier?: string; ease?: string;
-  whyFit?: string; pitch?: string; sourceDetail?: string; checkFirst?: string; painPoints?: string; offer?: string; angle?: string; research?: string;
+  whyFit?: string; pitch?: string; sourceDetail?: string; checkFirst?: string; painPoints?: string; offer?: string; angle?: string; research?: string; address?: string;
 }
 export interface Contact extends LeadProfile {
   id: string; name: string; company: string; email: string; phone: string; source: string; value: number; nextStep: string; notes: string;
@@ -23,6 +25,8 @@ export interface Contact extends LeadProfile {
   leadScore?: LeadScore | null; sequence?: Sequence | null; objections?: ObjectionPlay[]; syncSuggestion?: SyncSuggestion | null;
   /** After the win: onboarding plan, account reviews and customer messages sent. */
   customer?: CustomerFlow;
+  /** Business research (sourced) and the proposal draft with its ROI. */
+  researchReport?: BusinessResearch | null; proposal?: ProposalDraft | null;
 }
 
 export const STAGES = ['lead', 'contacted', 'qualified', 'proposal', 'won', 'lost'];
@@ -39,7 +43,7 @@ type Form = Record<string, string>;
 const FIELDS: { key: string; label: string; long?: boolean; options?: string[] }[] = [
   { key: 'company', label: 'Business' }, { key: 'name', label: 'Decision maker' }, { key: 'title', label: 'Their role' },
   { key: 'phone', label: 'Phone' }, { key: 'email', label: 'Email' }, { key: 'website', label: 'Website' },
-  { key: 'city', label: 'City' }, { key: 'niche', label: 'Niche' }, { key: 'size', label: 'Size' },
+  { key: 'address', label: 'Address' }, { key: 'city', label: 'City' }, { key: 'niche', label: 'Niche' }, { key: 'size', label: 'Size' },
   { key: 'value', label: 'Deal value ($)' }, { key: 'dealTier', label: 'Deal size', options: ['', 'High', 'Medium', 'Low'] }, { key: 'ease', label: 'Ease of win', options: ['', 'High', 'Medium', 'Low'] },
   { key: 'rank', label: 'Rank' }, { key: 'source', label: 'Lead source', options: SOURCES }, { key: 'sourceDetail', label: 'Source page' },
   { key: 'nextStep', label: 'Next step' },
@@ -108,6 +112,8 @@ export function CustomerPage({ c, busy, msg, post, back, goApprovals, reload, ac
 
       {c.stage === 'won' && <CustomerSuccess c={c} busy={busy} post={post} reload={reload} goApprovals={goApprovals} />}
 
+      <ResearchPanel c={c} busy={busy} post={post} reload={reload} goApprovals={goApprovals} />
+
       {editing ? (
         <section className="panel glass-card">
           <h3>Edit {c.company || c.name}</h3>
@@ -134,6 +140,7 @@ export function CustomerPage({ c, busy, msg, post, back, goApprovals, reload, ac
               <Field label="Phone">{c.phone ? <a href={`tel:${c.phone.replace(/[^\d+]/g, '')}`}>{c.phone}</a> : '—'}</Field>
               <Field label="Email">{c.email ? <a href={`mailto:${c.email}`}>{c.email}</a> : '—'}</Field>
               <Field label="Website">{c.website ? <a href={webHref(c.website)} target="_blank" rel="noopener noreferrer">{c.website}</a> : '—'}</Field>
+              <Field label="Address">{c.address || '—'}</Field>
               <Field label="City">{c.city || '—'}</Field>
               <Field label="Niche">{c.niche || '—'}</Field>
               <Field label="Size">{c.size || '—'}</Field>

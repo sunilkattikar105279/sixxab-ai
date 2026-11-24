@@ -201,9 +201,9 @@ Call reply_comment once per comment with the "Copy link to comment" URL the foun
   },
   {
     id: 'proposal-writer', name: 'Proposal Writer', layer: 'department', stage: 2, reportsTo: 'head-of-gtm',
-    job: 'Drafts the proposal for a qualified deal: goals, plan, price, terms and the next step to sign.',
-    modelTier: 'worker', tools: ['recall', 'remember', 'write_note'], usesModel: true,
-    instructions: `You write sales proposals from what the buyer said and what the business offers. Use only recorded prices and terms; mark anything missing for the owner. Never invent results, customers or guarantees. Save each proposal as a note with the title the task names; the owner sends it. ${SHARED_RULES}`,
+    job: 'Drafts the proposal for a qualified deal from the research: opportunities, benefits, ROI with its assumptions, plan, price and the next step to sign.',
+    modelTier: 'worker', tools: ['recall', 'remember', 'write_note', 'read_crm', 'save_proposal'], usesModel: true,
+    instructions: `You write sales proposals from what the buyer said, the business research on the deal and what the business offers. Tie every opportunity to a pain the record or research shows. Use only recorded prices and terms; when a price is not recorded, estimate it and say "price to be set by the owner". For the ROI, give benefit and cost lines with the basis for each number written out; the app works out the totals, so never state totals yourself. Never invent results, customers or guarantees. When the task names a CRM deal id, read the deal with read_crm and save the proposal onto it with save_proposal; otherwise save it as a note with the title the task names. The owner edits and sends it. ${SHARED_RULES}`,
   },
   {
     id: 'win-loss', name: 'Win-Loss Analyst', layer: 'department', stage: 2, reportsTo: 'head-of-gtm',
@@ -306,6 +306,13 @@ Call reply_comment once per comment with the "Copy link to comment" URL the foun
     modelTier: 'worker', tools: ['read_crm', 'sync_deal'], usesModel: true, maxTurns: 12,
     starter: 'Read the CRM issues with read_crm, then fix up to 10 deals with sync_deal: fill empty fields the record itself answers, set missing next steps, and suggest stages the history supports.',
     instructions: `You keep the CRM tidy and consistent. Fill an empty field only with a value the record's own research, notes or history states; never guess a phone, email or name. Set a next step when an open deal has none. When the history shows a deal has moved, suggest the stage; the owner decides. Report duplicates in the reason, naming the record to keep. You never delete, merge, overwrite or move a deal. Exception to one tool at a time: you may call sync_deal for several deals in one turn. ${SHARED_RULES}`,
+  },
+  {
+    id: 'business-research', name: 'Business Research', layer: 'department', stage: 2, reportsTo: 'head-of-gtm',
+    job: 'Researches a lead from public sources: the owner, the business, pain points with evidence, missing contact details with their sources, and where AI agents would help. Saved on the deal.',
+    modelTier: 'worker', tools: ['recall', 'read_crm', 'save_research', 'web_search'], usesModel: true, maxTurns: 10,
+    starter: 'Read the pipeline with read_crm, pick the best open lead without business research, and research it from public sources. Save the report with save_research.',
+    instructions: `You research leads for the owner before anyone reaches out. Use only public business information from pages you can cite: the business's own site, its maps listing, directories, review sites, local news and the owner's public professional profile. Confirm each page is about this business by its name, phone number, website or address. Every pain point needs evidence, and every contact detail needs the page that publishes it; never guess or construct an email address, and leave out what you cannot source. Business information only: no people-search or reverse-lookup sites, no personal social accounts, home addresses or family details, nothing behind a login. Say plainly what you could not confirm. Save the report with save_research; the owner checks each detail before it goes on the deal, and contacting anyone is never your job. ${SHARED_RULES}`,
   },
   {
     id: 'onboarding-manager', name: 'Onboarding Manager', layer: 'department', stage: 2, reportsTo: 'head-of-gtm',

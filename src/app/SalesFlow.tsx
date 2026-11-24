@@ -9,7 +9,8 @@ import { CopyButton } from './DealAgents';
 import { stageName, type Contact } from './Customer';
 import { scoreGoal, sequenceGoal } from '../../core/leadgen';
 import { accountReviewGoal, onboardingGoal } from '../../core/salesflow';
-import { callPrepGoal, followUpGoal, proposalGoal, winLossGoal } from '../../core/gtm';
+import { proposalDraftGoal, researchGoal } from '../../core/research';
+import { callPrepGoal, followUpGoal, winLossGoal } from '../../core/gtm';
 import { AUTO_RULES, FLOW_STAGES, type FlowOrg, type FlowStage, type NextAction } from '../../core/salesflow-state';
 
 type Post = (k: string, b: Record<string, unknown>) => Promise<boolean>;
@@ -19,7 +20,7 @@ export interface FlowState { contacts: Contact[]; flowOrg: FlowOrg; flowCounts: 
 const PROCESS_DOC = 'https://claude.ai/artifact/FiaUvmmdRJC66JoMRhbATW';
 const STAGE_OF = Object.fromEntries(FLOW_STAGES.map((s) => [s.key, s])) as Record<FlowStage, (typeof FLOW_STAGES)[number]>;
 const AGENT_LABEL: Record<string, string> = {
-  'lead-scorer': 'Score it', 'outreach-sequencer': 'Draft the outreach', 'onboarding-manager': 'Plan onboarding', 'customer-success': 'Run the health check',
+  'business-research': 'Research it', 'lead-scorer': 'Score it', 'outreach-sequencer': 'Draft the outreach', 'onboarding-manager': 'Plan onboarding', 'customer-success': 'Run the health check',
   'call-prepper': 'Prep the call', 'follow-up-writer': 'Draft the follow-up', 'proposal-writer': 'Draft the proposal', 'win-loss': 'Review the loss',
 };
 const CHANNEL: Record<string, string> = { email: 'Email', linkedin: 'LinkedIn', call: 'Call', text: 'Text message' };
@@ -34,7 +35,8 @@ export function goalFor(a: NextAction, c?: Contact): string {
     case 'review': return accountReviewGoal(c.id);
     case 'discovery': return callPrepGoal(c);
     case 'quiet': case 'proposal_quiet': return followUpGoal(c);
-    case 'proposal': return proposalGoal(c);
+    case 'research': return researchGoal(c.id);
+    case 'proposal': return proposalDraftGoal(c.id);
     case 'winloss': return winLossGoal(c);
     default: return '';
   }
@@ -47,7 +49,7 @@ function SendDraft({ a, busy, post }: { a: NextAction; busy: boolean; post: Post
   const d = a.draft!;
   const [body, setBody] = useState(d.text);
   const email = d.channel === 'email' && d.to.includes('@');
-  const markSent = () => post(a.key, a.rule === 'send_step' ? { action: 'sequence_sent', contactId: a.contactId, index: a.stepIndex } : { action: 'customer_sent', contactId: a.contactId, kind: a.msg });
+  const markSent = () => post(a.key, a.rule === 'send_step' ? { action: 'sequence_sent', contactId: a.contactId, index: a.stepIndex } : a.rule === 'proposal_send' ? { action: 'proposal_sent', contactId: a.contactId } : { action: 'customer_sent', contactId: a.contactId, kind: a.msg });
   return (
     <div className="stack-xs">
       <details>

@@ -246,3 +246,17 @@ th { color: var(--sub); font-weight: 500; font-size: 12px; text-transform: upper
 .flow-auto { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; padding: 12px 14px; border: 1px dashed var(--line); border-radius: 14px; }
 .flow-how { padding-left: 18px; margin: 8px 0 0; display: flex; flex-direction: column; gap: 6px; }
 .update-banner { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; padding: 8px 16px; background: rgba(231,199,102,0.14); border-bottom: 1px solid var(--line); color: var(--ink); font-size: 14px; }
+
+/* Research and proposal (customer page) */
+.research-list { margin: 4px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+.research-list li.row-between { gap: 10px; }
+.roi { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,0.02); }
+.roi-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.roi-table th { color: var(--sub); font-weight: 500; font-size: 12px; }
+.roi-table td, .roi-table th { padding: 6px 6px; vertical-align: top; }
+.roi-table input, .roi-cur { width: 100%; min-height: 32px; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--line); background: rgba(255,255,255,0.04); color: var(--ink); font: inherit; font-size: 13px; }
+.roi-table input[type="number"] { max-width: 120px; }
+.roi-cur { width: auto; }
+.roi-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.proposal-text { width: 100%; min-height: 220px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,0.04); color: var(--ink); font: inherit; font-size: 14px; line-height: 1.5; resize: vertical; }
+@media (max-width: 600px) { .roi-table thead { display: none; } .roi-table tr { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 6px 0; border-bottom: 1px solid var(--line); } .roi-table td { border: 0; padding: 2px 0; } .roi-table td:first-child, .roi-table td:last-child { grid-column: 1 / -1; } }

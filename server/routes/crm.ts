@@ -5,6 +5,7 @@ import { apolloEnrich, apolloSearch, type ApolloFilters, type ApolloPerson } fro
 import { isAdmin } from '../../core/automation.js';
 import { decideProspects, dismissSync, markStepSent, removeIcp, saveIcp, saveIcpNotes } from '../../core/leadgen.js';
 import { markCustomerSent, markOnboardingStep, setAutopilot, skipAction } from '../../core/salesflow.js';
+import { editProposal, markProposalSent, useResearchField } from '../../core/research.js';
 import type { NextAction } from '../../core/salesflow-state.js';
 import { newId, nowIso, type Store } from '../../core/store.js';
 import { handle, HttpError, json, readJson, requireUser } from '../context.js';
@@ -31,7 +32,7 @@ export const GET = handle(async (request) => {
 interface Body {
   action?: string; contact?: ContactInput; contactId?: string; stage?: DealStage; note?: string; kind?: string; csv?: string; meddic?: unknown; callNotes?: string; filters?: ApolloFilters; people?: ApolloPerson[];
   icp?: Record<string, unknown>; icpId?: string; notes?: string; batchId?: string; add?: string[]; dismiss?: string[]; index?: number;
-  key?: string; on?: boolean;
+  key?: string; on?: boolean; edit?: Record<string, unknown>;
 }
 
 export const POST = handle(async (request) => {
@@ -83,6 +84,10 @@ export const POST = handle(async (request) => {
       case 'onboarding_step': await markOnboardingStep(store, orgId, id, Number(b.index), label); return json({ crm: await crmView(store, orgId) });
       case 'action_skip': await skipAction(store, orgId, String(b.key ?? ''), label); return json({ crm: await crmView(store, orgId) });
       case 'autopilot': await setAutopilot(store, orgId, Boolean(b.on), label); return json({ crm: await crmView(store, orgId) });
+      // Research and proposals: the owner adds a checked detail, edits the proposal, or marks it sent.
+      case 'research_use': await useResearchField(store, orgId, id, Number(b.index), label); return json({ crm: await crmView(store, orgId) });
+      case 'proposal_edit': await editProposal(store, orgId, id, b.edit ?? {}, label); return json({ crm: await crmView(store, orgId) });
+      case 'proposal_sent': await markProposalSent(store, orgId, id, label); return json({ crm: await crmView(store, orgId) });
       default: throw new HttpError(400, 'Unknown action');
     }
   } catch (e) {

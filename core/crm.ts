@@ -4,6 +4,7 @@ import { newId, nowIso, type Store } from './store.js';
 import type { AuditEvent } from './types.js';
 import { cleanMeddic, scoreMeddic, type Meddic } from './gtm.js';
 import { applyDealEvent, computeLeadgen, crmIssues, EMPTY_DEAL_LEADGEN, LEADGEN_DEAL_EVENTS, LEADGEN_ORG_EVENTS, type CrmIssue, type DealLeadgen, type Icp, type IcpNotes, type ProspectBatch } from './leadgen-state.js';
+import { applyResearchEvent, EMPTY_DEAL_RESEARCH, RESEARCH_DEAL_EVENTS, type DealResearch } from './research-state.js';
 import { applyFlowEvent, computeFlowOrg, EMPTY_CUSTOMER, FLOW_DEAL_EVENTS, FLOW_ORG_EVENTS, flowCounts, nextActions, type CustomerFlow, type FlowOrg, type FlowStage, type NextAction } from './salesflow-state.js';
 
 export const DEAL_STAGES = ['lead', 'contacted', 'qualified', 'proposal', 'won', 'lost'] as const;
@@ -19,8 +20,10 @@ export interface LeadProfile {
   dealTier: Tier; ease: Tier; whyFit: string; pitch: string; sourceDetail: string; checkFirst: string;
   /** Deeper research kept on the customer page: their pains, what we offer them, how we open, and free notes. */
   painPoints: string; offer: string; angle: string; research: string;
+  /** The business's street address, when known. */
+  address: string;
 }
-export const EMPTY_PROFILE: LeadProfile = { rank: null, niche: '', city: '', website: '', size: '', title: '', dealTier: '', ease: '', whyFit: '', pitch: '', sourceDetail: '', checkFirst: '', painPoints: '', offer: '', angle: '', research: '' };
+export const EMPTY_PROFILE: LeadProfile = { rank: null, niche: '', city: '', website: '', size: '', title: '', dealTier: '', ease: '', whyFit: '', pitch: '', sourceDetail: '', checkFirst: '', painPoints: '', offer: '', angle: '', research: '', address: '' };
 
 /** One line in a customer's history: what happened, when, and who did it. */
 export interface HistoryItem { at: string; by: string; kind: string; text: string }
@@ -32,7 +35,7 @@ export interface ContactInput extends Partial<Omit<LeadProfile, 'rank' | 'dealTi
   id?: string; name: string; company?: string; email?: string; phone?: string; source?: string; value?: number | string; nextStep?: string; notes?: string; apolloId?: string;
   rank?: number | string | null; dealTier?: string; ease?: string;
 }
-export interface Contact extends LeadProfile, DealLeadgen {
+export interface Contact extends LeadProfile, DealLeadgen, DealResearch {
   id: string; name: string; company: string; email: string; phone: string; source: string; value: number; nextStep: string; notes: string;
   apolloId?: string;
   stage: DealStage; createdAt: string; updatedAt: string; lastTouch: string | null;
@@ -61,7 +64,7 @@ export interface CrmState {
   nextActions: NextAction[];
 }
 
-export const CRM_EVENTS = ['crm.contact', 'crm.stage', 'crm.touch', 'crm.note', 'crm.qualify', 'crm.removed', ...LEADGEN_ORG_EVENTS, ...LEADGEN_DEAL_EVENTS, ...FLOW_ORG_EVENTS, ...FLOW_DEAL_EVENTS];
+export const CRM_EVENTS = ['crm.contact', 'crm.stage', 'crm.touch', 'crm.note', 'crm.qualify', 'crm.removed', ...LEADGEN_ORG_EVENTS, ...LEADGEN_DEAL_EVENTS, ...FLOW_ORG_EVENTS, ...FLOW_DEAL_EVENTS, ...RESEARCH_DEAL_EVENTS];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^\+?[\d\s()-]{7,20}$/;
 const STALE_DAYS = 7;
@@ -96,6 +99,7 @@ function cleanProfile(i: ContactInput): LeadProfile {
     size: text(i.size, 80), title: text(i.title, 120), dealTier: tier(i.dealTier), ease: tier(i.ease),
     whyFit: text(i.whyFit, 1000), pitch: text(i.pitch, 300), sourceDetail: text(i.sourceDetail, 200), checkFirst: text(i.checkFirst, 300),
     painPoints: text(i.painPoints, 1000), offer: text(i.offer, 500), angle: text(i.angle, 500), research: text(i.research, 8000),
+    address: text(i.address, 200),
   };
 }
 
@@ -230,6 +234,7 @@ const COLUMNS: Record<string, string[]> = {
   offer: ['offer', 'ouroffer'],
   angle: ['outreachangle', 'angle', 'openingangle'],
   research: ['research', 'researchnotes'],
+  address: ['address', 'streetaddress', 'businessaddress', 'fulladdress'],
 };
 const POSITIONAL = ['name', 'company', 'email', 'phone', 'source', 'value', 'nextStep', 'notes'];
 const norm = (h: string) => h.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -263,7 +268,7 @@ function rowToInput(cells: string[], map: (string | null)[]): ContactInput {
     name: map.includes('name') ? f.name ?? '' : person.name || f.company || '', company: f.company, email: f.email, phone, source: source.toLowerCase(), value: f.value,
     nextStep: f.nextStep, notes: f.notes, rank: f.rank, niche: f.niche, city: f.city, website: f.website, size: f.size,
     title: f.title || person.title, dealTier: f.dealTier, ease: f.ease, whyFit: f.whyFit, pitch: f.pitch, sourceDetail, checkFirst: f.checkFirst,
-    painPoints: f.painPoints, offer: f.offer, angle: f.angle, research: f.research,
+    painPoints: f.painPoints, offer: f.offer, angle: f.angle, research: f.research, address: f.address,
   };
 }
 
@@ -336,7 +341,8 @@ export function computeCrm(events: AuditEvent[], now = Date.now()): CrmState {
         : summary.startsWith('Contact updated from a list') ? 'Details filled in from a list' : summary.startsWith('Contact updated by CRM Sync') ? 'Details filled in by CRM Sync' : 'Details updated';
       const history = addHistory(prev?.history ?? [], { at: e.at, by: e.actor, kind: 'update', text: what });
       const lg: DealLeadgen = prev ? { leadScore: prev.leadScore, sequence: prev.sequence, objections: prev.objections, syncSuggestion: prev.syncSuggestion } : EMPTY_DEAL_LEADGEN;
-      map.set(c.id, { ...EMPTY_PROFILE, ...c, ...lg, customer: prev?.customer ?? EMPTY_CUSTOMER, stage: prev?.stage ?? 'lead', createdAt: prev?.createdAt ?? e.at, updatedAt: e.at, lastTouch: prev?.lastTouch ?? null, meddic: prev?.meddic ?? null, callNotes: prev?.callNotes ?? '', score: prev?.score ?? null, history });
+      const dr: DealResearch = prev ? { researchReport: prev.researchReport, proposal: prev.proposal } : EMPTY_DEAL_RESEARCH;
+      map.set(c.id, { ...EMPTY_PROFILE, ...c, ...lg, ...dr, customer: prev?.customer ?? EMPTY_CUSTOMER, stage: prev?.stage ?? 'lead', createdAt: prev?.createdAt ?? e.at, updatedAt: e.at, lastTouch: prev?.lastTouch ?? null, meddic: prev?.meddic ?? null, callNotes: prev?.callNotes ?? '', score: prev?.score ?? null, history });
     } else if (LEADGEN_ORG_EVENTS.includes(e.action) || FLOW_ORG_EVENTS.includes(e.action)) {
       continue;
     } else {
@@ -350,6 +356,10 @@ export function computeCrm(events: AuditEvent[], now = Date.now()): CrmState {
       } else if (FLOW_DEAL_EVENTS.includes(e.action)) {
         const r = applyFlowEvent(prev.customer, e);
         map.set(prev.id, { ...prev, customer: r.cf, ...(r.touch ? { lastTouch: e.at, updatedAt: e.at } : {}), history: r.history ? log(r.history.kind, r.history.text) : prev.history });
+      }
+      else if (RESEARCH_DEAL_EVENTS.includes(e.action)) {
+        const r = applyResearchEvent({ researchReport: prev.researchReport, proposal: prev.proposal }, e);
+        map.set(prev.id, { ...prev, ...r.dr, ...(r.touch ? { lastTouch: e.at, updatedAt: e.at } : {}), history: r.history ? log(r.history.kind, r.history.text) : prev.history });
       }
       else if (LEADGEN_DEAL_EVENTS.includes(e.action)) {
         const r = applyDealEvent(prev, e, prev.stage);
