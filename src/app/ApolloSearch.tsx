@@ -1,6 +1,7 @@
 // Admin only: find people in Apollo by title, location, industry and size, then import them as leads.
 // Searching uses no Apollo credits and returns no emails; revealing an email is a separate, per-contact click.
 import React, { useState } from 'react';
+import { Fold } from './Fold';
 import { api } from '../lib/auth';
 import { Spinner } from './ui';
 
@@ -41,9 +42,7 @@ export function ApolloSearch({ onImported }: { onImported: () => void }) {
 
   const toggle = (id: string) => { const n = new Set(pick); if (n.has(id)) n.delete(id); else n.add(id); setPick(n); };
   return (
-    <section className="panel glass-card">
-      <p className="eyebrow">Apollo · admin only</p>
-      <h2>Find people in Apollo</h2>
+    <Fold id="apollo" title="Find people in Apollo" eyebrow="Apollo · admin only" hint="Admin only">
       <p className="muted small">Search uses no Apollo credits and returns no emails. After importing, use "Find email" on a contact to reveal its work email for one credit.</p>
       <form className="form" onSubmit={search}>
         <div className="grid2">
@@ -73,6 +72,6 @@ export function ApolloSearch({ onImported }: { onImported: () => void }) {
         </>
       ))}
       {msg && <p className={/Imported/.test(msg) ? 'muted small' : 'error'} role="status">{msg}</p>}
-    </section>
+    </Fold>
   );
 }

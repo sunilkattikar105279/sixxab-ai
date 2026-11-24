@@ -4,6 +4,7 @@
 import React, { useState } from 'react';
 import { api } from '../lib/auth';
 import { Spinner } from './ui';
+import { Fold, reveal } from './Fold';
 import { AgentRun } from './AgentRun';
 import { CopyButton } from './DealAgents';
 import { stageName, type Contact } from './Customer';
@@ -73,7 +74,7 @@ export function ActionCard({ a, c, busy, post, reload, goApprovals, open, showCo
   a: NextAction; c?: Contact; busy: boolean; post: Post; reload: () => void; goApprovals: () => void; open?: (c: Contact) => void; showCompany?: boolean;
 }) {
   const skip = () => post(`skip-${a.key}`, { action: 'action_skip', key: a.key });
-  const goto = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const goto = reveal;
   const gotoImport = () => { goto('import-research'); setTimeout(() => document.querySelector<HTMLInputElement>('#import-research input[type="file"]')?.focus({ preventScroll: true }), 450); };
   return (
     <li className="action-card">
@@ -119,7 +120,7 @@ export function SalesFlow({ crm, busy, post, reload, goApprovals, open, admin }:
   const on = !!crm.flowOrg?.autopilot?.on;
   const findOn = !!crm.flowOrg?.autofind?.on;
   const icp = crm.icps?.[0];
-  const goto = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const goto = reveal;
   const lastSearch = crm.lastProspectSearch ? Math.floor((Date.now() - Date.parse(crm.lastProspectSearch)) / 864e5) : null;
 
   async function prepareNow() {
@@ -139,9 +140,7 @@ export function SalesFlow({ crm, busy, post, reload, goApprovals, open, admin }:
   }
 
   return (
-    <section className="panel glass-card" id="sales-flow">
-      <p className="eyebrow">Sales flow · agents prepare, you approve</p>
-      <h2>From first lead to loyal customer</h2>
+    <Fold id="sales-flow" open title="Sales flow" eyebrow="From first lead to loyal customer · agents prepare, you approve" hint={actions.length ? `${actions.length} next action${actions.length === 1 ? '' : 's'}` : 'Nothing to do'}>
       <div className="flow-strip" role="list" aria-label="Sales flow stages">
         {FLOW_STAGES.map((s, i) => (
           <button key={s.key} type="button" role="listitem" className={`flow-tile${stage === s.key ? ' on' : ''}`} aria-pressed={stage === s.key} onClick={() => { setStage(stage === s.key ? 'all' : s.key); setAll(false); }}>
@@ -164,31 +163,34 @@ export function SalesFlow({ crm, busy, post, reload, goApprovals, open, admin }:
       )}
       {list.length > shown.length && <div className="row-end"><button type="button" className="btn-ghost" onClick={() => setAll(true)}>Show all {list.length}</button></div>}
 
-      <div className="flow-auto">
-        <div className="stack-xs">
-          <strong>Autopilot {on ? 'is on' : 'is off'}</strong>
-          <p className="muted small">Each morning it prepares up to 3 drafts from the top of this queue: lead scores, outreach drafts, onboarding plans and health checks. It never sends a message or moves a deal; those stay with you.</p>
-          {auto && <p className={auto.error ? 'error' : 'muted small'} role="status">{auto.error ? `Stopped after ${auto.done} of ${auto.total}: ${auto.error}` : auto.running ? `Preparing ${auto.done + 1} of ${auto.total}…` : `Prepared ${auto.done} draft${auto.done === 1 ? '' : 's'}. They are in the queue above.`}</p>}
+      <details className="head-group">
+        <summary>Autopilot and weekly search <span className="muted small">autopilot {on ? 'on' : 'off'} · weekly search {findOn ? 'on' : 'off'}</span></summary>
+        <div className="flow-auto">
+          <div className="stack-xs">
+            <strong>Autopilot {on ? 'is on' : 'is off'}</strong>
+            <p className="muted small">Each morning it prepares up to 3 drafts from the top of this queue: lead scores, outreach drafts, onboarding plans and health checks. It never sends a message or moves a deal; those stay with you.</p>
+            {auto && <p className={auto.error ? 'error' : 'muted small'} role="status">{auto.error ? `Stopped after ${auto.done} of ${auto.total}: ${auto.error}` : auto.running ? `Preparing ${auto.done + 1} of ${auto.total}…` : `Prepared ${auto.done} draft${auto.done === 1 ? '' : 's'}. They are in the queue above.`}</p>}
+          </div>
+          <div className="row-end">
+            <button type="button" className="btn-ghost" disabled={busy} onClick={() => post('autopilot', { action: 'autopilot', on: !on })}>{on ? 'Turn autopilot off' : 'Turn autopilot on'}</button>
+            <button type="button" className="btn-primary" disabled={busy || auto?.running || autoTodo.length === 0} onClick={prepareNow}>{auto?.running ? <Spinner label="Agents working…" /> : autoTodo.length ? `Prepare ${autoTodo.length} draft${autoTodo.length === 1 ? '' : 's'} now` : 'Nothing to prepare'}</button>
+          </div>
         </div>
-        <div className="row-end">
-          <button type="button" className="btn-ghost" disabled={busy} onClick={() => post('autopilot', { action: 'autopilot', on: !on })}>{on ? 'Turn autopilot off' : 'Turn autopilot on'}</button>
-          <button type="button" className="btn-primary" disabled={busy || auto?.running || autoTodo.length === 0} onClick={prepareNow}>{auto?.running ? <Spinner label="Agents working…" /> : autoTodo.length ? `Prepare ${autoTodo.length} draft${autoTodo.length === 1 ? '' : 's'} now` : 'Nothing to prepare'}</button>
-        </div>
-      </div>
 
-      <div className="flow-auto" id="weekly-prospects">
-        <div className="stack-xs">
-          <strong>Weekly prospect search {findOn ? 'is on' : 'is off'}</strong>
-          <p className="muted small">{icp
-            ? `Once a week, early in the morning, the Prospect Generator looks on public pages for ${FIND_COUNT} new businesses that fit "${icp.name}", skipping ones already in the CRM. They wait under Find new prospects for your tick; nothing is added or contacted until then. Each search uses a few web searches.`
-            : 'Build an ICP under Who you sell to first. The weekly search looks for businesses that fit it.'}
-            {lastSearch !== null ? ` Last search: ${lastSearch === 0 ? 'today' : `${lastSearch} day${lastSearch === 1 ? '' : 's'} ago`}.` : ''}</p>
+        <div className="flow-auto" id="weekly-prospects">
+          <div className="stack-xs">
+            <strong>Weekly prospect search {findOn ? 'is on' : 'is off'}</strong>
+            <p className="muted small">{icp
+              ? `Once a week, early in the morning, the Prospect Generator looks on public pages for ${FIND_COUNT} new businesses that fit "${icp.name}", skipping ones already in the CRM. They wait under Find new prospects for your tick; nothing is added or contacted until then. Each search uses a few web searches.`
+              : 'Build an ICP under Who you sell to first. The weekly search looks for businesses that fit it.'}
+              {lastSearch !== null ? ` Last search: ${lastSearch === 0 ? 'today' : `${lastSearch} day${lastSearch === 1 ? '' : 's'} ago`}.` : ''}</p>
+          </div>
+          <div className="row-end">
+            <button type="button" className="btn-ghost" disabled={busy || (!icp && !findOn)} onClick={() => post('autofind', { action: 'autofind', on: !findOn })}>{findOn ? 'Turn weekly search off' : 'Turn weekly search on'}</button>
+            <button type="button" className="btn-primary" onClick={() => goto('find-prospects')}>Find prospects now</button>
+          </div>
         </div>
-        <div className="row-end">
-          <button type="button" className="btn-ghost" disabled={busy || (!icp && !findOn)} onClick={() => post('autofind', { action: 'autofind', on: !findOn })}>{findOn ? 'Turn weekly search off' : 'Turn weekly search on'}</button>
-          <button type="button" className="btn-primary" onClick={() => goto('find-prospects')}>Find prospects now</button>
-        </div>
-      </div>
+      </details>
 
       <details className="head-group">
         <summary>How the sales flow works</summary>
@@ -198,6 +200,6 @@ export function SalesFlow({ crm, busy, post, reload, goApprovals, open, admin }:
         <p className="muted small">Every agent action is logged in the deal's history. Agents work only from what the record says and mark what they don't know.</p>
         {admin && <p className="small"><a href={PROCESS_DOC} target="_blank" rel="noopener noreferrer">Read the full sales process</a> <span className="muted">(your Claude Doc, visible to admins only)</span></p>}
       </details>
-    </section>
+    </Fold>
   );
 }

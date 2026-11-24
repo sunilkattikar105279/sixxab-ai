@@ -268,3 +268,13 @@ th { color: var(--sub); font-weight: 500; font-size: 12px; text-transform: upper
 /* Research on each board card */
 .board-research { display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap; }
 .board-research .btn-mini { white-space: nowrap; }
+/* Panels that fold to one line (CRM tab) */
+.fold > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 12px; min-height: 36px; }
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary h2 { margin: 0; flex: 1; min-width: 0; }
+.fold > summary .fold-hint { text-align: right; max-width: 55%; }
+.fold > summary::after { content: '▾'; flex: none; color: var(--gold); font-size: 18px; line-height: 1; transition: transform .15s; }
+.fold[open] > summary::after { transform: rotate(180deg); }
+.fold > summary:focus-visible { outline: 2px solid var(--gold); outline-offset: 4px; border-radius: 8px; }
+.fold:not([open]) { padding-top: 12px; padding-bottom: 12px; }
+.fold-body { margin-top: 16px; }

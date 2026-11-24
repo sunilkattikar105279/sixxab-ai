@@ -12,6 +12,7 @@ import { fileToCsv } from '../lib/sheet';
 import { CustomerPage, STAGES, stageName, webHref, type Contact } from './Customer';
 import { LeadAgents, type LeadgenState } from './LeadAgents';
 import { SalesFlow } from './SalesFlow';
+import { Fold } from './Fold';
 import { researchGoal } from '../../core/research';
 import type { FlowOrg, FlowStage, NextAction } from '../../core/salesflow-state';
 import type { ResearchImportSummary } from '../../core/research-state';
@@ -170,9 +171,7 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
       <SalesFlow crm={crm} busy={!!busy} post={post} reload={reload} goApprovals={goApprovals} open={openCustomer} admin={data.admin} />
       {msg && <p className="error" role="alert">{msg}</p>}
 
-      <section className="panel glass-card" id="import">
-        <p className="eyebrow">Import · lead lists and research files</p>
-        <h2>Import leads and research</h2>
+      <Fold id="import" title="Import leads and research" hint="Excel, CSV or a research file">
         <div className="grid2 import-grid">
           <div className="import-box" id="import-list">
             <h3>1. Import a list</h3>
@@ -222,11 +221,9 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
             {researchMsg && <div role={researchMsg.ok ? 'status' : 'alert'}><p className={researchMsg.ok ? 'small' : 'error'}>{researchMsg.text}</p>{researchMsg.lines.length > 0 && <ul className="small">{researchMsg.lines.map((l) => <li key={l}>{l}</li>)}</ul>}</div>}
           </div>
         </div>
-      </section>
+      </Fold>
 
-      <section className="panel glass-card">
-        <p className="eyebrow">CRM · Sales CRM agent</p>
-        <h2>Pipeline</h2>
+      <Fold id="pipeline" title="Pipeline" eyebrow="CRM · Sales CRM agent" hint={`${t.open} open · ${money(t.openValue)}${t.followUps ? ` · ${t.followUps} need a follow-up` : ''}`}>
         <div className="cost-tiles">
           <div><span className="muted small">Open deals</span><strong>{t.open}</strong><span className="muted small">{money(t.openValue)} in play</span></div>
           <div><span className="muted small">Won</span><strong>{t.won}</strong><span className="muted small">{money(t.wonValue)}</span></div>
@@ -234,56 +231,40 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
           <div><span className="muted small">Need a follow-up</span><strong>{t.followUps}</strong><span className="muted small">quiet 7+ days</span></div>
         </div>
         <AgentRun agentId="sales-crm" goal={crm.followUpGoal} label={`Draft ${t.followUps} follow-up${t.followUps === 1 ? '' : 's'}`} emptyText="No open deal with an email has gone quiet for a week." goApprovals={goApprovals} />
-      </section>
+        <details className="head-group">
+          <summary>Weekly pipeline review <span className="muted small">Head of GTM</span></summary>
+          <p className="muted small">Focus deals, stuck deals and the forecast weighted by each deal's MEDDIC score. Open a contact below to prep a call, debrief it, send the follow-up or answer an objection.</p>
+          <AgentRun agentId="head-of-gtm" goal={pipelineReviewGoal(crm.contacts)} label="Run the weekly review" emptyText="Add an open deal to review the pipeline." goApprovals={goApprovals} />
+        </details>
+      </Fold>
 
-      <section className="panel glass-card">
-        <p className="eyebrow">Pipeline board</p>
-        <h2>Deals by stage</h2>
+      <Fold id="board" title="Deals by stage" eyebrow="Pipeline board" hint={`${t.open} open deal${t.open === 1 ? '' : 's'}`}>
         <p className="muted small">Tap a card to open the customer's full record. "Research this business" on a card runs the Business Research agent on public pages and saves the report on the deal.</p>
         <Board contacts={crm.contacts} busy={!!busy} move={(c, stage) => post(c.id, { action: 'stage', contactId: c.id, stage })} open={openCustomer} reload={reload} />
-      </section>
+      </Fold>
 
-      <section className="panel glass-card">
-        <p className="eyebrow">Go-to-market · Head of GTM</p>
-        <h2>Weekly pipeline review</h2>
-        <p className="muted small">Focus deals, stuck deals and the forecast weighted by each deal's MEDDIC score. Open a contact below to prep a call, debrief it, send the follow-up or answer an objection.</p>
-        <AgentRun agentId="head-of-gtm" goal={pipelineReviewGoal(crm.contacts)} label="Run the weekly review" emptyText="Add an open deal to review the pipeline." goApprovals={goApprovals} />
-      </section>
-
-      {data.apollo && <ApolloSearch onImported={reload} />}
-
-      <LeadAgents crm={crm} busy={!!busy} post={post} reload={reload} goApprovals={goApprovals} />
-
-      <section className="panel glass-card">
-        <p className="eyebrow">New business · Speed-to-Lead</p>
-        <h2>Answer new leads</h2>
-        <AgentRun agentId="speed-to-lead" goal={crm.speedGoal ?? ''} label={`Reply to ${crm.newLeads ?? 0} new lead${crm.newLeads === 1 ? '' : 's'}`} emptyText="No new leads from the last 48 hours are waiting for a first reply." goApprovals={goApprovals} />
-      </section>
-
-      <section className="panel glass-card">
-        <h2>Add a contact</h2>
-        <form className="form" onSubmit={async (e) => { e.preventDefault(); if (await post('add', { action: 'contact', contact: f })) setF(EMPTY); }}>
-          <div className="grid3">
-            <label className="field"><span>Name</span><input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} maxLength={120} /></label>
-            <label className="field"><span>Company</span><input value={f.company} onChange={(e) => setF({ ...f, company: e.target.value })} maxLength={120} /></label>
-            <label className="field"><span>Email</span><input type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></label>
-            <label className="field"><span>Phone</span><input type="tel" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} /></label>
-            <label className="field"><span>Source</span><select value={f.source} onChange={(e) => setF({ ...f, source: e.target.value })}>{SOURCES.map((s) => <option key={s}>{s}</option>)}</select></label>
-            <label className="field"><span>Deal value</span><input inputMode="numeric" value={f.value} onChange={(e) => setF({ ...f, value: e.target.value.replace(/[^\d.]/g, '') })} /></label>
-          </div>
-          <label className="field"><span>Next step</span><input value={f.nextStep} onChange={(e) => setF({ ...f, nextStep: e.target.value })} maxLength={200} placeholder="e.g. send price list on Friday" /></label>
-          <div className="row-end"><button type="submit" className="btn-primary" disabled={!!busy || !f.name.trim()}>{busy === 'add' ? <Spinner label="Saving…" /> : 'Add contact'}</button></div>
-        </form>
-        {msg && <p className="error" role="alert">{msg}</p>}
-      </section>
-
-      <section className="panel glass-card">
-        <div className="row-between">
-          <h2>Contacts</h2>
+      <Fold id="contacts" title="Contacts" hint={`${crm.contacts.length} in the CRM`}>
+        <div className="row-end">
           <select aria-label="Show" value={filter} onChange={(e) => setFilter(e.target.value)}>
             <option value="open">Open deals</option><option value="all">All</option>{STAGES.map((s) => <option key={s} value={s}>{stageName(s)} ({crm.pipeline[s] ?? 0})</option>)}
           </select>
         </div>
+        <details className="head-group">
+          <summary>Add a contact</summary>
+          <form className="form" onSubmit={async (e) => { e.preventDefault(); if (await post('add', { action: 'contact', contact: f })) setF(EMPTY); }}>
+            <div className="grid3">
+              <label className="field"><span>Name</span><input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} maxLength={120} /></label>
+              <label className="field"><span>Company</span><input value={f.company} onChange={(e) => setF({ ...f, company: e.target.value })} maxLength={120} /></label>
+              <label className="field"><span>Email</span><input type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></label>
+              <label className="field"><span>Phone</span><input type="tel" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} /></label>
+              <label className="field"><span>Source</span><select value={f.source} onChange={(e) => setF({ ...f, source: e.target.value })}>{SOURCES.map((s) => <option key={s}>{s}</option>)}</select></label>
+              <label className="field"><span>Deal value</span><input inputMode="numeric" value={f.value} onChange={(e) => setF({ ...f, value: e.target.value.replace(/[^\d.]/g, '') })} /></label>
+            </div>
+            <label className="field"><span>Next step</span><input value={f.nextStep} onChange={(e) => setF({ ...f, nextStep: e.target.value })} maxLength={200} placeholder="e.g. send price list on Friday" /></label>
+            <div className="row-end"><button type="submit" className="btn-primary" disabled={!!busy || !f.name.trim()}>{busy === 'add' ? <Spinner label="Saving…" /> : 'Add contact'}</button></div>
+          </form>
+        </details>
+        {msg && <p className="error" role="alert">{msg}</p>}
         {shown.length === 0 ? <p className="muted small">No contacts here yet.</p> : (
           <div className="table-wrap">
             <table>
@@ -311,7 +292,15 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
             </table>
           </div>
         )}
-      </section>
+      </Fold>
+
+      <LeadAgents crm={crm} busy={!!busy} post={post} reload={reload} goApprovals={goApprovals} />
+
+      <Fold id="new-leads" title="Answer new leads" eyebrow="New business · Speed-to-Lead" hint={crm.newLeads ? `${crm.newLeads} new` : 'None waiting'}>
+        <AgentRun agentId="speed-to-lead" goal={crm.speedGoal ?? ''} label={`Reply to ${crm.newLeads ?? 0} new lead${crm.newLeads === 1 ? '' : 's'}`} emptyText="No new leads from the last 48 hours are waiting for a first reply." goApprovals={goApprovals} />
+      </Fold>
+
+      {data.apollo && <ApolloSearch onImported={reload} />}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { ICP_FIELDS, type CrmIssue, type Icp, type IcpNotes, type ProspectBatch 
 import { fileToText } from '../lib/sheet';
 import { AgentRun } from './AgentRun';
 import { Spinner } from './ui';
+import { Fold } from './Fold';
 import type { Contact } from './Customer';
 
 type Post = (k: string, b: Record<string, unknown>) => Promise<boolean>;
@@ -92,6 +93,7 @@ export function LeadAgents({ crm, busy, post, reload, goApprovals }: { crm: Lead
   const [query, setQuery] = useState('');
   const [count, setCount] = useState(10);
   const icp = icps.find((i) => i.id === icpId) ?? null;
+  const pendingProspects = batches.reduce((n, b) => n + b.items.filter((x) => x.status === 'pending').length, 0);
   const unscored = pickDeals(crm.contacts, 'unscored', 10);
   const toSequence = pickDeals(crm.contacts, 'no_sequence', 3);
   const prospectAsk = query.trim() ? (icp ? `${prospectGoal(icp, '', count)} Focus on: ${query.trim().slice(0, 200)}.` : leadSearchGoal(query.trim())) : icp ? prospectGoal(icp, '', count) : '';
@@ -100,9 +102,7 @@ export function LeadAgents({ crm, busy, post, reload, goApprovals }: { crm: Lead
 
   return (
     <>
-      <section className="panel glass-card" id="who-you-sell-to">
-        <p className="eyebrow">Lead generation · ICP Builder</p>
-        <h2>Who you sell to</h2>
+      <Fold id="who-you-sell-to" title="Who you sell to" eyebrow="Lead generation · ICP Builder" hint={icps.length ? `${icps.length} ICP${icps.length === 1 ? '' : 's'}` : 'No ICP yet'}>
         <p className="muted small">Add what you know about your ideal customers: paste notes, or upload your lead workbook (every sheet is read, the ICP and outreach sheets first). The ICP Builder turns it and your pipeline into profiles the other agents work from.</p>
         <label className="field"><span>Upload a workbook or text file</span>
           <input type="file" accept=".xlsx,.csv,.tsv,.txt,.md,text/plain,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={async (e) => {
@@ -126,11 +126,9 @@ export function LeadAgents({ crm, busy, post, reload, goApprovals }: { crm: Lead
         {notesMsg && <p className={notesMsg.ok ? 'muted small' : 'error'} role={notesMsg.ok ? 'status' : 'alert'}>{notesMsg.text}</p>}
         {icps.length > 0 && <div className="stack-sm">{icps.map((i) => <IcpCard key={i.id} icp={i} busy={busy} post={post} />)}</div>}
         <AgentRun agentId="icp-builder" goal={crm.icpNotes || crm.contacts.length ? icpGoal({ icps, contacts: crm.contacts }) : ''} label={icps.length ? 'Update the ICPs' : 'Build the ICPs'} emptyText="Save notes about your ideal customers, or add some deals, to build an ICP." {...run} />
-      </section>
+      </Fold>
 
-      <section className="panel glass-card" id="find-prospects">
-        <p className="eyebrow">Lead generation · Prospect Generator</p>
-        <h2>Find new prospects</h2>
+      <Fold id="find-prospects" title="Find new prospects" eyebrow="Lead generation · Prospect Generator" hint={pendingProspects ? `${pendingProspects} waiting for your tick` : 'Search public pages'}>
         <p className="muted small">The agent searches public business pages for companies that match. Nothing is added or contacted until you tick who to add. To run it every week on your first ICP, turn on Weekly prospect search in the Sales flow above.</p>
         <div className="grid3">
           <label className="field"><span>Match this ICP</span>
@@ -148,11 +146,9 @@ export function LeadAgents({ crm, busy, post, reload, goApprovals }: { crm: Lead
         </label>
         <AgentRun agentId="lead-finder" goal={prospectAsk} label="Find prospects" emptyText="Pick an ICP or describe the businesses to find." {...run} />
         {batches.map((b) => <ProspectBatchCard key={b.id} b={b} busy={busy} post={post} />)}
-      </section>
+      </Fold>
 
-      <section className="panel glass-card">
-        <p className="eyebrow">Lead generation · Lead Scorer and Outreach Sequencer</p>
-        <h2>Score and reach out</h2>
+      <Fold id="score-outreach" title="Score and reach out" eyebrow="Lead generation · Lead Scorer and Outreach Sequencer" hint={unscored.length ? `${unscored.length}${unscored.length === 10 ? '+' : ''} to score` : 'All scored'}>
         <div className="grid2">
           <div className="stack-sm">
             <span className="muted small">Scores 0 to 100 against your ICP, with the reasons, on each customer page. Best first.</span>
@@ -163,11 +159,9 @@ export function LeadAgents({ crm, busy, post, reload, goApprovals }: { crm: Lead
             <AgentRun agentId="outreach-sequencer" goal={toSequence.length ? sequenceGoal(toSequence) : ''} label={`Draft sequences for ${toSequence.length} lead${toSequence.length === 1 ? '' : 's'}`} emptyText="Every new lead has a sequence. Redraft one from its customer page." {...run} />
           </div>
         </div>
-      </section>
+      </Fold>
 
-      <section className="panel glass-card">
-        <p className="eyebrow">Lead generation · CRM Sync</p>
-        <h2>Keep the CRM consistent</h2>
+      <Fold id="crm-sync" title="Keep the CRM consistent" eyebrow="Lead generation · CRM Sync" hint={issues.length ? `${issues.length} to tidy` : 'Nothing to tidy'}>
         {issues.length === 0 ? <p className="muted small">No records disagree with themselves right now. Every agent run on a deal is logged in its history.</p> : (
           <>
             <p className="small">{issues.length} thing{issues.length === 1 ? '' : 's'} to tidy:</p>
@@ -177,7 +171,7 @@ export function LeadAgents({ crm, busy, post, reload, goApprovals }: { crm: Lead
         )}
         <AgentRun agentId="crm-sync" goal={issues.length ? syncGoal(issues.length) : ''} label="Fix what the records answer" emptyText="" {...run} />
         <p className="muted small">CRM Sync fills fields a record already states and suggests stages; it never deletes, merges or moves a deal. Suggestions wait on each customer page.</p>
-      </section>
+      </Fold>
     </>
   );
 }
