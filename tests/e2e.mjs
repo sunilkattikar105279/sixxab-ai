@@ -477,7 +477,7 @@ await check('business tabs: add a CRM contact, open a support ticket, record inc
   await ctx.close();
 });
 
-await check('marketing tab: save the assessment, open card checkout, and record the payment on return', async () => {
+await check('marketing tab: save the assessment, open card checkout, record the payment on return, and approve an ad', async () => {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   const state = { otp: [], decisions: [], pending: [], profile: { name: 'Lone Star Dental' }, admin: [] };
   await mockServices(ctx, state);
@@ -519,6 +519,12 @@ await check('marketing tab: save the assessment, open card checkout, and record 
   assert.deepEqual(posts[2], { action: 'confirm', provider: 'stripe', ref: 'cs_test_1' });
   assert.equal(new URL(page.url()).search, '', 'the checkout reference is cleared from the address bar');
   await page.getByText('Active since').waitFor();
+  const ad = page.locator('.mk-creative', { hasText: 'Smiles for the whole family' });
+  await ad.getByText('ready for your yes').waitFor();
+  const decided = page.waitForRequest((r) => r.url().endsWith('/api/marketing') && r.method() === 'POST');
+  await ad.getByRole('button', { name: 'Approve' }).click();
+  await decided;
+  assert.deepEqual(posts.at(-1), { action: 'decide_creative', id: 'cr-1', decision: 'approved' });
   await ctx.close();
 });
 

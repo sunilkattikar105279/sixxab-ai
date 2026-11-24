@@ -1,7 +1,8 @@
 // Tools for the AI Marketing Agency. They send nothing: they save the online check and the 30-day plan
 // onto the business's Marketing tab for the owner, so they have no task type (still audited).
 import type { Tool } from './tools.js';
-import { CHECK_ITEMS, saveTailoredPlan, saveValidation } from './marketing.js';
+import { CHECK_ITEMS, loadMarketing, saveTailoredPlan, saveValidation } from './marketing.js';
+import { CREATIVE_CTAS, CREATIVE_FORMATS, loadCreatives, requestCreative } from './creatives.js';
 
 const str = { type: 'string' } as const;
 
@@ -42,5 +43,31 @@ export const MARKETING_TOOLS: Record<string, Tool> = {
     },
     summarize: () => 'Save the 30-day marketing plan',
     execute: (i, ctx) => saveTailoredPlan(ctx.store, ctx.orgId, i, ctx.agent.name),
+  },
+  save_creative_brief: {
+    spec: {
+      name: 'save_creative_brief',
+      description: 'Queue one ad creative for the studio: an image or a short video, its shape, a visual brief and the ad copy. It counts against the plan\'s monthly images and videos. Nothing is made, posted or spent here; the studio makes it and the owner approves it on the Marketing tab.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          kind: { type: 'string', enum: ['image', 'video'] },
+          format: { type: 'string', enum: [...CREATIVE_FORMATS], description: '4:5 or 1:1 for feed images, 9:16 for Reels, Stories and TikTok, 16:9 for YouTube' },
+          brief: { type: 'string', description: 'Who is in it, what happens, the setting, light and mood. No real brand logos; no on-screen text in a video.' },
+          headline: { type: 'string', description: 'Up to 8 words' },
+          primaryText: { type: 'string', description: 'One or two sentences of ad copy' },
+          cta: { type: 'string', enum: CREATIVE_CTAS },
+        },
+        required: ['kind', 'brief', 'headline', 'primaryText', 'cta'],
+      },
+    },
+    summarize: (i) => `Queue a ${i.kind === 'video' ? 'video' : 'image'} ad for the studio`,
+    execute: async (i, ctx) => {
+      const m = await loadMarketing(ctx.store, ctx.orgId, null);
+      const planId = m.subscription?.status === 'active' ? m.subscription.planId : null;
+      const state = await loadCreatives(ctx.store, ctx.orgId, planId);
+      await requestCreative(ctx.store, ctx.orgId, i, state, ctx.agent.name);
+      return `Queued the ${i.kind === 'video' ? 'video' : 'image'} ad "${String(i.headline ?? '').slice(0, 60)}" for the studio. The owner approves it once it is made.`;
+    },
   },
 };

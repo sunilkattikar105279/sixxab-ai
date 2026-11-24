@@ -9,11 +9,14 @@ import { Fold } from './Fold';
 import { Spinner } from './ui';
 import { useLoad } from './useLoad';
 import { AgentRun, money } from './AgentRun';
+import { AdStudio } from './AdStudio';
+import type { CreativesState, StudioJob } from '../../core/creatives';
 
 interface Customer { orgId: string; name: string; planName: string; provider: string; mode: string; status: string; amount: number; currency: string; lastPaidAt: string; readiness: number }
 interface View {
   marketing: MarketingState; plans: MarketingPlan[]; sections: { title: string; questions: Question[] }[]; payments: PaySetup;
-  goals: { assessor: string; cmo: string }; admin: boolean; agency: { customers: Customer[]; added: number; monthlyLiveUsd: number } | null;
+  goals: { assessor: string; cmo: string; creatives: string }; admin: boolean; agency: { customers: Customer[]; added: number; monthlyLiveUsd: number } | null;
+  creatives: CreativesState; studio: StudioJob[] | null;
 }
 
 const CHECKOUT_HOSTS = /^https:\/\/(checkout\.stripe\.com|(www\.)?(sandbox\.)?paypal\.com)\//;
@@ -159,9 +162,7 @@ export function Marketing({ goApprovals }: { goApprovals: () => void }) {
         )}
       </Fold>
 
-      <Fold id="mk-next" title="Ad creatives and publishing" hint="coming next">
-        <p className="muted small">Next, the creative studio makes single-image and short-video ads for your plan with Viewmax, then publishing sends approved posts to your social channels. Every ad and post waits for your yes before it goes out.</p>
-      </Fold>
+      <AdStudio creatives={data.creatives} goal={data.goals.creatives} admin={data.admin} studio={data.studio} reload={reload} goApprovals={goApprovals} />
 
       {data.admin && data.agency && (
         <Fold id="mk-agency" title="Agency customers" hint={`${data.agency.customers.length} paying · ${money(data.agency.monthlyLiveUsd)} a month live`}>

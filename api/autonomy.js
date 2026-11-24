@@ -62,8 +62,8 @@ var SupabaseStore = class {
       }
     });
     if (!res.ok) throw new Error(`Supabase ${res.status} on ${path.split("?")[0]}: ${(await res.text()).slice(0, 300)}`);
-    const text5 = await res.text();
-    return text5 ? JSON.parse(text5) : [];
+    const text6 = await res.text();
+    return text6 ? JSON.parse(text6) : [];
   }
   one(rows, what) {
     if (!rows[0]) throw new Error(`${what} not found`);
@@ -1389,6 +1389,53 @@ var RESEARCH_TOOLS = {
 };
 
 // core/marketing.ts
+var MARKETING_PLANS = [
+  {
+    id: "starter",
+    name: "Starter",
+    priceUsd: 79,
+    for: "Owners who run it themselves",
+    images: 20,
+    videos: 4,
+    credits: 100,
+    checkout: true,
+    includes: ["Assessment and 30-day plan", "20 image ads and 4 short videos a month", "Organic posting on your linked pages", "Leads into your CRM"]
+  },
+  {
+    id: "growth",
+    name: "Growth",
+    priceUsd: 249,
+    for: "Small businesses that want paid ads managed",
+    images: 40,
+    videos: 8,
+    credits: 200,
+    checkout: true,
+    includes: ["Everything in Starter", "Ads managed in your own Meta and Google accounts", "40 image ads and 8 short videos a month", "Drafted replies to every lead", "Weekly report"]
+  },
+  {
+    id: "agency",
+    name: "Agency",
+    priceUsd: 999,
+    for: "Owners who want it done for them",
+    images: 80,
+    videos: 16,
+    credits: 400,
+    checkout: true,
+    includes: ["Everything in Growth", "A SIXXAB person reviews every creative", "A landing page and a WhatsApp lead line", "Monthly strategy call", "Up to 3 locations, 80 images and 16 videos a month"]
+  },
+  {
+    id: "scale",
+    name: "Scale",
+    priceUsd: 5e3,
+    for: "Larger and multi-location businesses",
+    images: 0,
+    videos: 0,
+    credits: 0,
+    checkout: false,
+    includes: ["The 12-month small business plan with the full agent company", "Set up with you on a call"]
+  }
+];
+var getMarketingPlan = (id) => MARKETING_PLANS.find((p) => p.id === id);
 var REPEAT_RATES = ["Once", "A few times a year", "Monthly or more", "Not sure"];
 var REPLY_SPEEDS = ["Within 5 minutes", "Within an hour", "Same day", "Next day or later", "Not sure"];
 var PIXEL_ANSWERS = ["Yes", "No", "Not sure"];
@@ -1454,7 +1501,150 @@ var ASSESSMENT_SECTIONS = [
   }
 ];
 var QUESTIONS = ASSESSMENT_SECTIONS.flatMap((s) => s.questions);
+var firstNumber = (s) => {
+  const m = (s ?? "").replace(/,/g, "").match(/\d+(\.\d+)?/);
+  return m ? m[0] : "";
+};
+function prefillAnswers(p) {
+  if (!p) return {};
+  const out = {
+    name: p.name ?? "",
+    industry: p.industry ?? "",
+    location: [p.location, p.markets].filter(Boolean).join("; "),
+    founded: p.founded ?? "",
+    team: p.team ?? "",
+    services: [p.offer, p.pricing].filter(Boolean).join("\n"),
+    bestCustomer: p.customers ?? "",
+    sources: p.sources ?? "",
+    revenueGoal: firstNumber(p.revenueGoal),
+    adBudget: firstNumber(p.budget),
+    website: p.links ?? "",
+    googleProfile: p.googleProfile ?? "",
+    social: [p.instagram, p.facebook, p.linkedin].filter(Boolean).join("\n"),
+    voice: p.voice ?? ""
+  };
+  return Object.fromEntries(Object.entries(out).filter(([, v]) => v));
+}
+var num3 = (a, k) => {
+  const n = Number(a[k]);
+  return a[k] !== void 0 && a[k] !== "" && Number.isFinite(n) ? n : null;
+};
 var CHECK_ITEMS = ["website", "booking", "google", "social", "reviews", "pixel"];
+var CHECKS = [
+  { key: "website", item: "website", label: "Website", weight: 15, fix: "Add a website, even one page, so ads have somewhere to send people", earn: (a) => a.website ? 1 : 0 },
+  { key: "google", item: "google", label: "Google Business Profile", weight: 15, fix: "Claim your Google Business Profile so local searches find you", earn: (a) => a.googleProfile ? 1 : 0 },
+  { key: "booking", item: "booking", label: "Booking or buy link", weight: 10, fix: "Add a booking or buy link so a lead can act at once", earn: (a) => a.booking ? 1 : 0 },
+  { key: "social", item: "social", label: "Social pages", weight: 10, fix: "Open an Instagram or Facebook page for posts and ads", earn: (a) => a.social ? 1 : 0 },
+  { key: "reviews", item: "reviews", label: "Reviews", weight: 10, fix: "Ask happy customers for Google reviews; 10 or more makes ads convert better", earn: (a) => {
+    const n = num3(a, "reviews") ?? 0;
+    return n >= 10 ? 1 : n > 0 ? 0.5 : 0;
+  } },
+  { key: "pixel", item: "pixel", label: "Tracking pixel", weight: 10, fix: "Install the Meta pixel or Google tag so ads can be measured", earn: (a) => a.pixel === "Yes" ? 1 : 0 },
+  { key: "offer", label: "Clear offer and price", weight: 10, fix: "Name your top services with a price and your average first sale", earn: (a) => a.services && (num3(a, "averageSale") ?? 0) > 0 ? 1 : a.services ? 0.5 : 0 },
+  { key: "customer", label: "Best customer described", weight: 5, fix: "Describe your best customer so ads target the right people", earn: (a) => a.bestCustomer ? 1 : 0 },
+  { key: "budget", label: "Ad budget set", weight: 5, fix: "Set a monthly ad budget, even a small one", earn: (a) => (num3(a, "adBudget") ?? 0) > 0 ? 1 : 0 },
+  { key: "assets", label: "Photos and logo", weight: 5, fix: "Gather a logo and a few real photos for the ads", earn: (a) => a.assets === "Logo, photos and videos" ? 1 : a.assets === "Logo and photos" ? 0.8 : a.assets === "Logo only" ? 0.4 : 0 },
+  { key: "reply", label: "Fast replies to leads", weight: 5, fix: "Reply to new leads within 5 minutes; the Speed-to-Lead agent can draft them", earn: (a) => a.replySpeed === "Within 5 minutes" ? 1 : a.replySpeed === "Within an hour" ? 0.6 : 0 }
+];
+function scoreReadiness(a, validation) {
+  const checks = CHECKS.map((c) => {
+    const v = c.item ? validation?.checks.find((x) => x.item === c.item) : void 0;
+    let earned = c.earn(a);
+    let confirmed = null;
+    if (v?.status === "found") {
+      earned = c.key === "reviews" ? Math.max(earned, 0.5) : 1;
+      confirmed = true;
+    }
+    if (v?.status === "missing") {
+      earned = 0;
+      confirmed = false;
+    }
+    return { key: c.key, label: c.label, weight: c.weight, earned: Math.round(earned * c.weight * 10) / 10, fix: c.fix, confirmed };
+  });
+  const score = Math.round(checks.reduce((s, c) => s + c.earned, 0));
+  const gaps = checks.filter((c) => c.earned < c.weight).sort((x, y) => y.weight - y.earned - (x.weight - x.earned)).map((c) => c.fix);
+  return { score, checks, gaps };
+}
+var toUsd = (amount, currency, inrPerUsd = 85) => currency === "INR" ? amount / inrPerUsd : amount;
+function recommendPlan(a, currency = "USD", inrPerUsd = 85) {
+  const budget = toUsd(num3(a, "adBudget") ?? 0, currency, inrPerUsd);
+  if (budget >= 1e4) return { planId: "scale", reason: "Your ad budget is large enough for the full agent company, set up with you on a call." };
+  if (budget >= 2500) return { planId: "agency", reason: "At this budget a person reviewing every creative and a landing page pay for themselves." };
+  if (budget >= 500) return { planId: "growth", reason: "Your budget is enough for paid ads, so the Ads Manager runs them in your own accounts." };
+  return { planId: "starter", reason: budget > 0 ? "Under $500 a month of ads works best as steady organic posts plus small boosts." : "With no ad budget yet, start with organic posts and the leads they bring." };
+}
+function costPerLead(a) {
+  const sale = num3(a, "averageSale");
+  const given = num3(a, "closeRate");
+  const closeRate = given !== null ? given / 10 : 0.2;
+  const assumedClose = given === null;
+  const ceiling = sale && sale > 0 && closeRate > 0 ? Math.max(1, Math.round(sale * closeRate * 0.3)) : null;
+  const budget = num3(a, "adBudget") ?? 0;
+  const wanted = num3(a, "leadsWanted");
+  const affordable = ceiling && budget > 0 ? Math.floor(budget / ceiling) : null;
+  const leadsTarget = wanted ?? affordable;
+  let budgetNote = "";
+  if (ceiling && wanted && budget > 0 && wanted * ceiling > budget) budgetNote = `Your budget buys about ${affordable} leads at that ceiling; raise the budget or lower the goal to ${affordable}.`;
+  else if (ceiling && wanted && budget === 0) budgetNote = `${wanted} leads a month at up to ${ceiling} each needs about ${wanted * ceiling} of ads, or organic posts alone.`;
+  const formula = ceiling ? `${sale} average sale \xD7 ${Math.round(closeRate * 100)}% who buy${assumedClose ? " (assumed)" : ""} \xD7 30%` : "Add your average first sale to work this out";
+  return { ceiling, closeRate, assumedClose, leadsTarget, budgetNote, formula };
+}
+var B2B = ["Professional services", "Technology or software"];
+function pickChannels(a) {
+  const s = `${a.social ?? ""} ${a.sources ?? ""}`.toLowerCase();
+  const out = [];
+  if (/instagram|facebook|meta/.test(s) || !s.trim()) out.push("Instagram and Facebook");
+  if (/linkedin/.test(s) || B2B.includes(a.industry ?? "")) out.push("LinkedIn");
+  if (/tiktok/.test(s)) out.push("TikTok");
+  if (/youtube/.test(s)) out.push("YouTube Shorts");
+  if (a.googleProfile) out.push("Google Business Profile posts");
+  if (!out.includes("Instagram and Facebook") && out.length < 2) out.unshift("Instagram and Facebook");
+  return out.slice(0, 4);
+}
+function draftThirtyDayPlan(a, planId, currency = "USD") {
+  const plan = getMarketingPlan(planId);
+  const channels = pickChannels(a);
+  const r = scoreReadiness(a);
+  const cpl = costPerLead(a);
+  const budget = num3(a, "adBudget") ?? 0;
+  const images = plan.images || 40;
+  const videos = plan.videos || 8;
+  const money2 = (n) => `${currency === "INR" ? "\u20B9" : "$"}${Math.round(n).toLocaleString("en-US")}`;
+  const paid = planId !== "starter" && budget > 0;
+  const weeks = [
+    { week: 1, focus: "Set up", actions: [
+      ...r.gaps.slice(0, 2),
+      `Link ${channels.join(", ")} so posts can go out after your approval`,
+      "Confirm the offer, the prices to show and the claims to avoid"
+    ] },
+    { week: 2, focus: "First creatives", actions: [
+      `Make ${Math.ceil(images / 4)} image ads and ${Math.ceil(videos / 4)} short videos from your top offer`,
+      `Post ${channels.length > 1 ? "daily across" : "daily on"} ${channels.join(" and ")}, each post approved by you`,
+      "Every lead and comment lands in your CRM with a drafted reply"
+    ] },
+    { week: 3, focus: paid ? "Launch ads" : "Grow reach", actions: paid ? [
+      `Start ads at about ${money2(budget / 4)} a week on ${channels[0]}, created paused until you approve`,
+      cpl.ceiling ? `Pause any ad above ${money2(cpl.ceiling)} a lead` : "Pause any ad whose leads cost more than your average sale allows",
+      "Test 3 hooks and keep the 2 that bring the cheapest leads"
+    ] : [
+      "Post daily and reply to every comment within an hour",
+      "Boost the best organic post with a small budget if it brings leads",
+      "Ask your last 10 customers for a Google review"
+    ] },
+    { week: 4, focus: "Review and double down", actions: [
+      "Keep the 2 best creatives and replace the rest",
+      `Report: leads${cpl.leadsTarget ? ` against the goal of ${cpl.leadsTarget}` : ""}, cost per lead, calls booked and sales`,
+      "Plan next month's creatives from what worked"
+    ] }
+  ];
+  const kpis = [
+    cpl.leadsTarget ? `${cpl.leadsTarget} new leads a month` : "New leads a month",
+    cpl.ceiling ? `Cost per lead at or under ${money2(cpl.ceiling)}` : "Cost per lead",
+    "First reply to every lead within 5 minutes"
+  ];
+  return { planId, channels, weeks: weeks.map((w) => ({ ...w, actions: w.actions.filter(Boolean).slice(0, 4) })), kpis };
+}
+var MARKETING_EVENTS = ["marketing.assessment", "marketing.validation", "marketing.plan", "marketing.payment", "marketing.subscription"];
 var text4 = (v, max = 600) => typeof v === "string" ? v.trim().slice(0, max) : typeof v === "number" ? String(v) : "";
 var httpsOrEmpty = (v) => {
   const s = text4(v, 500);
@@ -1488,6 +1678,145 @@ async function saveTailoredPlan(store2, orgId, input, by) {
   const plan = { summary, channels: list2(input.channels, 6, 60), weeks, kpis: list2(input.kpis, 6) };
   await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "marketing.plan", taskId: null, detail: { plan, summary: "CMO agent saved a tailored 30-day marketing plan" } });
   return "Saved the tailored 30-day plan. The owner sees it on the Marketing tab; nothing was posted or spent.";
+}
+function computeMarketing(events, profile, inrPerUsd = 85) {
+  const currency = profile?.currency === "INR" ? "INR" : "USD";
+  let saved = null;
+  let validation = null;
+  let tailored = null;
+  const payments = [];
+  const cancelled = /* @__PURE__ */ new Set();
+  for (const e of events) {
+    const d = e.detail;
+    if (e.action === "marketing.assessment") saved = { answers: d.answers, at: e.at };
+    if (e.action === "marketing.validation") validation = { checks: d.checks, summary: String(d.summary ?? ""), at: e.at, by: e.actor };
+    if (e.action === "marketing.plan") tailored = { ...d.plan, at: e.at, by: e.actor };
+    if (e.action === "marketing.payment") payments.push({ ...d, at: e.at });
+    if (e.action === "marketing.subscription" && d.status === "cancelled") cancelled.add(`${d.provider}:${d.subscriptionId}`);
+  }
+  const answers = { ...prefillAnswers(profile), ...saved?.answers ?? {} };
+  const readiness = scoreReadiness(answers, validation);
+  const recommended = recommendPlan(answers, currency, inrPerUsd);
+  const last = payments.at(-1);
+  let subscription = null;
+  if (last) {
+    const first = payments.find((p) => p.subscriptionId === last.subscriptionId && p.provider === last.provider) ?? last;
+    const plan = getMarketingPlan(last.planId);
+    subscription = {
+      planId: last.planId,
+      planName: plan?.name ?? last.planId,
+      provider: last.provider,
+      subscriptionId: last.subscriptionId,
+      mode: last.mode,
+      status: cancelled.has(`${last.provider}:${last.subscriptionId}`) ? "cancelled" : "active",
+      startedAt: first.at,
+      lastPaidAt: last.at,
+      amount: last.amount,
+      currency: last.currency
+    };
+  }
+  return {
+    currency,
+    answers,
+    savedAt: saved?.at ?? null,
+    answered: QUESTIONS.filter((q) => answers[q.key]).length,
+    total: QUESTIONS.length,
+    readiness,
+    recommended,
+    cpl: costPerLead(answers),
+    plan30: draftThirtyDayPlan(answers, subscription?.planId ?? recommended.planId, currency),
+    validation,
+    tailored,
+    subscription,
+    payments: payments.slice().reverse()
+  };
+}
+async function loadMarketing(store2, orgId, profile, inrPerUsd = 85) {
+  return computeMarketing(await store2.listAuditByActions(orgId, MARKETING_EVENTS), profile, inrPerUsd);
+}
+
+// core/creatives.ts
+var CREATIVE_FORMATS = ["4:5", "1:1", "9:16", "16:9"];
+var CREATIVE_CTAS = ["Book now", "Call now", "Get a quote", "Send a message", "Learn more", "Shop now"];
+var CREATIVE_EVENTS = ["creative.requested", "creative.made", "creative.failed", "creative.decided", "creative.admin"];
+var text5 = (v, max) => typeof v === "string" ? v.trim().replace(/\s+\n/g, "\n").slice(0, max) : "";
+function computeCreatives(events, planId, now = /* @__PURE__ */ new Date(), unlimited = false) {
+  const map = /* @__PURE__ */ new Map();
+  const adminWorkspace = events.some((e) => e.action === "creative.admin");
+  unlimited = unlimited || adminWorkspace;
+  for (const e of events) {
+    const d = e.detail;
+    const id = String(d.id ?? "");
+    if (e.action === "creative.requested") {
+      map.set(id, {
+        id,
+        kind: d.kind,
+        format: d.format,
+        brief: String(d.brief ?? ""),
+        headline: String(d.headline ?? ""),
+        primaryText: String(d.primaryText ?? ""),
+        cta: String(d.cta ?? ""),
+        status: "queued",
+        requestedBy: e.actor,
+        requestedAt: e.at,
+        mediaUrl: "",
+        model: "",
+        credits: 0,
+        madeAt: null,
+        failReason: "",
+        decidedBy: "",
+        decidedAt: null,
+        note: ""
+      });
+      continue;
+    }
+    const c = map.get(id);
+    if (!c) continue;
+    if (e.action === "creative.made") Object.assign(c, { status: "made", mediaUrl: String(d.mediaUrl ?? ""), model: String(d.model ?? ""), credits: Number(d.credits) || 0, madeAt: e.at });
+    if (e.action === "creative.failed") Object.assign(c, { status: "failed", failReason: String(d.reason ?? "") });
+    if (e.action === "creative.decided") Object.assign(c, { status: d.decision === "approved" ? "approved" : "rejected", decidedBy: e.actor, decidedAt: e.at, note: String(d.note ?? "") });
+  }
+  const creatives = [...map.values()].reverse();
+  const month = now.toISOString().slice(0, 7);
+  const thisMonth = creatives.filter((c) => c.requestedAt.startsWith(month) && c.status !== "failed");
+  const plan = planId ? getMarketingPlan(planId) : void 0;
+  const big = 9999;
+  const allowance = {
+    images: unlimited ? big : plan?.images ?? 0,
+    videos: unlimited ? big : plan?.videos ?? 0,
+    usedImages: thisMonth.filter((c) => c.kind === "image").length,
+    usedVideos: thisMonth.filter((c) => c.kind === "video").length,
+    month,
+    planName: unlimited ? "SIXXAB admin" : plan?.name ?? null
+  };
+  return {
+    creatives,
+    allowance,
+    adminWorkspace,
+    queued: creatives.filter((c) => c.status === "queued").length,
+    awaiting: creatives.filter((c) => c.status === "made").length,
+    approved: creatives.filter((c) => c.status === "approved").length
+  };
+}
+async function loadCreatives(store2, orgId, planId, unlimited = false) {
+  return computeCreatives(await store2.listAuditByActions(orgId, CREATIVE_EVENTS), planId, /* @__PURE__ */ new Date(), unlimited);
+}
+async function requestCreative(store2, orgId, input, state, by) {
+  const kind = input.kind === "video" ? "video" : input.kind === "image" ? "image" : null;
+  if (!kind) throw new Error("Pick an image or a video");
+  const format = CREATIVE_FORMATS.includes(String(input.format)) ? input.format : kind === "video" ? "9:16" : "4:5";
+  const brief = text5(input.brief, 1200);
+  if (brief.length < 10) throw new Error("Describe the ad in a sentence or two: who is in it, what happens and the mood");
+  const headline = text5(input.headline, 60);
+  const primaryText = text5(input.primaryText, 300);
+  const cta = CREATIVE_CTAS.includes(String(input.cta)) ? String(input.cta) : "Learn more";
+  const a = state.allowance;
+  if (!a.planName) throw new Error("Pick a marketing plan first; ads come out of its monthly images and videos");
+  if (kind === "image" && a.usedImages >= a.images) throw new Error(`This month's ${a.images} images are used. More come on the 1st, or move up a plan.`);
+  if (kind === "video" && a.usedVideos >= a.videos) throw new Error(`This month's ${a.videos} videos are used. More come on the 1st, or move up a plan.`);
+  const id = newId();
+  await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "creative.requested", taskId: null, detail: { id, kind, format, brief, headline, primaryText, cta, summary: `Queued a ${kind === "video" ? "video" : "image"} ad: ${headline || brief.slice(0, 60)}` } });
+  return id;
 }
 
 // core/marketing-tools.ts
@@ -1531,6 +1860,32 @@ var MARKETING_TOOLS = {
     },
     summarize: () => "Save the 30-day marketing plan",
     execute: (i, ctx) => saveTailoredPlan(ctx.store, ctx.orgId, i, ctx.agent.name)
+  },
+  save_creative_brief: {
+    spec: {
+      name: "save_creative_brief",
+      description: "Queue one ad creative for the studio: an image or a short video, its shape, a visual brief and the ad copy. It counts against the plan's monthly images and videos. Nothing is made, posted or spent here; the studio makes it and the owner approves it on the Marketing tab.",
+      input_schema: {
+        type: "object",
+        properties: {
+          kind: { type: "string", enum: ["image", "video"] },
+          format: { type: "string", enum: [...CREATIVE_FORMATS], description: "4:5 or 1:1 for feed images, 9:16 for Reels, Stories and TikTok, 16:9 for YouTube" },
+          brief: { type: "string", description: "Who is in it, what happens, the setting, light and mood. No real brand logos; no on-screen text in a video." },
+          headline: { type: "string", description: "Up to 8 words" },
+          primaryText: { type: "string", description: "One or two sentences of ad copy" },
+          cta: { type: "string", enum: CREATIVE_CTAS }
+        },
+        required: ["kind", "brief", "headline", "primaryText", "cta"]
+      }
+    },
+    summarize: (i) => `Queue a ${i.kind === "video" ? "video" : "image"} ad for the studio`,
+    execute: async (i, ctx) => {
+      const m = await loadMarketing(ctx.store, ctx.orgId, null);
+      const planId = m.subscription?.status === "active" ? m.subscription.planId : null;
+      const state = await loadCreatives(ctx.store, ctx.orgId, planId);
+      await requestCreative(ctx.store, ctx.orgId, i, state, ctx.agent.name);
+      return `Queued the ${i.kind === "video" ? "video" : "image"} ad "${String(i.headline ?? "").slice(0, 60)}" for the studio. The owner approves it once it is made.`;
+    }
   }
 };
 
@@ -1551,17 +1906,17 @@ var field = (input, name, max = 4e3) => {
   return t.slice(0, max);
 };
 function parseLinkedInComment(input) {
-  let text5 = input.trim();
+  let text6 = input.trim();
   try {
-    text5 = decodeURIComponent(text5);
+    text6 = decodeURIComponent(text6);
   } catch {
   }
-  const m = text5.match(/urn:li:comment:\((?:urn:li:)?(activity|ugcPost|share):(\d+),(\d+)\)/);
+  const m = text6.match(/urn:li:comment:\((?:urn:li:)?(activity|ugcPost|share):(\d+),(\d+)\)/);
   if (m) {
     const threadUrn2 = `urn:li:${m[1]}:${m[2]}`;
     return { threadUrn: threadUrn2, commentUrn: `urn:li:comment:(${threadUrn2},${m[3]})` };
   }
-  const d = text5.match(/urn:li:fsd_comment:\((\d+),urn:li:(activity|ugcPost|share):(\d+)\)/);
+  const d = text6.match(/urn:li:fsd_comment:\((\d+),urn:li:(activity|ugcPost|share):(\d+)\)/);
   if (!d) return null;
   const threadUrn = `urn:li:${d[2]}:${d[3]}`;
   return { threadUrn, commentUrn: `urn:li:comment:(${threadUrn},${d[1]})` };
@@ -1834,10 +2189,10 @@ async function requireUser(request) {
   return { userId: user.id, orgId, label: label5, store: s };
 }
 async function readJson(request, maxBytes = 64e3) {
-  const text5 = await request.text();
-  if (text5.length > maxBytes) throw new HttpError(413, "Request too large");
+  const text6 = await request.text();
+  if (text6.length > maxBytes) throw new HttpError(413, "Request too large");
   try {
-    return JSON.parse(text5 || "{}");
+    return JSON.parse(text6 || "{}");
   } catch {
     throw new HttpError(400, "Invalid JSON");
   }

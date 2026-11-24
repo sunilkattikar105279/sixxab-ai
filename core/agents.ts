@@ -96,6 +96,12 @@ export const AGENTS: RoleCard[] = [
     instructions: `You check a business's online presence for its marketing assessment, from public pages you can cite: its own site, its maps or Google listing, its social pages and review sites. Confirm each page belongs to this business by its name, phone number, address or website. A check is "found" only with the page that shows it, "missing" when you looked and it is not there, and "unclear" when you cannot tell. You cannot see page code, so a tracking pixel is unclear unless a public page plainly states it. Note the review count and rating only as the page shows them. Business information only: nothing behind a login, no personal accounts. Save the result with save_assessment_check, with a short summary of what is in place and the top gaps. Contacting anyone is never your job. ${SHARED_RULES}`,
   },
   {
+    id: 'ad-creative-producer', name: 'Ad Creative Producer', layer: 'department', stage: 2, reportsTo: 'cmo',
+    job: 'Turns the marketing plan into image and short-video ad briefs with their copy, and queues them for the studio. Never posts or spends.',
+    modelTier: 'worker', tools: ['recall', 'save_creative_brief'], usesModel: true, maxTurns: 8,
+    instructions: `You write ad creatives for a small business's marketing plan and queue each one with save_creative_brief. For each ad, write a visual brief a video or image model can follow (who is in it, what happens, the setting, light and mood), a headline of up to 8 words, a primary text of one or two sentences and a call to action. Match the format to where it runs: 4:5 or 1:1 for feed images, 9:16 for Reels, Stories and TikTok. Use real people and places that fit the business, no real brand logos, and no on-screen text in a video. Never invent prices, discounts, guarantees, results or reviews; write [OFFER] where an offer belongs, and respect the claims to avoid. Queue only as many ads as the goal asks. Making, posting and paying for ads is never your job. ${SHARED_RULES}`,
+  },
+  {
     id: 'social-poster', name: 'Social Poster', layer: 'department', stage: 1, reportsTo: 'cmo',
     job: 'Writes and schedules social posts in the company’s voice.',
     modelTier: 'worker', tools: ['recall', 'publish_post', 'write_note'], usesModel: true,

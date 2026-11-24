@@ -139,9 +139,9 @@ function profileText(p) {
   }).filter(Boolean);
   return [PROFILE_PREFIX, ...lines].join("\n");
 }
-function parseProfile(text10) {
+function parseProfile(text11) {
   const out = {};
-  for (const line2 of text10.split("\n").slice(1)) {
+  for (const line2 of text11.split("\n").slice(1)) {
     const i = line2.indexOf(": ");
     if (i < 0) continue;
     const label5 = line2.slice(0, i);
@@ -291,8 +291,8 @@ var SupabaseStore = class {
       }
     });
     if (!res.ok) throw new Error(`Supabase ${res.status} on ${path.split("?")[0]}: ${(await res.text()).slice(0, 300)}`);
-    const text10 = await res.text();
-    return text10 ? JSON.parse(text10) : [];
+    const text11 = await res.text();
+    return text11 ? JSON.parse(text11) : [];
   }
   one(rows, what) {
     if (!rows[0]) throw new Error(`${what} not found`);
@@ -2580,6 +2580,151 @@ async function syncAgencySales(store2, adminOrgId, orgIds, names, by) {
   return added;
 }
 
+// core/creatives.ts
+var CREATIVE_FORMATS = ["4:5", "1:1", "9:16", "16:9"];
+var CREATIVE_CTAS = ["Book now", "Call now", "Get a quote", "Send a message", "Learn more", "Shop now"];
+var MEDIA_HOSTS = ["media.viewmax.io"];
+var CREATIVE_EVENTS = ["creative.requested", "creative.made", "creative.failed", "creative.decided", "creative.admin"];
+async function markAdminStudio(store2, orgId, state, by) {
+  if (state.adminWorkspace) return;
+  await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "creative.admin", taskId: null, detail: { summary: "Ad studio opened for the SIXXAB admin workspace" } });
+}
+var text6 = (v, max) => typeof v === "string" ? v.trim().replace(/\s+\n/g, "\n").slice(0, max) : "";
+function mediaUrlOk(raw) {
+  const s = typeof raw === "string" ? raw.trim() : "";
+  try {
+    const u = new URL(s);
+    if (u.protocol !== "https:" || !MEDIA_HOSTS.includes(u.hostname) || u.username || u.password || u.search || u.hash) return "";
+    if (!/\.(jpe?g|png|webp|mp4|mov|webm)$/i.test(u.pathname)) return "";
+    return u.toString();
+  } catch {
+    return "";
+  }
+}
+function computeCreatives(events, planId, now = /* @__PURE__ */ new Date(), unlimited = false) {
+  const map = /* @__PURE__ */ new Map();
+  const adminWorkspace = events.some((e) => e.action === "creative.admin");
+  unlimited = unlimited || adminWorkspace;
+  for (const e of events) {
+    const d = e.detail;
+    const id = String(d.id ?? "");
+    if (e.action === "creative.requested") {
+      map.set(id, {
+        id,
+        kind: d.kind,
+        format: d.format,
+        brief: String(d.brief ?? ""),
+        headline: String(d.headline ?? ""),
+        primaryText: String(d.primaryText ?? ""),
+        cta: String(d.cta ?? ""),
+        status: "queued",
+        requestedBy: e.actor,
+        requestedAt: e.at,
+        mediaUrl: "",
+        model: "",
+        credits: 0,
+        madeAt: null,
+        failReason: "",
+        decidedBy: "",
+        decidedAt: null,
+        note: ""
+      });
+      continue;
+    }
+    const c = map.get(id);
+    if (!c) continue;
+    if (e.action === "creative.made") Object.assign(c, { status: "made", mediaUrl: String(d.mediaUrl ?? ""), model: String(d.model ?? ""), credits: Number(d.credits) || 0, madeAt: e.at });
+    if (e.action === "creative.failed") Object.assign(c, { status: "failed", failReason: String(d.reason ?? "") });
+    if (e.action === "creative.decided") Object.assign(c, { status: d.decision === "approved" ? "approved" : "rejected", decidedBy: e.actor, decidedAt: e.at, note: String(d.note ?? "") });
+  }
+  const creatives = [...map.values()].reverse();
+  const month = now.toISOString().slice(0, 7);
+  const thisMonth = creatives.filter((c) => c.requestedAt.startsWith(month) && c.status !== "failed");
+  const plan = planId ? getMarketingPlan(planId) : void 0;
+  const big = 9999;
+  const allowance = {
+    images: unlimited ? big : plan?.images ?? 0,
+    videos: unlimited ? big : plan?.videos ?? 0,
+    usedImages: thisMonth.filter((c) => c.kind === "image").length,
+    usedVideos: thisMonth.filter((c) => c.kind === "video").length,
+    month,
+    planName: unlimited ? "SIXXAB admin" : plan?.name ?? null
+  };
+  return {
+    creatives,
+    allowance,
+    adminWorkspace,
+    queued: creatives.filter((c) => c.status === "queued").length,
+    awaiting: creatives.filter((c) => c.status === "made").length,
+    approved: creatives.filter((c) => c.status === "approved").length
+  };
+}
+async function loadCreatives(store2, orgId, planId, unlimited = false) {
+  return computeCreatives(await store2.listAuditByActions(orgId, CREATIVE_EVENTS), planId, /* @__PURE__ */ new Date(), unlimited);
+}
+async function requestCreative(store2, orgId, input, state, by) {
+  const kind = input.kind === "video" ? "video" : input.kind === "image" ? "image" : null;
+  if (!kind) throw new Error("Pick an image or a video");
+  const format = CREATIVE_FORMATS.includes(String(input.format)) ? input.format : kind === "video" ? "9:16" : "4:5";
+  const brief = text6(input.brief, 1200);
+  if (brief.length < 10) throw new Error("Describe the ad in a sentence or two: who is in it, what happens and the mood");
+  const headline = text6(input.headline, 60);
+  const primaryText = text6(input.primaryText, 300);
+  const cta = CREATIVE_CTAS.includes(String(input.cta)) ? String(input.cta) : "Learn more";
+  const a = state.allowance;
+  if (!a.planName) throw new Error("Pick a marketing plan first; ads come out of its monthly images and videos");
+  if (kind === "image" && a.usedImages >= a.images) throw new Error(`This month's ${a.images} images are used. More come on the 1st, or move up a plan.`);
+  if (kind === "video" && a.usedVideos >= a.videos) throw new Error(`This month's ${a.videos} videos are used. More come on the 1st, or move up a plan.`);
+  const id = newId();
+  await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "creative.requested", taskId: null, detail: { id, kind, format, brief, headline, primaryText, cta, summary: `Queued a ${kind === "video" ? "video" : "image"} ad: ${headline || brief.slice(0, 60)}` } });
+  return id;
+}
+async function saveCreativeResult(store2, orgId, input, by) {
+  const id = String(input.id ?? "");
+  const c = (await loadCreatives(store2, orgId, null)).creatives.find((x) => x.id === id);
+  if (!c) throw new Error("No such creative");
+  if (c.status !== "queued") throw new Error("This creative is not waiting to be made");
+  const mediaUrl = mediaUrlOk(input.mediaUrl);
+  if (!mediaUrl) throw new Error(`The link must be https on ${MEDIA_HOSTS.join(" or ")}`);
+  const credits = Math.max(0, Math.min(200, Math.round(Number(input.credits) || 0)));
+  await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "creative.made", taskId: null, detail: { id, mediaUrl, model: text6(input.model, 80), credits, generationId: text6(input.generationId, 80), summary: `Made the ${c.kind} ad "${c.headline || c.brief.slice(0, 40)}" (${credits} credits); waiting for the owner's yes` } });
+}
+async function failCreative(store2, orgId, id, reason, by) {
+  const c = (await loadCreatives(store2, orgId, null)).creatives.find((x) => x.id === id);
+  if (!c || c.status !== "queued") throw new Error("This creative is not waiting to be made");
+  await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "creative.failed", taskId: null, detail: { id, reason: text6(reason, 300), summary: `Could not make the ${c.kind} ad: ${text6(reason, 120)}` } });
+}
+async function decideCreative(store2, orgId, id, decision, note, by) {
+  if (decision !== "approved" && decision !== "rejected") throw new Error("Approve or reject");
+  const c = (await loadCreatives(store2, orgId, null)).creatives.find((x) => x.id === id);
+  if (!c) throw new Error("No such creative");
+  if (c.status !== "made" && !(c.status === "approved" && decision === "rejected") && !(c.status === "rejected" && decision === "approved")) throw new Error("Only a finished creative can be approved or rejected");
+  await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "creative.decided", taskId: null, detail: { id, decision, note: text6(note, 300), summary: `${decision === "approved" ? "Approved" : "Rejected"} the ${c.kind} ad "${c.headline || c.brief.slice(0, 40)}"` } });
+}
+async function studioQueue(store2, orgIds, about) {
+  const jobs = [];
+  await Promise.all(orgIds.map(async (orgId) => {
+    const queued = (await loadCreatives(store2, orgId, null)).creatives.filter((c) => c.status === "queued");
+    if (!queued.length) return;
+    const a = await about(orgId);
+    for (const c of queued) jobs.push({ orgId, business: a.business, id: c.id, kind: c.kind, format: c.format, brief: c.brief, headline: c.headline, cta: c.cta, voice: a.voice, avoid: a.avoid, requestedAt: c.requestedAt });
+  }));
+  return jobs.sort((x, y) => x.requestedAt.localeCompare(y.requestedAt));
+}
+function creativesGoal(o) {
+  const a = o.allowance;
+  const images = Math.max(0, Math.min(3, a.images - a.usedImages));
+  const videos = Math.max(0, Math.min(1, a.videos - a.usedVideos));
+  if (!a.planName || images + videos === 0) return "";
+  return [
+    `Write ${images} image ad brief${images === 1 ? "" : "s"}${videos ? " and 1 short video brief" : ""} for ${o.business || "this business"}, and queue each with save_creative_brief.`,
+    `Offer: ${o.offer || "see the company profile"}. Best customer: ${o.bestCustomer || "not given"}. Channels: ${o.channels.join(", ") || "Instagram and Facebook"}. This week's focus: ${o.weekFocus || "first creatives"}.`,
+    `Brand voice: ${o.voice || "friendly and plain"}. Claims to avoid: ${o.avoid || "none given"}.`,
+    "Each brief says who is in the picture, what happens, the setting, light and mood, with no real brand logos, and no text in a video. An image may carry the headline. Write a headline of up to 8 words, a primary text of one or two sentences and a call to action.",
+    "Never invent prices, discounts, guarantees or results; write [OFFER] where one belongs. You only queue briefs: nothing is made, posted or spent in this task."
+  ].join("\n");
+}
+
 // core/marketing-tools.ts
 var str4 = { type: "string" };
 var MARKETING_TOOLS = {
@@ -2621,6 +2766,32 @@ var MARKETING_TOOLS = {
     },
     summarize: () => "Save the 30-day marketing plan",
     execute: (i, ctx) => saveTailoredPlan(ctx.store, ctx.orgId, i, ctx.agent.name)
+  },
+  save_creative_brief: {
+    spec: {
+      name: "save_creative_brief",
+      description: "Queue one ad creative for the studio: an image or a short video, its shape, a visual brief and the ad copy. It counts against the plan's monthly images and videos. Nothing is made, posted or spent here; the studio makes it and the owner approves it on the Marketing tab.",
+      input_schema: {
+        type: "object",
+        properties: {
+          kind: { type: "string", enum: ["image", "video"] },
+          format: { type: "string", enum: [...CREATIVE_FORMATS], description: "4:5 or 1:1 for feed images, 9:16 for Reels, Stories and TikTok, 16:9 for YouTube" },
+          brief: { type: "string", description: "Who is in it, what happens, the setting, light and mood. No real brand logos; no on-screen text in a video." },
+          headline: { type: "string", description: "Up to 8 words" },
+          primaryText: { type: "string", description: "One or two sentences of ad copy" },
+          cta: { type: "string", enum: CREATIVE_CTAS }
+        },
+        required: ["kind", "brief", "headline", "primaryText", "cta"]
+      }
+    },
+    summarize: (i) => `Queue a ${i.kind === "video" ? "video" : "image"} ad for the studio`,
+    execute: async (i, ctx) => {
+      const m = await loadMarketing(ctx.store, ctx.orgId, null);
+      const planId = m.subscription?.status === "active" ? m.subscription.planId : null;
+      const state = await loadCreatives(ctx.store, ctx.orgId, planId);
+      await requestCreative(ctx.store, ctx.orgId, i, state, ctx.agent.name);
+      return `Queued the ${i.kind === "video" ? "video" : "image"} ad "${String(i.headline ?? "").slice(0, 60)}" for the studio. The owner approves it once it is made.`;
+    }
   }
 };
 
@@ -2642,17 +2813,17 @@ var field = (input, name, max = 4e3) => {
   return t.slice(0, max);
 };
 function parseLinkedInComment(input) {
-  let text10 = input.trim();
+  let text11 = input.trim();
   try {
-    text10 = decodeURIComponent(text10);
+    text11 = decodeURIComponent(text11);
   } catch {
   }
-  const m = text10.match(/urn:li:comment:\((?:urn:li:)?(activity|ugcPost|share):(\d+),(\d+)\)/);
+  const m = text11.match(/urn:li:comment:\((?:urn:li:)?(activity|ugcPost|share):(\d+),(\d+)\)/);
   if (m) {
     const threadUrn2 = `urn:li:${m[1]}:${m[2]}`;
     return { threadUrn: threadUrn2, commentUrn: `urn:li:comment:(${threadUrn2},${m[3]})` };
   }
-  const d = text10.match(/urn:li:fsd_comment:\((\d+),urn:li:(activity|ugcPost|share):(\d+)\)/);
+  const d = text11.match(/urn:li:fsd_comment:\((\d+),urn:li:(activity|ugcPost|share):(\d+)\)/);
   if (!d) return null;
   const threadUrn = `urn:li:${d[2]}:${d[3]}`;
   return { threadUrn, commentUrn: `urn:li:comment:(${threadUrn},${d[1]})` };
@@ -2803,9 +2974,9 @@ function toolsFor(agent) {
 }
 var WEBHOOK_TIMEOUT_MS = 3e4;
 var RECEIPT_MAX = 500;
-function parseReceipt(text10) {
+function parseReceipt(text11) {
   try {
-    const body = JSON.parse(text10);
+    const body = JSON.parse(text11);
     if (!body || typeof body !== "object") return void 0;
     const { ok, message } = body;
     return {
@@ -2904,10 +3075,10 @@ async function requireUser(request) {
   return { userId: user.id, orgId, label: label5, store: s };
 }
 async function readJson(request, maxBytes = 64e3) {
-  const text10 = await request.text();
-  if (text10.length > maxBytes) throw new HttpError(413, "Request too large");
+  const text11 = await request.text();
+  if (text11.length > maxBytes) throw new HttpError(413, "Request too large");
   try {
-    return JSON.parse(text10 || "{}");
+    return JSON.parse(text11 || "{}");
   } catch {
     throw new HttpError(400, "Invalid JSON");
   }
@@ -3171,6 +3342,19 @@ var AGENTS = [
     maxTurns: 10,
     starter: "Check the online presence named in the goal on public pages and save it with save_assessment_check.",
     instructions: `You check a business's online presence for its marketing assessment, from public pages you can cite: its own site, its maps or Google listing, its social pages and review sites. Confirm each page belongs to this business by its name, phone number, address or website. A check is "found" only with the page that shows it, "missing" when you looked and it is not there, and "unclear" when you cannot tell. You cannot see page code, so a tracking pixel is unclear unless a public page plainly states it. Note the review count and rating only as the page shows them. Business information only: nothing behind a login, no personal accounts. Save the result with save_assessment_check, with a short summary of what is in place and the top gaps. Contacting anyone is never your job. ${SHARED_RULES}`
+  },
+  {
+    id: "ad-creative-producer",
+    name: "Ad Creative Producer",
+    layer: "department",
+    stage: 2,
+    reportsTo: "cmo",
+    job: "Turns the marketing plan into image and short-video ad briefs with their copy, and queues them for the studio. Never posts or spends.",
+    modelTier: "worker",
+    tools: ["recall", "save_creative_brief"],
+    usesModel: true,
+    maxTurns: 8,
+    instructions: `You write ad creatives for a small business's marketing plan and queue each one with save_creative_brief. For each ad, write a visual brief a video or image model can follow (who is in it, what happens, the setting, light and mood), a headline of up to 8 words, a primary text of one or two sentences and a call to action. Match the format to where it runs: 4:5 or 1:1 for feed images, 9:16 for Reels, Stories and TikTok. Use real people and places that fit the business, no real brand logos, and no on-screen text in a video. Never invent prices, discounts, guarantees, results or reviews; write [OFFER] where an offer belongs, and respect the claims to avoid. Queue only as many ads as the goal asks. Making, posting and paying for ads is never your job. ${SHARED_RULES}`
   },
   {
     id: "social-poster",
@@ -4493,10 +4677,10 @@ function computeGovernance(input) {
 
 // server/build-info.ts
 var BUILD_INFO = {
-  "builtAt": "2026-11-24T18:39:15.691Z",
-  "files": 110,
-  "lines": 13105,
-  "tests": 153,
+  "builtAt": "2026-11-24T19:11:16.387Z",
+  "files": 112,
+  "lines": 13504,
+  "tests": 158,
   "e2e": 12,
   "rlsTables": 9,
   "cspHeader": true,
@@ -4508,9 +4692,9 @@ var TIMEOUT_MS = 5e3;
 async function probe(url2, headers) {
   try {
     const res = await fetch(url2, { headers, signal: AbortSignal.timeout(TIMEOUT_MS) });
-    const text10 = await res.text();
+    const text11 = await res.text();
     try {
-      return { ok: res.ok, body: JSON.parse(text10) };
+      return { ok: res.ok, body: JSON.parse(text11) };
     } catch {
       return { ok: res.ok, body: null };
     }
@@ -4851,7 +5035,7 @@ var RAISE_EVENTS = ["raise.round", "raise.investor", "raise.investor_stage", "ra
 var COMMITTED = ["committed", "signed", "funded"];
 var EMAIL_RE3 = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 var MAX_MONEY = 1e10;
-var text6 = (v, max) => String(v ?? "").trim().slice(0, max);
+var text7 = (v, max) => String(v ?? "").trim().slice(0, max);
 var money2 = (v, label5, required = false) => {
   if (v === void 0 || v === null || v === "") {
     if (required) throw new Error(`${label5} must be more than zero`);
@@ -4869,7 +5053,7 @@ var fmt = (n) => n.toLocaleString("en-US", { maximumFractionDigits: 0 });
 var record5 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
 async function setRound(store2, orgId, r, by) {
   const round3 = {
-    name: text6(r.name, 60) || "Pre-seed",
+    name: text7(r.name, 60) || "Pre-seed",
     instrument: oneOf(INSTRUMENTS, r.instrument, "instrument"),
     exemption: oneOf(EXEMPTIONS, r.exemption, "exemption"),
     target: money2(r.target, "The target", true),
@@ -4884,20 +5068,20 @@ async function setRound(store2, orgId, r, by) {
   return loadRaise(store2, orgId);
 }
 function cleanInvestor(i) {
-  const name = text6(i.name, 120);
+  const name = text7(i.name, 120);
   if (!name) throw new Error("An investor needs a name");
-  const email = text6(i.email, 200);
+  const email = text7(i.email, 200);
   if (email && !EMAIL_RE3.test(email)) throw new Error("That email address does not look right");
   return {
     id: i.id && /^[\w-]{6,64}$/.test(i.id) ? i.id : newId(),
     name,
     email,
-    firm: text6(i.firm, 120),
+    firm: text7(i.firm, 120),
     type: oneOf(INVESTOR_TYPES, i.type, "type"),
-    relationship: text6(i.relationship, 200),
+    relationship: text7(i.relationship, 200),
     accredited: i.accredited ? oneOf(ACCREDITATION, i.accredited, "accredited") : "unknown",
-    nextStep: text6(i.nextStep, 200),
-    notes: text6(i.notes, 2e3)
+    nextStep: text7(i.nextStep, 200),
+    notes: text7(i.notes, 2e3)
   };
 }
 async function upsertInvestor(store2, orgId, input, by) {
@@ -4926,15 +5110,15 @@ function cleanTiers(tiers) {
   if (!Array.isArray(tiers)) return [];
   if (tiers.length > MAX_TIERS) throw new Error(`A campaign can have at most ${MAX_TIERS} tiers`);
   return tiers.map((t, i) => {
-    const name = text6(t?.name, 60);
-    const reward = text6(t?.reward, 300);
+    const name = text7(t?.name, 60);
+    const reward = text7(t?.reward, 300);
     if (!name || !reward) throw new Error(`Tier ${i + 1} needs a name and what the backer gets`);
     return { name, reward, price: money2(t?.price, `Tier ${i + 1} price`, true), limit: money2(t?.limit, `Tier ${i + 1} limit`) };
   });
 }
 async function setCampaign(store2, orgId, c, by) {
   const channel = oneOf(CHANNELS, c.channel, "The channel");
-  const url2 = text6(c.url, 300);
+  const url2 = text7(c.url, 300);
   if (url2 && !/^https:\/\/[\w.-]+(\/[\w\-./?=&%#]*)?$/i.test(url2)) throw new Error("The campaign url must start with https://");
   const campaign = {
     channel,
@@ -5192,11 +5376,11 @@ function parsePerson(p) {
 }
 async function apolloReason(res) {
   try {
-    const text10 = await res.text();
-    let msg = text10;
+    const text11 = await res.text();
+    let msg = text11;
     try {
-      const j = JSON.parse(text10);
-      msg = str5(j.error) || str5(j.message) || text10;
+      const j = JSON.parse(text11);
+      msg = str5(j.error) || str5(j.message) || text11;
     } catch {
     }
     msg = msg.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().slice(0, 200);
@@ -5239,7 +5423,7 @@ async function apolloEnrich(apiKey, apolloId, fetchImpl = fetch) {
 // core/research-import.ts
 import { createHash } from "node:crypto";
 var MAX_REPORTS = 100;
-var text7 = (v, max) => String(v ?? "").trim().slice(0, max);
+var text8 = (v, max) => String(v ?? "").trim().slice(0, max);
 function fingerprint(v) {
   const canon = (x) => Array.isArray(x) ? x.map(canon) : x && typeof x === "object" ? Object.fromEntries(Object.keys(x).sort().map((k) => [k, canon(x[k])])) : x;
   return createHash("sha256").update(JSON.stringify(canon(v))).digest("hex").slice(0, 32);
@@ -5268,12 +5452,12 @@ async function importResearch(store2, orgId, raw, by, choices = {}) {
   const fills = choices.fill && typeof choices.fill === "object" ? choices.fill : {};
   for (let n = 0; n < reports.length; n++) {
     const r = reports[n];
-    const company = text7(r.company, 200) || text7(r.business, 200);
+    const company = text8(r.company, 200) || text8(r.business, 200);
     const empty = { company, contactId: null, dealName: "", matchedBy: null, filled: [] };
     let deal;
     let matchedBy;
     if (Object.prototype.hasOwnProperty.call(chosen, String(n))) {
-      const id = text7(chosen[String(n)], 64);
+      const id = text8(chosen[String(n)], 64);
       if (!id) {
         results.push({ ...empty, research: "skipped", proposal: "none", reason: "Skipped in the preview" });
         continue;
@@ -5338,7 +5522,7 @@ async function importResearch(store2, orgId, raw, by, choices = {}) {
         notes.push(`proposal not attached: ${e instanceof Error ? e.message : "could not read it"}`);
       }
     }
-    const want = (Array.isArray(fills[String(n)]) ? fills[String(n)] : []).slice(0, 20).map((k) => text7(k, 40));
+    const want = (Array.isArray(fills[String(n)]) ? fills[String(n)] : []).slice(0, 20).map((k) => text8(k, 40));
     const report = c.researchReport;
     if (want.length && report && res.research !== "error") {
       const rows = mapRows(report, c);
@@ -5547,13 +5731,13 @@ var PRIORITIES = ["low", "normal", "high", "urgent"];
 var CHANNELS2 = ["email", "whatsapp", "phone", "website", "walk-in"];
 var SUPPORT_EVENTS = ["support.ticket", "support.status", "support.note"];
 var SLA_ORDER = ["urgent", "high", "normal", "low"];
-var text8 = (v, max) => String(v ?? "").trim().slice(0, max);
+var text9 = (v, max) => String(v ?? "").trim().slice(0, max);
 var oneOf2 = (list3, v, fallback) => list3.includes(String(v)) ? String(v) : fallback;
 var record6 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
 async function openTicket(store2, orgId, input, by) {
-  const subject = text8(input.subject, 160);
-  const customer = text8(input.customer, 120);
-  const message = text8(input.message, 4e3);
+  const subject = text9(input.subject, 160);
+  const customer = text9(input.customer, 120);
+  const message = text9(input.message, 4e3);
   if (!subject || !customer || !message) throw new Error("A ticket needs a subject, a customer and their message");
   const number = (await loadSupport(store2, orgId)).tickets.reduce((m, t) => Math.max(m, t.number), 1e3) + 1;
   const ticket = {
@@ -5561,7 +5745,7 @@ async function openTicket(store2, orgId, input, by) {
     number,
     subject,
     customer,
-    contact: text8(input.contact, 200),
+    contact: text9(input.contact, 200),
     channel: oneOf2(CHANNELS2, input.channel, "email"),
     priority: oneOf2(PRIORITIES, input.priority, "normal"),
     message
@@ -5579,7 +5763,7 @@ async function setTicketStatus(store2, orgId, id, status, by) {
 async function addTicketNote(store2, orgId, id, note, by) {
   const t = (await loadSupport(store2, orgId)).tickets.find((x) => x.id === id);
   if (!t) throw new Error("Ticket not found");
-  const body = text8(note, 4e3);
+  const body = text9(note, 4e3);
   if (!body) throw new Error("Write a note first");
   await record6(store2, orgId, by, "support.note", { ticketId: id, text: body, summary: `Note on ticket #${t.number}` });
   return loadSupport(store2, orgId);
@@ -5669,17 +5853,17 @@ var ACCOUNT_EVENTS = ["acct.entry", "acct.removed"];
 var DATE_RE2 = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 var MAX_AMOUNT = 1e11;
 var round2 = (n) => Math.round(n * 100) / 100;
-var text9 = (v, max) => String(v ?? "").trim().slice(0, max);
+var text10 = (v, max) => String(v ?? "").trim().slice(0, max);
 var record7 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
 async function addEntry(store2, orgId, input, by, currency = "USD") {
   if (input.kind !== "income" && input.kind !== "expense") throw new Error("kind must be income or expense");
-  const date = text9(input.date, 10);
+  const date = text10(input.date, 10);
   if (!DATE_RE2.test(date)) throw new Error("date must look like 2026-11-04");
   const amount = Number(String(input.amount).replace(/[,$₹\s]/g, ""));
   if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_AMOUNT) throw new Error("amount must be more than zero");
   const cats = input.kind === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
   const category = cats.includes(input.category) ? input.category : input.kind === "income" ? "other income" : "other";
-  const entry = { id: newId(), kind: input.kind, date, amount: round2(amount), category, party: text9(input.party, 120), note: text9(input.note, 300) };
+  const entry = { id: newId(), kind: input.kind, date, amount: round2(amount), category, party: text10(input.party, 120), note: text10(input.note, 300) };
   await record7(store2, orgId, by, "acct.entry", { entry, summary: `${input.kind === "income" ? "Income" : "Expense"} recorded: ${entry.amount} ${currency} (${category})` });
   return loadAccounts(store2, orgId, currency);
 }
@@ -6107,19 +6291,54 @@ async function agencyCustomers(store2, adminOrgId, by) {
   const live = customers.filter((c) => c.mode === "live" && c.status === "active");
   return { customers, added, monthlyLiveUsd: live.filter((c) => c.currency === "USD").reduce((s, c) => s + c.amount, 0) };
 }
+async function aboutBusiness(store2, orgId) {
+  const profile = await loadBusinessProfile(store2, orgId);
+  const m = await loadMarketing(store2, orgId, profile, rate());
+  return { business: profile?.name ?? "Unnamed business", voice: m.answers.voice ?? "", avoid: m.answers.avoid ?? "" };
+}
 async function view(store2, orgId, label5) {
   const profile = await loadBusinessProfile(store2, orgId);
   const marketing = await loadMarketing(store2, orgId, profile, rate());
   const admin = isAdmin(label5, process.env.ADMIN_EMAILS);
+  const planId = marketing.subscription?.status === "active" ? marketing.subscription.planId : null;
+  let creatives = await loadCreatives(store2, orgId, planId, admin);
+  if (admin && !creatives.adminWorkspace) {
+    await markAdminStudio(store2, orgId, creatives, label5);
+    creatives = await loadCreatives(store2, orgId, planId, admin);
+  }
+  const plan = marketing.tailored ?? marketing.plan30;
+  const a = marketing.answers;
   return {
     marketing,
     plans: MARKETING_PLANS,
     sections: ASSESSMENT_SECTIONS,
     payments: paymentSetup(payEnv()),
-    goals: { assessor: assessorGoal(marketing.answers), cmo: cmoPlanGoal(marketing) },
+    creatives,
+    goals: {
+      assessor: assessorGoal(marketing.answers),
+      cmo: cmoPlanGoal(marketing),
+      creatives: creativesGoal({ business: profile?.name ?? "", offer: a.services ?? "", bestCustomer: a.bestCustomer ?? "", voice: a.voice ?? "", avoid: a.avoid ?? "", channels: plan.channels, weekFocus: plan.weeks[0]?.focus ?? "", allowance: creatives.allowance })
+    },
     admin,
-    agency: admin ? await agencyCustomers(store2, orgId, label5) : null
+    agency: admin ? await agencyCustomers(store2, orgId, label5) : null,
+    studio: admin ? await studioQueue(store2, await store2.listOrgIds(), (id) => aboutBusiness(store2, id)) : null
   };
+}
+async function studioKeyOk(request) {
+  const want = process.env.STUDIO_KEY?.trim() ?? "";
+  if (want.length < 32) throw new HttpError(503, "The studio isn't connected yet");
+  const enc2 = new TextEncoder();
+  const [x, y] = await Promise.all([crypto.subtle.digest("SHA-256", enc2.encode(request.headers.get("x-studio-key") ?? "")), crypto.subtle.digest("SHA-256", enc2.encode(want))]);
+  const u = new Uint8Array(x), v = new Uint8Array(y);
+  let d = 0;
+  for (let i = 0; i < u.length; i++) d |= u[i] ^ v[i];
+  return d === 0;
+}
+async function studioWrite(store2, b, by, ok) {
+  const target = String(b.orgId ?? "");
+  if (!(await store2.listOrgIds()).includes(target)) throw new HttpError(404, "No such business");
+  if (ok) await saveCreativeResult(store2, target, { id: b.id, mediaUrl: b.mediaUrl, model: b.model, credits: b.credits, generationId: b.generationId }, by);
+  else await failCreative(store2, target, String(b.id ?? ""), String(b.reason ?? ""), by);
 }
 function returnBase(request) {
   const u = new URL(request.url);
@@ -6128,13 +6347,46 @@ function returnBase(request) {
   return `${u.protocol}//${u.host}/app`;
 }
 var GET9 = handle(async (request) => {
+  if (request.headers.has("x-studio-key")) {
+    if (!await studioKeyOk(request)) throw new HttpError(401, "Wrong studio key");
+    if (new URL(request.url).searchParams.get("studio") !== "queue") throw new HttpError(400, "Use ?studio=queue");
+    const s = store();
+    return json({ queue: await studioQueue(s, await s.listOrgIds(), (id) => aboutBusiness(s, id)) });
+  }
   const { orgId, label: label5, store: store2 } = await requireUser(request);
   return json(await view(store2, orgId, label5));
 });
 var POST8 = handle(async (request) => {
+  if (request.headers.has("x-studio-key")) {
+    if (!await studioKeyOk(request)) throw new HttpError(401, "Wrong studio key");
+    const b2 = await readJson(request);
+    if (b2.action !== "studio_result" && b2.action !== "studio_failed") throw new HttpError(400, "action must be studio_result or studio_failed");
+    try {
+      await studioWrite(store(), b2, "Ad studio", b2.action === "studio_result");
+    } catch (e) {
+      if (e instanceof HttpError) throw e;
+      throw new HttpError(400, e instanceof Error ? e.message : "Could not save the studio result");
+    }
+    return json({ ok: true });
+  }
   const { orgId, label: label5, store: store2 } = await requireUser(request);
   const b = await readJson(request);
   try {
+    if (b.action === "request_creative") {
+      const m = await loadMarketing(store2, orgId, null, rate());
+      const planId = m.subscription?.status === "active" ? m.subscription.planId : null;
+      await requestCreative(store2, orgId, b.creative ?? {}, await loadCreatives(store2, orgId, planId, isAdmin(label5, process.env.ADMIN_EMAILS)), label5);
+      return json(await view(store2, orgId, label5));
+    }
+    if (b.action === "decide_creative") {
+      await decideCreative(store2, orgId, String(b.id ?? ""), b.decision, b.note, label5);
+      return json(await view(store2, orgId, label5));
+    }
+    if (b.action === "studio_save" || b.action === "studio_fail") {
+      if (!isAdmin(label5, process.env.ADMIN_EMAILS)) throw new HttpError(403, "Only the SIXXAB admin can save studio results");
+      await studioWrite(store2, b, label5, b.action === "studio_save");
+      return json(await view(store2, orgId, label5));
+    }
     if (b.action === "save") {
       await saveAssessment(store2, orgId, b.answers, label5);
       return json(await view(store2, orgId, label5));
@@ -6167,7 +6419,7 @@ var POST8 = handle(async (request) => {
     if (e instanceof HttpError) throw e;
     throw new HttpError(400, e instanceof Error ? e.message : "Could not update marketing");
   }
-  throw new HttpError(400, "action must be save, checkout or confirm");
+  throw new HttpError(400, "Unknown marketing action");
 });
 
 // server/routes/payments.ts

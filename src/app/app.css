@@ -317,3 +317,16 @@ th { color: var(--sub); font-weight: 500; font-size: 12px; text-transform: upper
 .mk-price { margin: 0; font-size: 24px; }
 .mk-pays { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-direction: column; gap: 6px; }
 .mk-pays li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--line); font-size: 14px; flex-wrap: wrap; }
+
+/* Ad studio */
+.mk-brief { margin: 0.75rem 0; }
+.mk-brief summary { cursor: pointer; font-weight: 600; }
+.mk-creatives { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.75rem; margin-top: 0.75rem; }
+.mk-creative { display: flex; flex-direction: column; gap: 0.35rem; padding: 0.6rem; border: 1px solid var(--border, rgba(255,255,255,0.12)); border-radius: 12px; min-width: 0; }
+.mk-creative img, .mk-creative video { width: 100%; max-height: 360px; object-fit: contain; border-radius: 8px; background: rgba(0,0,0,0.25); }
+.mk-creative.approved { border-color: rgba(52, 199, 89, 0.6); }
+.mk-creative.rejected, .mk-creative.failed { opacity: 0.7; }
+.mk-creative p { margin: 0; overflow-wrap: anywhere; }
+.mk-media-empty { display: grid; place-items: center; min-height: 140px; padding: 0.75rem; text-align: center; border-radius: 8px; background: rgba(127,127,127,0.12); font-size: 0.85rem; }
+.mk-studio-queue { margin-top: 1rem; }
+.mk-studio-queue input { flex: 1; min-width: 0; }
