@@ -12,6 +12,7 @@ import { fileToCsv } from '../lib/sheet';
 import { CustomerPage, STAGES, stageName, webHref, type Contact } from './Customer';
 import { LeadAgents, type LeadgenState } from './LeadAgents';
 import { SalesFlow } from './SalesFlow';
+import { researchGoal } from '../../core/research';
 import type { FlowOrg, FlowStage, NextAction } from '../../core/salesflow-state';
 
 interface CrmState extends LeadgenState { contacts: Contact[]; flowOrg: FlowOrg; flowCounts: Record<FlowStage, number>; nextActions: NextAction[]; pipeline: Record<string, number>; totals: { open: number; openValue: number; won: number; wonValue: number; winRate: number | null; followUps: number }; followUpGoal: string; newLeads?: number; speedGoal?: string }
@@ -34,8 +35,37 @@ export function LeadDetails({ c }: { c: Contact }) {
   );
 }
 
+type Open = (c: Contact, section?: string) => void;
+
+/** On each board card: run the Business Research agent for this deal, or open its report. Nothing is sent. */
+function BoardResearch({ c, open, reload }: { c: Contact; open: Open; reload: () => void }) {
+  const [running, setRunning] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  if (c.stage === 'lost') return null;
+  if (c.researchReport) return <div className="board-research"><span className="pill pill-done">Researched</span><button type="button" className="btn-mini" onClick={() => open(c, 'research-and-proposal')}>See report</button></div>;
+  if (c.stage === 'won') return null;
+  async function go() {
+    setRunning(true);
+    setErr(null);
+    try {
+      await api('/api/agents', { method: 'POST', body: JSON.stringify({ goal: researchGoal(c.id), agentId: 'business-research', contactId: c.id }) });
+      reload();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'The research could not run.');
+    } finally {
+      setRunning(false);
+    }
+  }
+  return (
+    <div className="board-research">
+      <button type="button" className="btn-mini" disabled={running} onClick={go} title="Public pages only, up to eight web searches. Nothing is sent.">{running ? <Spinner label="Researching…" /> : 'Research this business'}</button>
+      {err && <span className="error small" role="alert">{err}</span>}
+    </div>
+  );
+}
+
 /** Pipeline board: one column per stage, a card per deal, moved with its stage menu. */
-export function Board({ contacts, busy, move, open }: { contacts: Contact[]; busy: boolean; move: (c: Contact, stage: string) => void; open: (c: Contact) => void }) {
+export function Board({ contacts, busy, move, open, reload }: { contacts: Contact[]; busy: boolean; move: (c: Contact, stage: string) => void; open: Open; reload: () => void }) {
   return (
     <div className="board" role="list" aria-label="Pipeline board">
       {STAGES.map((s) => {
@@ -54,6 +84,7 @@ export function Board({ contacts, busy, move, open }: { contacts: Contact[]; bus
                     {(c.leadScore || c.sequence) && <span className="muted small">{[c.leadScore && `Score ${c.leadScore.score} ${c.leadScore.grade}`, c.sequence && `Outreach ${c.sequence.steps.filter((x) => x.sentAt).length}/${c.sequence.steps.length} sent`].filter(Boolean).join(' · ')}</span>}
                     <span className="muted small">Tap to open the full record</span>
                   </button>
+                  <BoardResearch c={c} open={open} reload={reload} />
                   <select aria-label={`Move ${c.name}`} value={c.stage} disabled={busy} onChange={(e) => move(c, e.target.value)}>{STAGES.map((x) => <option key={x} value={x}>{stageName(x)}</option>)}</select>
                 </div>
               ))}
@@ -100,7 +131,11 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
   const { crm } = data;
   const t = crm.totals;
   const customer = customerId ? crm.contacts.find((c) => c.id === customerId) : undefined;
-  const openCustomer = (c: Contact) => { setCustomerId(c.id); window.scrollTo?.({ top: 0 }); };
+  const openCustomer = (c: Contact, section?: string) => {
+    setCustomerId(c.id);
+    window.scrollTo?.({ top: 0 });
+    if (section) setTimeout(() => document.getElementById(section)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+  };
   if (customer) return <CustomerPage key={customer.id} c={customer} busy={!!busy} msg={msg} post={post} back={() => setCustomerId(null)} goApprovals={goApprovals} reload={reload} actions={(crm.nextActions ?? []).filter((a) => a.contactId === customer.id)} />;
   const shown = crm.contacts.filter((c) => (filter === 'open' ? !['won', 'lost'].includes(c.stage) : filter === 'all' ? true : c.stage === filter));
 
@@ -124,8 +159,8 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
       <section className="panel glass-card">
         <p className="eyebrow">Pipeline board</p>
         <h2>Deals by stage</h2>
-        <p className="muted small">Tap a card to open the customer's full record: data, research and history.</p>
-        <Board contacts={crm.contacts} busy={!!busy} move={(c, stage) => post(c.id, { action: 'stage', contactId: c.id, stage })} open={openCustomer} />
+        <p className="muted small">Tap a card to open the customer's full record. "Research this business" on a card runs the Business Research agent on public pages and saves the report on the deal.</p>
+        <Board contacts={crm.contacts} busy={!!busy} move={(c, stage) => post(c.id, { action: 'stage', contactId: c.id, stage })} open={openCustomer} reload={reload} />
       </section>
 
       <section className="panel glass-card">

@@ -232,12 +232,12 @@ th { color: var(--sub); font-weight: 500; font-size: 12px; text-transform: upper
 .board-open:hover strong, .board-open:focus-visible strong { color: var(--gold); text-decoration: underline; }
 
 /* Sales flow (CRM tab) */
-.flow-strip { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 8px; margin: 14px 0 6px; }
+.flow-strip { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 8px; margin: 14px 0 6px; }
 .flow-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 64px; padding: 10px; border-radius: 14px; border: 1px solid var(--line); background: rgba(255,255,255,0.03); color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
 .flow-tile strong { font-size: 18px; color: var(--gold); }
 .flow-tile span { color: var(--sub); font-size: 12px; }
 .flow-tile.on { border-color: var(--gold); background: rgba(255,226,178,0.10); }
-@media (max-width: 960px) { .flow-strip { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 1100px) { .flow-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 520px) { .flow-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .action-list { list-style: none; padding: 0; margin: 10px 0 0; display: flex; flex-direction: column; gap: 10px; }
 .action-card { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,0.03); }
@@ -260,3 +260,7 @@ th { color: var(--sub); font-weight: 500; font-size: 12px; text-transform: upper
 .roi-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .proposal-text { width: 100%; min-height: 220px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,0.04); color: var(--ink); font: inherit; font-size: 14px; line-height: 1.5; resize: vertical; }
 @media (max-width: 600px) { .roi-table thead { display: none; } .roi-table tr { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 6px 0; border-bottom: 1px solid var(--line); } .roi-table td { border: 0; padding: 2px 0; } .roi-table td:first-child, .roi-table td:last-child { grid-column: 1 / -1; } }
+
+/* Research on each board card */
+.board-research { display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap; }
+.board-research .btn-mini { white-space: nowrap; }

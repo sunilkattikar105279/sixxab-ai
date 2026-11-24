@@ -61,7 +61,7 @@ test('the Onboarding Manager and Customer Success Manager exist and can only sav
     assert.ok(!name.includes('re_'));
   }
   for (const s of FLOW_STAGES) for (const a of s.agents) assert.ok(a.length > 3, `${s.key} names its agents`);
-  assert.deepEqual(FLOW_STAGES.map((s) => s.key), ['find', 'qualify', 'outreach', 'discovery', 'proposal', 'onboard', 'retain', 'expand']);
+  assert.deepEqual(FLOW_STAGES.map((s) => s.key), ['find', 'research', 'qualify', 'outreach', 'discovery', 'proposal', 'onboard', 'retain', 'expand']);
 });
 
 test('onboarding starts only after the win; steps are ticked off and the welcome email is marked sent by the owner', async () => {
@@ -151,7 +151,7 @@ test('the queue walks a lead from score to outreach, puts approvals first, and h
   const { law, roof } = await seed(store);
   let crm = await loadCrm(store, ORG);
   assert.equal(crm.nextActions[0].rule, 'icp', 'no ICP yet: define who you sell to first');
-  assert.equal(crm.flowCounts.qualify, 2);
+  assert.equal(crm.flowCounts.research, 2, 'new leads start at Research');
   assert.ok(crm.nextActions.some((a) => a.key === `${law.id}:score` && a.kind === 'agent' && a.agentId === 'lead-scorer'));
 
   await saveIcp(store, ORG, { name: 'DFW PI firms', summary: 'Personal injury firms in Dallas-Fort Worth with 5 to 30 staff.', industries: 'Personal injury law', locations: 'Dallas-Fort Worth' }, 'ICP Builder');

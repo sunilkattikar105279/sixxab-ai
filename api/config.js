@@ -327,7 +327,8 @@ var FLOW_ORG_EVENTS = ["crm.action_skip", "crm.autopilot"];
 var FLOW_DEAL_EVENTS = ["crm.onboarding", "crm.onboarding_step", "crm.account", "crm.customer_sent"];
 var FLOW_STAGES = [
   { key: "find", name: "Find", does: "Set who you sell to, then find businesses that fit.", agents: ["ICP Builder", "Prospect Generator"], gate: "You tick which prospects join the CRM." },
-  { key: "qualify", name: "Qualify", does: "Research each new lead from public sources, then score it on fit, size, ease of win and reach.", agents: ["Business Research", "Lead Scorer", "Speed-to-Lead"], gate: "You check each found detail before it goes on the deal; first replies wait in Approvals." },
+  { key: "research", name: "Research", does: "Research each new lead from public pages using the owner, phone and website: the business, pain points, missing email, phone and address (each with its source) and where AI agents would help.", agents: ["Business Research"], gate: "You check each found detail before it goes on the deal." },
+  { key: "qualify", name: "Qualify", does: "Score each researched lead on fit, size, ease of win and reach; answer new enquiries fast.", agents: ["Lead Scorer", "Speed-to-Lead"], gate: "First replies wait in Approvals." },
   { key: "outreach", name: "Outreach", does: "Personal email, LinkedIn and call steps in your voice.", agents: ["Outreach Sequencer", "Follow-up Writer"], gate: "You send each step and mark it sent." },
   { key: "discovery", name: "Discovery", does: "Prep the call, capture MEDDIC, debrief the notes.", agents: ["Call Prepper", "Deal Qualifier"], gate: "You approve the move to Proposal." },
   { key: "proposal", name: "Proposal and close", does: "Proposal with opportunities, benefits and ROI, objection answers and the follow-up to a yes.", agents: ["Proposal Writer", "Objection Handler", "Win-Loss Analyst"], gate: "You edit and send the proposal, and mark it won or lost." },
@@ -419,7 +420,7 @@ var ranBy = (c, agentName, sinceIso) => c.history.some((h) => h.by === agentName
 var label = (c) => c.company || c.name;
 function flowStageOf(c, now = Date.now()) {
   if (c.stage === "lost") return "closed";
-  if (c.stage === "lead") return c.sequence ? "outreach" : "qualify";
+  if (c.stage === "lead") return c.sequence ? "outreach" : c.researchReport || c.leadScore ? "qualify" : "research";
   if (c.stage === "contacted") return "outreach";
   if (c.stage === "qualified") return "discovery";
   if (c.stage === "proposal") return "proposal";
@@ -450,7 +451,7 @@ function nextActions(q, now = Date.now()) {
       continue;
     }
     const base = { contactId: c.id, company: label(c), stage };
-    if (c.stage !== "won" && !c.researchReport) add({ ...base, key: `${c.id}:research`, rule: "research", kind: "agent", agentId: "business-research", title: `Research ${label(c)}`, why: "A sourced report on the owner and the business: pain points, missing contact details and where AI agents would help. Uses a few web searches.", priority: c.stage === "lead" ? 38 + Math.min(19, c.rank ?? 19) / 100 : 27 });
+    if (c.stage !== "won" && !c.researchReport) add({ ...base, stage: "research", key: `${c.id}:research`, rule: "research", kind: "agent", agentId: "business-research", title: `Research ${label(c)}`, why: "A sourced report on the owner and the business: pain points, missing contact details and where AI agents would help. Uses a few web searches.", priority: c.stage === "lead" ? 38 + Math.min(19, c.rank ?? 19) / 100 : 27 });
     const prop = c.proposal;
     if (prop && !prop.sentAt && c.stage !== "won") add({ ...base, key: `${c.id}:psend:${prop.id}`, rule: "proposal_send", kind: "send", draft: { channel: "email", subject: prop.subject, text: proposalMessage(prop), to: c.email }, title: `Send the proposal to ${label(c)}`, why: `Net ${fmtMoney(prop.roi.netMonthly, prop.currency)} a month for them${prop.roi.roiPct !== null ? `, first-year return ${prop.roi.roiPct}%` : ""}. Check the ROI assumptions on the customer page first.`, priority: 12 });
     if (prop?.sentAt && ["lead", "contacted", "qualified"].includes(c.stage)) add({ ...base, key: `${c.id}:pstage:${prop.id}`, rule: "proposal_stage", kind: "approve", suggestStage: "proposal", title: `Move ${label(c)} to Proposal?`, why: "You sent them the proposal.", priority: 14 });
