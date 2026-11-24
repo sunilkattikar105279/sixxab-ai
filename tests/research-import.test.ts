@@ -8,6 +8,7 @@ import { DEFAULT_TASK_TYPES } from '../core/policy.js';
 import { importContacts, loadCrm, setDealStage, upsertContact } from '../core/crm.js';
 import { editProposal, markProposalSent, useResearchField } from '../core/research.js';
 import { companyKey, importResearch, matchDeal, parseResearchFile, phoneKey, siteKey } from '../core/research-import.js';
+import { nextActions, RESEARCH_IMPORT_EVERY_DAYS } from '../core/salesflow-state.js';
 
 const ORG = '00000000-0000-0000-0000-000000000001';
 const fresh = () => new MemoryStore({ orgId: ORG, taskTypes: DEFAULT_TASK_TYPES });
@@ -195,4 +196,24 @@ test('import: two deals with the same business are not guessed between, and a ba
   assert.equal(r.results[1].research, 'error');
   assert.match(r.results[1].reason, /summary/);
   assert.equal((await crm(store)).contacts.length, 3);
+});
+
+test('queue: offers Import research while leads wait for research, and steps back for a week after an import', async () => {
+  const store = fresh();
+  await seed(store);
+  const offer = (await crm(store)).nextActions.find((a) => a.rule === 'research_import');
+  assert.ok(offer, 'four leads wait for research, so the Sales flow offers the import');
+  assert.equal(offer!.kind, 'open');
+  assert.equal(offer!.stage, 'research');
+  assert.equal(offer!.count, 4);
+  assert.equal(offer!.contactId, undefined, 'one action for the whole CRM, not one per deal');
+
+  await importResearch(store, ORG, file([{ company: 'The Barber Law Firm', website: 'thebarberlawfirm.com', research: research('Barber') }]), 'owner');
+  const after = await crm(store);
+  assert.ok(!after.nextActions.some((a) => a.rule === 'research_import'), 'a file was just imported, so it is not offered again this week');
+  const later = nextActions(after, Date.now() + (RESEARCH_IMPORT_EVERY_DAYS + 1) * 864e5).find((a) => a.rule === 'research_import');
+  assert.equal(later?.count, 3, 'a week later it is offered again for the three leads still waiting');
+
+  const empty = fresh();
+  assert.ok(!(await crm(empty)).nextActions.some((a) => a.rule === 'research_import'), 'no leads, nothing to research');
 });

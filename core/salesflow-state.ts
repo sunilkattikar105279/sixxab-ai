@@ -150,7 +150,7 @@ export function flowStageOf(c: Contact, now = Date.now()): FlowStage | 'closed' 
 
 export type Rule =
   | 'icp' | 'find' | 'prospects' | 'approvals' | 'score' | 'sequence' | 'send_step' | 'sync' | 'quiet' | 'discovery' | 'advance'
-  | 'research' | 'proposal' | 'proposal_send' | 'proposal_stage' | 'proposal_quiet' | 'winloss' | 'onboard' | 'welcome' | 'onboard_task' | 'review' | 'checkin' | 'renewal' | 'referral';
+  | 'research' | 'research_import' | 'proposal' | 'proposal_send' | 'proposal_stage' | 'proposal_quiet' | 'winloss' | 'onboard' | 'welcome' | 'onboard_task' | 'review' | 'checkin' | 'renewal' | 'referral';
 export type ActionKind = 'agent' | 'send' | 'approve' | 'task' | 'open';
 
 export interface NextAction {
@@ -174,6 +174,8 @@ export const FIND_EVERY_DAYS = 7;
 /** How many prospects one search asks for. */
 export const FIND_COUNT = 10;
 const RENEWAL_WINDOW_DAYS = 45;
+/** Leads wait for research and no research file was imported this long ago: the queue offers Import research. */
+export const RESEARCH_IMPORT_EVERY_DAYS = 7;
 
 interface QueueInput { contacts: Contact[]; icps: Icp[]; prospectBatches: ProspectBatch[]; flowOrg: FlowOrg; pendingApprovals?: number; lastProspectSearch?: string | null }
 
@@ -197,6 +199,17 @@ export function nextActions(q: QueueInput, now = Date.now()): NextAction[] {
       title: `Find ${FIND_COUNT} new prospects for ${icp.name}`,
       why: `${Number.isNaN(lastFind) ? 'No prospect search yet.' : `Last search ${Math.floor((now - lastFind) / DAY)} days ago.`} The Prospect Generator searches public pages for businesses that fit, skipping ones already in the CRM. Nothing is added until you tick them. Uses a few web searches.`,
       priority: newLeads < 5 ? 19 : 45,
+    });
+  }
+
+  const waiting = q.contacts.filter((c) => flowStageOf(c, now) === 'research').length;
+  const lastImport = q.contacts.reduce((t, c) => (c.researchReport?.importKey ? Math.max(t, Date.parse(c.researchReport.at) || 0) : t), 0);
+  if (waiting && now - lastImport >= RESEARCH_IMPORT_EVERY_DAYS * DAY) {
+    add({
+      key: 'research_import', rule: 'research_import', stage: 'research', kind: 'open', count: waiting,
+      title: `Import research for your leads`,
+      why: `${waiting} lead${waiting === 1 ? ' waits' : 's wait'} for research. Have a research file (.json), for example from Claude Duet? Import it and each report goes on its deal: pain points, found contact details and a proposal draft with ROI. Nothing is sent, and no contact is added.`,
+      priority: 19,
     });
   }
 

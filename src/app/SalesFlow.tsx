@@ -74,6 +74,7 @@ export function ActionCard({ a, c, busy, post, reload, goApprovals, open, showCo
 }) {
   const skip = () => post(`skip-${a.key}`, { action: 'action_skip', key: a.key });
   const goto = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const gotoImport = () => { goto('import-research'); setTimeout(() => document.querySelector<HTMLInputElement>('#import-research input[type="file"]')?.focus({ preventScroll: true }), 450); };
   return (
     <li className="action-card">
       <div className="row-between">
@@ -96,6 +97,7 @@ export function ActionCard({ a, c, busy, post, reload, goApprovals, open, showCo
           {a.rule === 'approvals' && <button type="button" className="btn-primary" onClick={goApprovals}>Open Approvals</button>}
           {a.rule === 'icp' && <button type="button" className="btn-primary" onClick={() => goto('who-you-sell-to')}>Go to Who you sell to</button>}
           {a.rule === 'prospects' && <button type="button" className="btn-primary" onClick={() => goto('find-prospects')}>Review the prospects</button>}
+          {a.rule === 'research_import' && <button type="button" className="btn-primary" onClick={gotoImport}>Import research</button>}
           {a.rule === 'renewal' && c && open && <button type="button" className="btn-primary" onClick={() => open(c)}>Open the customer</button>}
         </div>
       )}

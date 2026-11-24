@@ -244,6 +244,10 @@ th { color: var(--sub); font-weight: 500; font-size: 12px; text-transform: upper
 .action-card textarea { width: 100%; min-height: 120px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,0.04); color: var(--ink); font: inherit; font-size: 13px; resize: vertical; }
 .action-card p { margin: 0; }
 .flow-auto { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; padding: 12px 14px; border: 1px dashed var(--line); border-radius: 14px; }
+.import-grid { margin-top: 10px; align-items: start; }
+.import-box { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 12px 14px; border: 1px dashed var(--line); border-radius: 14px; }
+.import-box h3 { margin: 0; }
+.import-box:focus-within { border-style: solid; border-color: var(--gold); }
 .flow-how { padding-left: 18px; margin: 8px 0 0; display: flex; flex-direction: column; gap: 6px; }
 .update-banner { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; padding: 8px 16px; background: rgba(231,199,102,0.14); border-bottom: 1px solid var(--line); color: var(--ink); font-size: 14px; }
 

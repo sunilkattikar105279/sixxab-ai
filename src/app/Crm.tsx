@@ -170,6 +170,60 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
       <SalesFlow crm={crm} busy={!!busy} post={post} reload={reload} goApprovals={goApprovals} open={openCustomer} admin={data.admin} />
       {msg && <p className="error" role="alert">{msg}</p>}
 
+      <section className="panel glass-card" id="import">
+        <p className="eyebrow">Import · lead lists and research files</p>
+        <h2>Import leads and research</h2>
+        <div className="grid2 import-grid">
+          <div className="import-box" id="import-list">
+            <h3>1. Import a list</h3>
+            <p className="muted small">Your lead sheet as an Excel (.xlsx) or CSV file, or rows pasted from a spreadsheet. Adds each lead as a deal.</p>
+            <details><summary className="small">Which columns are kept</summary><p className="muted small">Columns are matched by their header, so a lead sheet with Rank, Business, Niche, City, Website, Main phone, Size, Decision maker, Deal size, Ease of win, Why they fit, Agent to pitch, Source and Check before outreach keeps every column, and Pain points, Offer, Outreach angle and Research columns are kept too. Importing a list again never duplicates anyone: it only fills in details a customer is missing.</p></details>
+            <label className="field"><span>Choose a file</span><input type="file" accept=".xlsx,.csv,.tsv,.txt,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={async (e) => {
+              const file = e.target.files?.[0];
+              e.target.value = '';
+              if (!file) return;
+              setImportMsg(null);
+              try {
+                const text = await fileToCsv(file);
+                setCsv(text);
+                setFileName(file.name);
+                const rows = text.split(/\r?\n/).filter((l) => l.trim()).length;
+                setImportMsg({ ok: true, text: `Loaded ${file.name}: ${Math.max(0, rows - 1)} rows under the header. Press Import to add them.` });
+              } catch (err) {
+                setImportMsg({ ok: false, text: err instanceof Error ? err.message : 'Could not read that file.' });
+              }
+            }} /></label>
+            <textarea aria-label="Contacts CSV" rows={4} value={csv} onChange={(e) => { setCsv(e.target.value); setFileName(''); }} placeholder="Or paste rows here, header row first" />
+            <div className="row-end"><button type="button" className={csv.trim() ? 'btn-primary' : 'btn-ghost'} disabled={!!busy || importing || !csv.trim()} onClick={async () => { if (await importCsv(csv)) { setCsv(''); setFileName(''); } }}>{importing ? <Spinner label="Importing…" /> : fileName ? `Import ${fileName}` : 'Import'}</button></div>
+            {importMsg && <p className={importMsg.ok ? 'small' : 'error'} role={importMsg.ok ? 'status' : 'alert'}>{importMsg.text}</p>}
+          </div>
+          <div className="import-box" id="import-research">
+            <h3>2. Import research</h3>
+            <p className="muted small">A research file (.json), for example from Claude Duet. Each report goes on its deal, so import the list first.</p>
+            <details><summary className="small">How reports are matched</summary><p className="muted small">Each report goes on the deal with the same website, business name or main phone: pain points, opportunities, missing contact details with the page each came from, and a proposal draft with ROI when the file has one. It never adds a contact or changes a deal's details; you check each found detail and press Add to deal. Importing the same file again changes nothing, and a proposal you edited or sent is kept.</p></details>
+            <label className="field"><span>Choose a research file</span><input type="file" accept=".json,application/json" onChange={async (e) => {
+              const file = e.target.files?.[0];
+              e.target.value = '';
+              if (!file) return;
+              setResearchMsg(null);
+              try {
+                const json = await file.text();
+                const data = JSON.parse(json) as { reports?: unknown[] } | unknown[];
+                const list = Array.isArray(data) ? data : Array.isArray(data?.reports) ? data.reports : null;
+                if (!list?.length) throw new Error('No reports in that file. A research file has a "reports" list.');
+                setResearchFile({ name: file.name, json, count: list.length });
+                setResearchMsg({ ok: true, text: `Loaded ${file.name}: ${list.length} report${list.length === 1 ? '' : 's'}. Press Import research to attach them to your deals.`, lines: [] });
+              } catch (err) {
+                setResearchFile(null);
+                setResearchMsg({ ok: false, text: err instanceof SyntaxError ? 'That file is not valid JSON. Choose the research file (.json) exactly as it was delivered.' : err instanceof Error ? err.message : 'Could not read that file.', lines: [] });
+              }
+            }} /></label>
+            <div className="row-end"><button type="button" className={researchFile ? 'btn-primary' : 'btn-ghost'} disabled={!!busy || importingResearch || !researchFile} onClick={importResearchFile}>{importingResearch ? <Spinner label="Attaching research…" /> : researchFile ? `Import research (${researchFile.count})` : 'Import research'}</button></div>
+            {researchMsg && <div role={researchMsg.ok ? 'status' : 'alert'}><p className={researchMsg.ok ? 'small' : 'error'}>{researchMsg.text}</p>{researchMsg.lines.length > 0 && <ul className="small">{researchMsg.lines.map((l) => <li key={l}>{l}</li>)}</ul>}</div>}
+          </div>
+        </div>
+      </section>
+
       <section className="panel glass-card">
         <p className="eyebrow">CRM · Sales CRM agent</p>
         <h2>Pipeline</h2>
@@ -220,51 +274,6 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
           <label className="field"><span>Next step</span><input value={f.nextStep} onChange={(e) => setF({ ...f, nextStep: e.target.value })} maxLength={200} placeholder="e.g. send price list on Friday" /></label>
           <div className="row-end"><button type="submit" className="btn-primary" disabled={!!busy || !f.name.trim()}>{busy === 'add' ? <Spinner label="Saving…" /> : 'Add contact'}</button></div>
         </form>
-        <details open>
-          <summary>Import a list <span className="muted small">Excel (.xlsx) or CSV file, or rows pasted from a spreadsheet</span></summary>
-          <p className="muted small">Columns are matched by their header, so a lead sheet with Rank, Business, Niche, City, Website, Main phone, Size, Decision maker, Deal size, Ease of win, Why they fit, Agent to pitch, Source and Check before outreach keeps every column, and Pain points, Offer, Outreach angle and Research columns are kept too. Importing a list again never duplicates anyone: it only fills in details a customer is missing.</p>
-          <label className="field"><span>Choose a file</span><input type="file" accept=".xlsx,.csv,.tsv,.txt,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={async (e) => {
-            const file = e.target.files?.[0];
-            e.target.value = '';
-            if (!file) return;
-            setImportMsg(null);
-            try {
-              const text = await fileToCsv(file);
-              setCsv(text);
-              setFileName(file.name);
-              const rows = text.split(/\r?\n/).filter((l) => l.trim()).length;
-              setImportMsg({ ok: true, text: `Loaded ${file.name}: ${Math.max(0, rows - 1)} rows under the header. Press Import to add them.` });
-            } catch (err) {
-              setImportMsg({ ok: false, text: err instanceof Error ? err.message : 'Could not read that file.' });
-            }
-          }} /></label>
-          <textarea aria-label="Contacts CSV" rows={4} value={csv} onChange={(e) => { setCsv(e.target.value); setFileName(''); }} placeholder="Or paste rows here, header row first" />
-          <div className="row-end"><button type="button" className={csv.trim() ? 'btn-primary' : 'btn-ghost'} disabled={!!busy || importing || !csv.trim()} onClick={async () => { if (await importCsv(csv)) { setCsv(''); setFileName(''); } }}>{importing ? <Spinner label="Importing…" /> : fileName ? `Import ${fileName}` : 'Import'}</button></div>
-          {importMsg && <p className={importMsg.ok ? 'small' : 'error'} role={importMsg.ok ? 'status' : 'alert'}>{importMsg.text}</p>}
-        </details>
-        <details>
-          <summary>Import research <span className="muted small">a research file (.json) from Claude Duet, attached to deals already here</span></summary>
-          <p className="muted small">Each report goes on the deal with the same website, business name or main phone: pain points, opportunities, missing contact details with the page each came from, and a proposal draft with ROI when the file has one. It never adds a contact or changes a deal's details; you check each found detail and press Add to deal. Importing the same file again changes nothing, and a proposal you edited or sent is kept.</p>
-          <label className="field"><span>Choose a research file</span><input type="file" accept=".json,application/json" onChange={async (e) => {
-            const file = e.target.files?.[0];
-            e.target.value = '';
-            if (!file) return;
-            setResearchMsg(null);
-            try {
-              const json = await file.text();
-              const data = JSON.parse(json) as { reports?: unknown[] } | unknown[];
-              const list = Array.isArray(data) ? data : Array.isArray(data?.reports) ? data.reports : null;
-              if (!list?.length) throw new Error('No reports in that file. A research file has a "reports" list.');
-              setResearchFile({ name: file.name, json, count: list.length });
-              setResearchMsg({ ok: true, text: `Loaded ${file.name}: ${list.length} report${list.length === 1 ? '' : 's'}. Press Import research to attach them to your deals.`, lines: [] });
-            } catch (err) {
-              setResearchFile(null);
-              setResearchMsg({ ok: false, text: err instanceof SyntaxError ? 'That file is not valid JSON. Choose the research file (.json) exactly as it was delivered.' : err instanceof Error ? err.message : 'Could not read that file.', lines: [] });
-            }
-          }} /></label>
-          <div className="row-end"><button type="button" className={researchFile ? 'btn-primary' : 'btn-ghost'} disabled={!!busy || importingResearch || !researchFile} onClick={importResearchFile}>{importingResearch ? <Spinner label="Attaching research…" /> : researchFile ? `Import research (${researchFile.count})` : 'Import research'}</button></div>
-          {researchMsg && <div role={researchMsg.ok ? 'status' : 'alert'}><p className={researchMsg.ok ? 'small' : 'error'}>{researchMsg.text}</p>{researchMsg.lines.length > 0 && <ul className="small">{researchMsg.lines.map((l) => <li key={l}>{l}</li>)}</ul>}</div>}
-        </details>
         {msg && <p className="error" role="alert">{msg}</p>}
       </section>
 

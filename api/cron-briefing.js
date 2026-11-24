@@ -533,6 +533,7 @@ var REVIEW_EVERY_DAYS = 30;
 var FIND_EVERY_DAYS = 7;
 var FIND_COUNT = 10;
 var RENEWAL_WINDOW_DAYS = 45;
+var RESEARCH_IMPORT_EVERY_DAYS = 7;
 function nextActions(q, now = Date.now()) {
   const out = [];
   const iso = (t) => new Date(t).toISOString();
@@ -556,6 +557,20 @@ function nextActions(q, now = Date.now()) {
       title: `Find ${FIND_COUNT} new prospects for ${icp.name}`,
       why: `${Number.isNaN(lastFind) ? "No prospect search yet." : `Last search ${Math.floor((now - lastFind) / DAY)} days ago.`} The Prospect Generator searches public pages for businesses that fit, skipping ones already in the CRM. Nothing is added until you tick them. Uses a few web searches.`,
       priority: newLeads < 5 ? 19 : 45
+    });
+  }
+  const waiting = q.contacts.filter((c) => flowStageOf(c, now) === "research").length;
+  const lastImport = q.contacts.reduce((t, c) => c.researchReport?.importKey ? Math.max(t, Date.parse(c.researchReport.at) || 0) : t, 0);
+  if (waiting && now - lastImport >= RESEARCH_IMPORT_EVERY_DAYS * DAY) {
+    add({
+      key: "research_import",
+      rule: "research_import",
+      stage: "research",
+      kind: "open",
+      count: waiting,
+      title: `Import research for your leads`,
+      why: `${waiting} lead${waiting === 1 ? " waits" : "s wait"} for research. Have a research file (.json), for example from Claude Duet? Import it and each report goes on its deal: pain points, found contact details and a proposal draft with ROI. Nothing is sent, and no contact is added.`,
+      priority: 19
     });
   }
   for (const c of q.contacts) {
