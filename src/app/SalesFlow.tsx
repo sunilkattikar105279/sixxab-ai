@@ -1,4 +1,4 @@
-// Sales flow at the top of the CRM tab: the eight stages from finding a lead to keeping the customer, and
+// Sales flow at the top of the CRM tab: the nine stages from finding a lead to keeping the customer, and
 // one queue of next actions. Agents prepare each action on their own; the owner sends, approves or skips.
 // Nothing here sends anything: messages are copied (or opened in the owner's email) and marked sent.
 import React, { useState } from 'react';
@@ -8,25 +8,26 @@ import { AgentRun } from './AgentRun';
 import { CopyButton } from './DealAgents';
 import { stageName, type Contact } from './Customer';
 import { scoreGoal, sequenceGoal } from '../../core/leadgen';
-import { accountReviewGoal, onboardingGoal } from '../../core/salesflow';
+import { accountReviewGoal, findGoal, onboardingGoal } from '../../core/salesflow';
 import { proposalDraftGoal, researchGoal } from '../../core/research';
 import { callPrepGoal, followUpGoal, winLossGoal } from '../../core/gtm';
-import { AUTO_RULES, FLOW_STAGES, type FlowOrg, type FlowStage, type NextAction } from '../../core/salesflow-state';
+import { AUTO_RULES, FIND_COUNT, FLOW_STAGES, type FlowOrg, type FlowStage, type NextAction } from '../../core/salesflow-state';
 
 type Post = (k: string, b: Record<string, unknown>) => Promise<boolean>;
-export interface FlowState { contacts: Contact[]; flowOrg: FlowOrg; flowCounts: Record<FlowStage, number>; nextActions: NextAction[] }
+export interface FlowState { contacts: Contact[]; flowOrg: FlowOrg; flowCounts: Record<FlowStage, number>; nextActions: NextAction[]; icps?: { id: string; name: string }[]; lastProspectSearch?: string | null }
 
 /** The sales process write-up, shown to SIXXAB admins only (it lives in the owner's own Claude account). */
 const PROCESS_DOC = 'https://claude.ai/artifact/FiaUvmmdRJC66JoMRhbATW';
 const STAGE_OF = Object.fromEntries(FLOW_STAGES.map((s) => [s.key, s])) as Record<FlowStage, (typeof FLOW_STAGES)[number]>;
 const AGENT_LABEL: Record<string, string> = {
-  'business-research': 'Research it', 'lead-scorer': 'Score it', 'outreach-sequencer': 'Draft the outreach', 'onboarding-manager': 'Plan onboarding', 'customer-success': 'Run the health check',
+  'lead-finder': `Find ${FIND_COUNT} prospects`, 'business-research': 'Research it', 'lead-scorer': 'Score it', 'outreach-sequencer': 'Draft the outreach', 'onboarding-manager': 'Plan onboarding', 'customer-success': 'Run the health check',
   'call-prepper': 'Prep the call', 'follow-up-writer': 'Draft the follow-up', 'proposal-writer': 'Draft the proposal', 'win-loss': 'Review the loss',
 };
 const CHANNEL: Record<string, string> = { email: 'Email', linkedin: 'LinkedIn', call: 'Call', text: 'Text message' };
 
 /** The prompt each agent action runs on, built from the deal (the same goals the server's autopilot uses). */
 export function goalFor(a: NextAction, c?: Contact): string {
+  if (a.rule === 'find') return findGoal(a);
   if (!c) return '';
   switch (a.rule) {
     case 'score': return scoreGoal([c.id]);
@@ -114,6 +115,10 @@ export function SalesFlow({ crm, busy, post, reload, goApprovals, open, admin }:
   const todoIn = (s: FlowStage) => actions.filter((a) => a.stage === s).length;
   const autoTodo = actions.filter((a) => AUTO_RULES.includes(a.rule) && a.contactId && byId.has(a.contactId)).slice(0, 3);
   const on = !!crm.flowOrg?.autopilot?.on;
+  const findOn = !!crm.flowOrg?.autofind?.on;
+  const icp = crm.icps?.[0];
+  const goto = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const lastSearch = crm.lastProspectSearch ? Math.floor((Date.now() - Date.parse(crm.lastProspectSearch)) / 864e5) : null;
 
   async function prepareNow() {
     setAuto({ running: true, done: 0, total: autoTodo.length });
@@ -166,6 +171,20 @@ export function SalesFlow({ crm, busy, post, reload, goApprovals, open, admin }:
         <div className="row-end">
           <button type="button" className="btn-ghost" disabled={busy} onClick={() => post('autopilot', { action: 'autopilot', on: !on })}>{on ? 'Turn autopilot off' : 'Turn autopilot on'}</button>
           <button type="button" className="btn-primary" disabled={busy || auto?.running || autoTodo.length === 0} onClick={prepareNow}>{auto?.running ? <Spinner label="Agents working…" /> : autoTodo.length ? `Prepare ${autoTodo.length} draft${autoTodo.length === 1 ? '' : 's'} now` : 'Nothing to prepare'}</button>
+        </div>
+      </div>
+
+      <div className="flow-auto" id="weekly-prospects">
+        <div className="stack-xs">
+          <strong>Weekly prospect search {findOn ? 'is on' : 'is off'}</strong>
+          <p className="muted small">{icp
+            ? `Once a week, early in the morning, the Prospect Generator looks on public pages for ${FIND_COUNT} new businesses that fit "${icp.name}", skipping ones already in the CRM. They wait under Find new prospects for your tick; nothing is added or contacted until then. Each search uses a few web searches.`
+            : 'Build an ICP under Who you sell to first. The weekly search looks for businesses that fit it.'}
+            {lastSearch !== null ? ` Last search: ${lastSearch === 0 ? 'today' : `${lastSearch} day${lastSearch === 1 ? '' : 's'} ago`}.` : ''}</p>
+        </div>
+        <div className="row-end">
+          <button type="button" className="btn-ghost" disabled={busy || (!icp && !findOn)} onClick={() => post('autofind', { action: 'autofind', on: !findOn })}>{findOn ? 'Turn weekly search off' : 'Turn weekly search on'}</button>
+          <button type="button" className="btn-primary" onClick={() => goto('find-prospects')}>Find prospects now</button>
         </div>
       </div>
 

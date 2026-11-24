@@ -8,11 +8,11 @@ import { DEFAULT_TASK_TYPES } from '../core/policy.js';
 import { getAgent } from '../core/agents.js';
 import { TOOLS } from '../core/tools.js';
 import { loadCrm, setDealStage, upsertContact, type Contact } from '../core/crm.js';
-import { markStepSent, saveIcp, saveLeadScore, saveSequence } from '../core/leadgen.js';
+import { decideProspects, markStepSent, saveIcp, saveLeadScore, saveSequence } from '../core/leadgen.js';
 import {
-  accountReviewGoal, autoGoal, markCustomerSent, markOnboardingStep, onboardingGoal, saveAccountReview, saveOnboarding, setAutopilot, skipAction,
+  accountReviewGoal, autoGoal, findGoal, markCustomerSent, markOnboardingStep, onboardingGoal, saveAccountReview, saveOnboarding, setAutofind, setAutopilot, skipAction,
 } from '../core/salesflow.js';
-import { runAutopilot } from '../core/autopilot.js';
+import { runAutofind, runAutopilot } from '../core/autopilot.js';
 import { bandFor, flowStageOf, nextActions, AUTO_RULES, FLOW_STAGES } from '../core/salesflow-state.js';
 import type { ContentBlock, ModelClient, ModelRequest, ModelResponse } from '../core/types.js';
 
@@ -216,6 +216,57 @@ test('autopilot is off by default, prepares only internal drafts, and never send
   assert.ok(crm.contacts.every((c) => c.stage === 'lead'), 'the autopilot never moves a stage');
   await setAutopilot(store, ORG, false, 'owner');
   assert.equal((await loadCrm(store, ORG)).flowOrg.autopilot?.on, false);
+});
+
+test('Find: a one-press prospect search once there is an ICP, weekly when switched on, nothing added without a tick', async () => {
+  const store = fresh();
+  await seed(store);
+  const idle = new Model([]);
+  const deps = (model: ModelClient) => ({ store, model, integrations: NO_SEND });
+  let crm = await loadCrm(store, ORG);
+  assert.ok(!crm.nextActions.some((a) => a.rule === 'find'), 'no ICP yet, so no search');
+  assert.deepEqual(await runAutofind(deps(idle), ORG), { status: 'off' }, 'the weekly search is off until switched on');
+  assert.equal(crm.flowOrg.autofind, null);
+
+  await saveIcp(store, ORG, { name: 'DFW PI firms', summary: 'Personal injury firms in Dallas-Fort Worth with 5 to 30 staff.' }, 'ICP Builder');
+  crm = await loadCrm(store, ORG);
+  const icp = crm.icps[0];
+  const find = crm.nextActions.find((a) => a.rule === 'find')!;
+  assert.equal(find.kind, 'agent');
+  assert.equal(find.agentId, 'lead-finder');
+  assert.equal(find.stage, 'find');
+  assert.equal(find.priority, 19, 'a thin pipeline puts the search near the top');
+  assert.deepEqual(find.icp, { id: icp.id, name: 'DFW PI firms' });
+  const goal = findGoal(find);
+  assert.ok(goal.includes(icp.id) && goal.includes('propose_prospects') && goal.includes('Find up to 10'));
+  assert.ok(!getAgent('lead-finder')!.tools.some((t) => ['send_message', 'publish_post', 'reply_comment', 'send_email_campaign', 'spend_money'].includes(t)), 'the Prospect Generator can only propose');
+
+  await setAutofind(store, ORG, true, 'owner');
+  assert.equal((await loadCrm(store, ORG)).flowOrg.autofind?.on, true);
+  const model = new Model([
+    { content: [use('p', 'propose_prospects', { icpId: icp.id, prospects: [
+      { company: 'Smith Injury Law', city: 'Dallas', website: 'https://smithlaw.example', sourcePage: 'https://smithlaw.example/about' },
+      { company: 'Reyes Injury Law', sourcePage: 'https://reyeslaw.example' },
+    ] })], stopReason: 'tool_use' },
+    { content: [{ type: 'text', text: 'Proposed one new firm.' }], stopReason: 'end_turn' },
+  ]);
+  assert.deepEqual(await runAutofind(deps(model), ORG), { status: 'done' });
+  crm = await loadCrm(store, ORG);
+  assert.equal(crm.flowCounts.find, 1, 'a firm already in the CRM is left out');
+  assert.equal(crm.contacts.length, 2, 'nothing joins the CRM until the owner ticks it');
+  assert.ok(crm.nextActions.some((a) => a.rule === 'prospects'), 'the owner reviews what was found');
+  assert.ok(!crm.nextActions.some((a) => a.rule === 'find'), 'no new search while prospects wait');
+  assert.deepEqual(await runAutofind(deps(idle), ORG), { status: 'not due' });
+
+  await decideProspects(store, ORG, crm.prospectBatches[0].id, [], [crm.prospectBatches[0].items[0].key], 'owner');
+  crm = await loadCrm(store, ORG);
+  assert.ok(crm.lastProspectSearch);
+  assert.ok(!crm.nextActions.some((a) => a.rule === 'find'), 'searched this week already');
+  assert.ok(nextActions(crm, Date.now() + 8 * DAY).some((a) => a.rule === 'find'), 'due again after a week');
+  assert.equal(idle.calls.length, 0);
+  assert.equal((await store.listApprovals(ORG, 'pending')).length, 0, 'nothing waits to be sent');
+  await setAutofind(store, ORG, false, 'owner');
+  assert.equal((await loadCrm(store, ORG)).flowOrg.autofind?.on, false);
 });
 
 test('stage goals fit and say nothing is sent', () => {

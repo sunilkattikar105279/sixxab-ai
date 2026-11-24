@@ -194,7 +194,9 @@ function computeLeadgen(events) {
   return {
     icps: [...icps.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
     icpNotes,
-    prospectBatches: [...batches.values()].filter((b) => b.items.some((p) => p.status === "pending")).sort((a, b) => b.at.localeCompare(a.at)).slice(0, BATCHES_SHOWN)
+    prospectBatches: [...batches.values()].filter((b) => b.items.some((p) => p.status === "pending")).sort((a, b) => b.at.localeCompare(a.at)).slice(0, BATCHES_SHOWN),
+    /** When the Prospect Generator last proposed businesses, decided or not (the weekly search waits 7 days). */
+    lastProspectSearch: [...batches.values()].reduce((m, b) => !m || b.at > m ? b.at : m, null)
   };
 }
 function applyDealEvent(lg, e, stage) {
@@ -415,10 +417,10 @@ function researchLines(dr) {
 }
 
 // core/salesflow-state.ts
-var FLOW_ORG_EVENTS = ["crm.action_skip", "crm.autopilot"];
+var FLOW_ORG_EVENTS = ["crm.action_skip", "crm.autopilot", "crm.autofind"];
 var FLOW_DEAL_EVENTS = ["crm.onboarding", "crm.onboarding_step", "crm.account", "crm.customer_sent"];
 var FLOW_STAGES = [
-  { key: "find", name: "Find", does: "Set who you sell to, then find businesses that fit.", agents: ["ICP Builder", "Prospect Generator"], gate: "You tick which prospects join the CRM." },
+  { key: "find", name: "Find", does: "Set who you sell to, then find businesses that fit: press Find 10 prospects, or switch on the weekly search.", agents: ["ICP Builder", "Prospect Generator"], gate: "You tick which prospects join the CRM." },
   { key: "research", name: "Research", does: "Research each new lead from public pages using the owner, phone and website: the business, pain points, missing email, phone and address (each with its source) and where AI agents would help.", agents: ["Business Research"], gate: "You check each found detail before it goes on the deal." },
   { key: "qualify", name: "Qualify", does: "Score each researched lead on fit, size, ease of win and reach; answer new enquiries fast.", agents: ["Lead Scorer", "Speed-to-Lead"], gate: "First replies wait in Approvals." },
   { key: "outreach", name: "Outreach", does: "Personal email, LinkedIn and call steps in your voice.", agents: ["Outreach Sequencer", "Follow-up Writer"], gate: "You send each step and mark it sent." },
@@ -499,9 +501,10 @@ function applyFlowEvent(cf, e) {
 }
 var wasSent = (cf, kind, ref) => cf.sent.some((s) => s.kind === kind && s.ref === ref);
 function computeFlowOrg(events) {
-  const out = { autopilot: null, skipped: {} };
+  const out = { autopilot: null, autofind: null, skipped: {} };
   for (const e of events) {
     if (e.action === "crm.autopilot") out.autopilot = { on: Boolean(e.detail.on), at: e.at, by: e.actor };
+    else if (e.action === "crm.autofind") out.autofind = { on: Boolean(e.detail.on), at: e.at, by: e.actor };
     else if (e.action === "crm.action_skip") out.skipped[String(e.detail.key)] = String(e.detail.until ?? "");
   }
   return out;
@@ -527,6 +530,8 @@ var AUTO_RULES = ["score", "sequence", "onboard", "review"];
 var QUIET_DAYS = 7;
 var PROPOSAL_QUIET_DAYS = 5;
 var REVIEW_EVERY_DAYS = 30;
+var FIND_EVERY_DAYS = 7;
+var FIND_COUNT = 10;
 var RENEWAL_WINDOW_DAYS = 45;
 function nextActions(q, now = Date.now()) {
   const out = [];
@@ -537,6 +542,22 @@ function nextActions(q, now = Date.now()) {
   if (!q.icps.length) add({ key: "icp", rule: "icp", stage: "find", kind: "open", agentId: "icp-builder", title: "Define who you sell to", why: "Every agent scores, writes and searches from your ICP. Upload your lead workbook or paste notes, then build it.", priority: 5 });
   const pending = q.prospectBatches.reduce((n, b) => n + b.items.filter((p) => p.status === "pending").length, 0);
   if (pending) add({ key: "prospects", rule: "prospects", stage: "find", kind: "open", title: `Review ${pending} new prospect${pending === 1 ? "" : "s"}`, why: "The Prospect Generator found them on public pages. Tick the ones to add to New lead.", priority: 18, count: pending });
+  const icp = q.icps[0];
+  const lastFind = q.lastProspectSearch ? Date.parse(q.lastProspectSearch) : NaN;
+  if (icp && !pending && !(now - lastFind < FIND_EVERY_DAYS * DAY)) {
+    const newLeads = q.contacts.filter((c) => c.stage === "lead").length;
+    add({
+      key: `find:${icp.id}`,
+      rule: "find",
+      stage: "find",
+      kind: "agent",
+      agentId: "lead-finder",
+      icp: { id: icp.id, name: icp.name },
+      title: `Find ${FIND_COUNT} new prospects for ${icp.name}`,
+      why: `${Number.isNaN(lastFind) ? "No prospect search yet." : `Last search ${Math.floor((now - lastFind) / DAY)} days ago.`} The Prospect Generator searches public pages for businesses that fit, skipping ones already in the CRM. Nothing is added until you tick them. Uses a few web searches.`,
+      priority: newLeads < 5 ? 19 : 45
+    });
+  }
   for (const c of q.contacts) {
     const stage = flowStageOf(c, now);
     if (stage === "closed") {
@@ -721,7 +742,7 @@ function computeCrm(events, now = Date.now()) {
   const stale = open.filter((c) => c.email && now - Date.parse(c.lastTouch ?? c.createdAt) >= STALE_DAYS2 * 864e5);
   const leadgen = computeLeadgen(events);
   const flowOrg = computeFlowOrg(events);
-  const flow = { contacts, icps: leadgen.icps, prospectBatches: leadgen.prospectBatches, flowOrg };
+  const flow = { contacts, icps: leadgen.icps, prospectBatches: leadgen.prospectBatches, lastProspectSearch: leadgen.lastProspectSearch, flowOrg };
   return {
     contacts,
     pipeline,
@@ -957,6 +978,11 @@ ${crm.contacts.slice(0, 80).map(dealRow).join("\n") || "No deals yet."}`;
   }
   return out.slice(0, READ_MAX);
 }
+function prospectGoal(icp, query, count) {
+  const n = Math.min(Math.max(Math.round(count) || 10, 3), 20);
+  const target = icp ? `that match the ICP "${icp.name}" (read it with read_crm view "icps"; its id is ${icp.id})` : `that match: "${query.slice(0, 300)}"`;
+  return `Find up to ${n} businesses ${target}. First read who is already in the CRM (read_crm view "existing") and skip them. Use web search on public business pages. For each business: name, decision maker and title only if a page states them, niche, city, website, public business phone, public business email only if published, size, why it fits, the buying signal you saw, the page you found it on, and anything to check before outreach; leave a field empty when it is not published. Then call propose_prospects once with all of them${icp ? ` and icpId ${icp.id}` : ""}; the owner picks which ones become leads.`;
+}
 function scoreGoal(ids) {
   return `Score ${ids.length === 1 ? "this lead" : `these ${ids.length} leads`} from 0 to 100. Read the ICPs (read_crm view "icps") and the deals (view "deals" with contactIds). Use this rubric and show the parts in the reasons: ICP fit 0 to 40 (industry, size, location, buyer); deal size 0 to 20 (value of one customer to them, our deal tier); ease of win 0 to 20 (a visible gap we fix, such as after-hours calls or a contact-form booking); reachability 0 to 10 (named decision maker, phone or email); momentum 0 to 10 (stage, recent touches, MEDDIC). Base every point on what the record says; when something is unknown, score it low and say so. Call save_lead_score once per deal with the score and two or three short reasons; you may call it for several deals in the same turn.
 Deal ids: ${ids.join(", ")}`;
@@ -987,6 +1013,9 @@ async function saveAccountReview(store2, orgId, contactId4, input, by) {
   const review = { id: newId(), ...cleanReview(input) };
   await record3(store2, orgId, by, "crm.account", { contactId: c.id, review, summary: `${label3(c)}: account review, health ${review.health}` });
   return `Saved the account review on ${label3(c)}: health ${review.health} (${review.band.replace("_", " ")}). Nothing was sent.`;
+}
+function findGoal(a) {
+  return a.icp ? prospectGoal(a.icp, "", FIND_COUNT) : "";
 }
 function onboardingGoal(id) {
   return `Plan the onboarding for this new customer (deal id ${id}). Read the deal with read_crm view "deal" (contactId ${id}) and the ICPs (view "icps") for the voice. Then call save_onboarding once with: 5 to 8 steps over the first 30 days, each with a day number, a short title and who owns it ("you" for the owner, "customer", or "agent" for work an agent can draft); a welcome email from the owner in the first person (subject and text: thank them, confirm what they bought as the record states it, propose the kickoff and say what happens in week one); and a 30-minute kickoff agenda. Write short and warm. Use [DATE], [PRICE] or [First name] where the record does not say; promise nothing the record does not show. These are drafts; nothing is sent.`;
@@ -2940,6 +2969,24 @@ async function runAutopilot(deps, orgId, max = 3, force = false) {
   if (ran.length) await store2.audit({ id: newId(), orgId, at: nowIso(), actor: "Sales autopilot", action: "autopilot.ran", taskId: null, detail: { ran, summary: `Sales autopilot prepared ${ran.length} draft${ran.length === 1 ? "" : "s"}` } });
   return { ran, skipped: todo.length ? "" : "Nothing for the autopilot to prepare" };
 }
+async function runAutofind(deps, orgId, force = false) {
+  const store2 = deps.store;
+  const crm = await loadCrm(store2, orgId);
+  if (!force && !crm.flowOrg.autofind?.on) return { status: "off" };
+  const a = crm.nextActions.find((x) => x.rule === "find");
+  const goal = a ? findGoal(a) : "";
+  const agent = getAgent("lead-finder");
+  if (!a || !goal || !agent) return { status: "not due" };
+  let status;
+  try {
+    const task = await createTask(store2, orgId, agent.id, goal);
+    status = (await runTask(deps, task.id)).task.status;
+  } catch (e) {
+    status = `failed: ${e instanceof Error ? e.message.slice(0, 120) : "error"}`;
+  }
+  await store2.audit({ id: newId(), orgId, at: nowIso(), actor: "Weekly prospect search", action: "autofind.ran", taskId: null, detail: { icp: a.icp?.name ?? "", status, summary: `Weekly prospect search for ${a.icp?.name ?? "your ICP"}: ${status}` } });
+  return { status };
+}
 
 // core/model.ts
 var DEFAULT_MODELS = {
@@ -3276,7 +3323,7 @@ var GET = handle(async (request) => {
   let drafted = 0;
   if (key) {
     for (const orgId of orgs) {
-      if (Date.now() - started > 18e4) break;
+      if (Date.now() - started > 15e4) break;
       try {
         if (!(await loadCrm(s, orgId)).flowOrg.autopilot?.on) continue;
         drafted += (await runAutopilot(await depsFor(s, orgId, "Sales autopilot"), orgId, 3)).ran.length;
@@ -3285,7 +3332,20 @@ var GET = handle(async (request) => {
       }
     }
   }
-  return json({ orgs: orgs.length, built: ok, autopilotDrafts: drafted });
+  let searched = 0;
+  if (key) {
+    for (const orgId of orgs) {
+      if (Date.now() - started > 17e4) break;
+      try {
+        if (!(await loadCrm(s, orgId)).flowOrg.autofind?.on) continue;
+        const r = await runAutofind(await depsFor(s, orgId, "Weekly prospect search"), orgId);
+        if (r.status === "done") searched++;
+      } catch (e) {
+        console.error("weekly prospect search failed", orgId, e);
+      }
+    }
+  }
+  return json({ orgs: orgs.length, built: ok, autopilotDrafts: drafted, prospectSearches: searched });
 });
 export {
   GET

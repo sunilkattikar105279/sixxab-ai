@@ -85,7 +85,7 @@ export function cleanSteps(input: unknown): SequenceStep[] {
 }
 
 /** ICPs and the prospect batches that still have businesses waiting for the owner's yes. */
-export function computeLeadgen(events: AuditEvent[]): { icps: Icp[]; prospectBatches: ProspectBatch[]; icpNotes: IcpNotes | null } {
+export function computeLeadgen(events: AuditEvent[]): { icps: Icp[]; prospectBatches: ProspectBatch[]; icpNotes: IcpNotes | null; lastProspectSearch: string | null } {
   const icps = new Map<string, Icp>();
   let icpNotes: IcpNotes | null = null;
   const batches = new Map<string, ProspectBatch>();
@@ -112,6 +112,8 @@ export function computeLeadgen(events: AuditEvent[]): { icps: Icp[]; prospectBat
     icps: [...icps.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
     icpNotes,
     prospectBatches: [...batches.values()].filter((b) => b.items.some((p) => p.status === 'pending')).sort((a, b) => b.at.localeCompare(a.at)).slice(0, BATCHES_SHOWN),
+    /** When the Prospect Generator last proposed businesses, decided or not (the weekly search waits 7 days). */
+    lastProspectSearch: [...batches.values()].reduce<string | null>((m, b) => (!m || b.at > m ? b.at : m), null),
   };
 }
 

@@ -3,8 +3,8 @@
 // Every write is a crm.* audit event. Nothing here sends anything to anyone.
 import { newId, nowIso, type Store } from './store.js';
 import { loadCrm, type Contact } from './crm.js';
-import { cleanOnboarding, cleanReview, CUSTOMER_MSGS, SKIP_DAYS, wasSent, type NextAction } from './salesflow-state.js';
-import { scoreGoal, sequenceGoal } from './leadgen.js';
+import { cleanOnboarding, cleanReview, CUSTOMER_MSGS, FIND_COUNT, SKIP_DAYS, wasSent, type NextAction } from './salesflow-state.js';
+import { prospectGoal, scoreGoal, sequenceGoal } from './leadgen.js';
 
 const record = (store: Store, orgId: string, by: string, action: string, detail: Record<string, unknown>) =>
   store.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
@@ -63,6 +63,16 @@ export async function skipAction(store: Store, orgId: string, key: string, by: s
 
 export async function setAutopilot(store: Store, orgId: string, on: boolean, by: string): Promise<void> {
   await record(store, orgId, by, 'crm.autopilot', { on, summary: `Sales autopilot ${on ? 'on' : 'off'}` });
+}
+
+/** The weekly prospect search: when on, the Prospect Generator runs once a week for the first ICP. */
+export async function setAutofind(store: Store, orgId: string, on: boolean, by: string): Promise<void> {
+  await record(store, orgId, by, 'crm.autofind', { on, summary: `Weekly prospect search ${on ? 'on' : 'off'}` });
+}
+
+/** The goal for a prospect search from the queue (the button and the weekly search use the same one). */
+export function findGoal(a: Pick<NextAction, 'icp'>): string {
+  return a.icp ? prospectGoal(a.icp, '', FIND_COUNT) : '';
 }
 
 // ---- Goals for the stage agents ----

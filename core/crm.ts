@@ -57,6 +57,7 @@ export interface CrmState {
   icps: Icp[];
   icpNotes: IcpNotes | null;
   prospectBatches: ProspectBatch[];
+  lastProspectSearch: string | null;
   issues: CrmIssue[];
   /** The sales flow: autopilot switch and skipped actions, deals per stage, and the next-action queue. */
   flowOrg: FlowOrg;
@@ -381,7 +382,7 @@ export function computeCrm(events: AuditEvent[], now = Date.now()): CrmState {
   const stale = open.filter((c) => c.email && now - Date.parse(c.lastTouch ?? c.createdAt) >= STALE_DAYS * 864e5);
   const leadgen = computeLeadgen(events);
   const flowOrg = computeFlowOrg(events);
-  const flow = { contacts, icps: leadgen.icps, prospectBatches: leadgen.prospectBatches, flowOrg };
+  const flow = { contacts, icps: leadgen.icps, prospectBatches: leadgen.prospectBatches, lastProspectSearch: leadgen.lastProspectSearch, flowOrg };
   return {
     contacts, pipeline,
     totals: {

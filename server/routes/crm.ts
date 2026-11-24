@@ -4,7 +4,7 @@ import { addNote, importApolloPeople, importContacts, loadCrm, logTouch, qualify
 import { apolloEnrich, apolloSearch, type ApolloFilters, type ApolloPerson } from '../../core/apollo.js';
 import { isAdmin } from '../../core/automation.js';
 import { decideProspects, dismissSync, markStepSent, removeIcp, saveIcp, saveIcpNotes } from '../../core/leadgen.js';
-import { markCustomerSent, markOnboardingStep, setAutopilot, skipAction } from '../../core/salesflow.js';
+import { markCustomerSent, markOnboardingStep, setAutofind, setAutopilot, skipAction } from '../../core/salesflow.js';
 import { editProposal, markProposalSent, useResearchField } from '../../core/research.js';
 import type { NextAction } from '../../core/salesflow-state.js';
 import { newId, nowIso, type Store } from '../../core/store.js';
@@ -84,6 +84,7 @@ export const POST = handle(async (request) => {
       case 'onboarding_step': await markOnboardingStep(store, orgId, id, Number(b.index), label); return json({ crm: await crmView(store, orgId) });
       case 'action_skip': await skipAction(store, orgId, String(b.key ?? ''), label); return json({ crm: await crmView(store, orgId) });
       case 'autopilot': await setAutopilot(store, orgId, Boolean(b.on), label); return json({ crm: await crmView(store, orgId) });
+      case 'autofind': await setAutofind(store, orgId, Boolean(b.on), label); return json({ crm: await crmView(store, orgId) });
       // Research and proposals: the owner adds a checked detail, edits the proposal, or marks it sent.
       case 'research_use': await useResearchField(store, orgId, id, Number(b.index), label); return json({ crm: await crmView(store, orgId) });
       case 'proposal_edit': await editProposal(store, orgId, id, b.edit ?? {}, label); return json({ crm: await crmView(store, orgId) });

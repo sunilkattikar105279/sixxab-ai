@@ -539,7 +539,9 @@ function computeLeadgen(events) {
   return {
     icps: [...icps.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
     icpNotes,
-    prospectBatches: [...batches.values()].filter((b) => b.items.some((p) => p.status === "pending")).sort((a, b) => b.at.localeCompare(a.at)).slice(0, BATCHES_SHOWN)
+    prospectBatches: [...batches.values()].filter((b) => b.items.some((p) => p.status === "pending")).sort((a, b) => b.at.localeCompare(a.at)).slice(0, BATCHES_SHOWN),
+    /** When the Prospect Generator last proposed businesses, decided or not (the weekly search waits 7 days). */
+    lastProspectSearch: [...batches.values()].reduce((m, b) => !m || b.at > m ? b.at : m, null)
   };
 }
 function applyDealEvent(lg, e, stage) {
@@ -760,10 +762,10 @@ function researchLines(dr) {
 }
 
 // core/salesflow-state.ts
-var FLOW_ORG_EVENTS = ["crm.action_skip", "crm.autopilot"];
+var FLOW_ORG_EVENTS = ["crm.action_skip", "crm.autopilot", "crm.autofind"];
 var FLOW_DEAL_EVENTS = ["crm.onboarding", "crm.onboarding_step", "crm.account", "crm.customer_sent"];
 var FLOW_STAGES = [
-  { key: "find", name: "Find", does: "Set who you sell to, then find businesses that fit.", agents: ["ICP Builder", "Prospect Generator"], gate: "You tick which prospects join the CRM." },
+  { key: "find", name: "Find", does: "Set who you sell to, then find businesses that fit: press Find 10 prospects, or switch on the weekly search.", agents: ["ICP Builder", "Prospect Generator"], gate: "You tick which prospects join the CRM." },
   { key: "research", name: "Research", does: "Research each new lead from public pages using the owner, phone and website: the business, pain points, missing email, phone and address (each with its source) and where AI agents would help.", agents: ["Business Research"], gate: "You check each found detail before it goes on the deal." },
   { key: "qualify", name: "Qualify", does: "Score each researched lead on fit, size, ease of win and reach; answer new enquiries fast.", agents: ["Lead Scorer", "Speed-to-Lead"], gate: "First replies wait in Approvals." },
   { key: "outreach", name: "Outreach", does: "Personal email, LinkedIn and call steps in your voice.", agents: ["Outreach Sequencer", "Follow-up Writer"], gate: "You send each step and mark it sent." },
@@ -844,9 +846,10 @@ function applyFlowEvent(cf, e) {
 }
 var wasSent = (cf, kind, ref) => cf.sent.some((s) => s.kind === kind && s.ref === ref);
 function computeFlowOrg(events) {
-  const out = { autopilot: null, skipped: {} };
+  const out = { autopilot: null, autofind: null, skipped: {} };
   for (const e of events) {
     if (e.action === "crm.autopilot") out.autopilot = { on: Boolean(e.detail.on), at: e.at, by: e.actor };
+    else if (e.action === "crm.autofind") out.autofind = { on: Boolean(e.detail.on), at: e.at, by: e.actor };
     else if (e.action === "crm.action_skip") out.skipped[String(e.detail.key)] = String(e.detail.until ?? "");
   }
   return out;
@@ -872,6 +875,8 @@ var SKIP_DAYS = 7;
 var QUIET_DAYS = 7;
 var PROPOSAL_QUIET_DAYS = 5;
 var REVIEW_EVERY_DAYS = 30;
+var FIND_EVERY_DAYS = 7;
+var FIND_COUNT = 10;
 var RENEWAL_WINDOW_DAYS = 45;
 function nextActions(q, now = Date.now()) {
   const out = [];
@@ -882,6 +887,22 @@ function nextActions(q, now = Date.now()) {
   if (!q.icps.length) add({ key: "icp", rule: "icp", stage: "find", kind: "open", agentId: "icp-builder", title: "Define who you sell to", why: "Every agent scores, writes and searches from your ICP. Upload your lead workbook or paste notes, then build it.", priority: 5 });
   const pending = q.prospectBatches.reduce((n, b) => n + b.items.filter((p) => p.status === "pending").length, 0);
   if (pending) add({ key: "prospects", rule: "prospects", stage: "find", kind: "open", title: `Review ${pending} new prospect${pending === 1 ? "" : "s"}`, why: "The Prospect Generator found them on public pages. Tick the ones to add to New lead.", priority: 18, count: pending });
+  const icp = q.icps[0];
+  const lastFind = q.lastProspectSearch ? Date.parse(q.lastProspectSearch) : NaN;
+  if (icp && !pending && !(now - lastFind < FIND_EVERY_DAYS * DAY)) {
+    const newLeads = q.contacts.filter((c) => c.stage === "lead").length;
+    add({
+      key: `find:${icp.id}`,
+      rule: "find",
+      stage: "find",
+      kind: "agent",
+      agentId: "lead-finder",
+      icp: { id: icp.id, name: icp.name },
+      title: `Find ${FIND_COUNT} new prospects for ${icp.name}`,
+      why: `${Number.isNaN(lastFind) ? "No prospect search yet." : `Last search ${Math.floor((now - lastFind) / DAY)} days ago.`} The Prospect Generator searches public pages for businesses that fit, skipping ones already in the CRM. Nothing is added until you tick them. Uses a few web searches.`,
+      priority: newLeads < 5 ? 19 : 45
+    });
+  }
   for (const c of q.contacts) {
     const stage = flowStageOf(c, now);
     if (stage === "closed") {
@@ -1280,7 +1301,7 @@ function computeCrm(events, now = Date.now()) {
   const stale = open.filter((c) => c.email && now - Date.parse(c.lastTouch ?? c.createdAt) >= STALE_DAYS2 * 864e5);
   const leadgen = computeLeadgen(events);
   const flowOrg = computeFlowOrg(events);
-  const flow = { contacts, icps: leadgen.icps, prospectBatches: leadgen.prospectBatches, flowOrg };
+  const flow = { contacts, icps: leadgen.icps, prospectBatches: leadgen.prospectBatches, lastProspectSearch: leadgen.lastProspectSearch, flowOrg };
   return {
     contacts,
     pipeline,
@@ -1734,6 +1755,9 @@ async function skipAction(store2, orgId, key, by, days = SKIP_DAYS) {
 }
 async function setAutopilot(store2, orgId, on, by) {
   await record3(store2, orgId, by, "crm.autopilot", { on, summary: `Sales autopilot ${on ? "on" : "off"}` });
+}
+async function setAutofind(store2, orgId, on, by) {
+  await record3(store2, orgId, by, "crm.autofind", { on, summary: `Weekly prospect search ${on ? "on" : "off"}` });
 }
 
 // core/salesflow-tools.ts
@@ -3810,10 +3834,10 @@ function computeGovernance(input) {
 
 // server/build-info.ts
 var BUILD_INFO = {
-  "builtAt": "2026-11-24T03:24:47.605Z",
+  "builtAt": "2026-11-24T04:02:59.010Z",
   "files": 99,
-  "lines": 11061,
-  "tests": 127,
+  "lines": 11152,
+  "tests": 128,
   "e2e": 11,
   "rlsTables": 9,
   "cspHeader": true,
@@ -4642,6 +4666,9 @@ var POST5 = handle(async (request) => {
         return json({ crm: await crmView(store2, orgId) });
       case "autopilot":
         await setAutopilot(store2, orgId, Boolean(b.on), label5);
+        return json({ crm: await crmView(store2, orgId) });
+      case "autofind":
+        await setAutofind(store2, orgId, Boolean(b.on), label5);
         return json({ crm: await crmView(store2, orgId) });
       // Research and proposals: the owner adds a checked detail, edits the proposal, or marks it sent.
       case "research_use":

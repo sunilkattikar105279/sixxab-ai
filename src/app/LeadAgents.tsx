@@ -131,7 +131,7 @@ export function LeadAgents({ crm, busy, post, reload, goApprovals }: { crm: Lead
       <section className="panel glass-card" id="find-prospects">
         <p className="eyebrow">Lead generation · Prospect Generator</p>
         <h2>Find new prospects</h2>
-        <p className="muted small">The agent searches public business pages for companies that match. Nothing is added or contacted until you tick who to add.</p>
+        <p className="muted small">The agent searches public business pages for companies that match. Nothing is added or contacted until you tick who to add. To run it every week on your first ICP, turn on Weekly prospect search in the Sales flow above.</p>
         <div className="grid3">
           <label className="field"><span>Match this ICP</span>
             <select aria-label="ICP to match" value={icpId} onChange={(e) => setIcpId(e.target.value)}>

@@ -1,7 +1,8 @@
 // GET /api/cron-briefing → Vercel Cron: build every company's morning briefing, then let the sales autopilot
-// prepare up to 3 drafts for companies that switched it on (drafts only: nothing is sent). Protected by CRON_SECRET.
+// prepare up to 3 drafts for companies that switched it on (drafts only: nothing is sent), and run the weekly
+// prospect search where it is on (prospects wait for the owner's tick). Protected by CRON_SECRET.
 import { buildBriefing } from '../../core/briefing.js';
-import { runAutopilot } from '../../core/autopilot.js';
+import { runAutofind, runAutopilot } from '../../core/autopilot.js';
 import { loadCrm } from '../../core/crm.js';
 import { AnthropicClient, modelsFromEnv } from '../../core/model.js';
 import { depsFor, handle, HttpError, json, store } from '../context.js';
@@ -26,7 +27,7 @@ export const GET = handle(async (request) => {
   let drafted = 0;
   if (key) {
     for (const orgId of orgs) {
-      if (Date.now() - started > 180_000) break; // leave room inside the 300-second limit
+      if (Date.now() - started > 150_000) break; // leave room inside the 300-second limit
       try {
         if (!(await loadCrm(s, orgId)).flowOrg.autopilot?.on) continue;
         drafted += (await runAutopilot(await depsFor(s, orgId, 'Sales autopilot'), orgId, 3)).ran.length;
@@ -35,5 +36,18 @@ export const GET = handle(async (request) => {
       }
     }
   }
-  return json({ orgs: orgs.length, built: ok, autopilotDrafts: drafted });
+  let searched = 0;
+  if (key) {
+    for (const orgId of orgs) {
+      if (Date.now() - started > 170_000) break; // one search takes up to about two minutes
+      try {
+        if (!(await loadCrm(s, orgId)).flowOrg.autofind?.on) continue;
+        const r = await runAutofind(await depsFor(s, orgId, 'Weekly prospect search'), orgId);
+        if (r.status === 'done') searched++;
+      } catch (e) {
+        console.error('weekly prospect search failed', orgId, e);
+      }
+    }
+  }
+  return json({ orgs: orgs.length, built: ok, autopilotDrafts: drafted, prospectSearches: searched });
 });
