@@ -1,6 +1,6 @@
 // SIXXAB AI service worker: offline shell, never caches API calls.
-const CACHE = 'sixxab-1wr09wd';
-const PRECACHE = ["/","/login","/app","/assets/landing-1da8333.css","/assets/app-157xe4a.css","/assets/landing-ZNBDO4FT.js","/assets/login-AAZ42USS.js","/assets/app-ZWWPEQBZ.js","/assets/chunk-ZXNBBQGZ.js","/assets/chunk-M5GVXBFQ.js"];
+const CACHE = 'sixxab-hcyaqt';
+const PRECACHE = ["/","/login","/app","/assets/landing-1da8333.css","/assets/app-1iq47sk.css","/assets/landing-ZNBDO4FT.js","/assets/login-AAZ42USS.js","/assets/app-T3EZEUO4.js","/assets/chunk-ZXNBBQGZ.js","/assets/chunk-M5GVXBFQ.js"];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', (e) => {

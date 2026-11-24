@@ -9,19 +9,12 @@ import { leadSearchGoal } from '../../core/crm';
 import { ApolloSearch } from './ApolloSearch';
 import { api } from '../lib/auth';
 import { fileToCsv } from '../lib/sheet';
+import { CustomerPage, STAGES, stageName, webHref, type Contact } from './Customer';
 
 /** CSV lead rows (name,company,email,phone,source,value) found in an agent's output. */
 const leadRows = (out: string) => out.split(/\r?\n/).map((l) => l.trim().replace(/^[-*]\s*/, '')).filter((l) => l.split(',').length === 6 && !/^name\s*,/i.test(l));
 
-interface LeadProfile { rank?: number | null; niche?: string; city?: string; website?: string; size?: string; title?: string; dealTier?: string; ease?: string; whyFit?: string; pitch?: string; sourceDetail?: string; checkFirst?: string }
-interface Contact extends LeadProfile { id: string; name: string; company: string; email: string; phone: string; source: string; value: number; nextStep: string; notes: string; stage: string; lastTouch: string | null; createdAt: string; meddic: Meddic | null; callNotes: string; score: number | null; apolloId?: string }
 interface CrmState { contacts: Contact[]; pipeline: Record<string, number>; totals: { open: number; openValue: number; won: number; wonValue: number; winRate: number | null; followUps: number }; followUpGoal: string; newLeads?: number; speedGoal?: string }
-
-const STAGES = ['lead', 'contacted', 'qualified', 'proposal', 'won', 'lost'];
-/** How each stage reads in the pipeline; the stored keys stay the same. */
-const STAGE_LABEL: Record<string, string> = { lead: 'New lead', contacted: 'Contacted', qualified: 'Discovery call', proposal: 'Proposal sent', won: 'Won', lost: 'Lost' };
-const stageName = (s: string) => STAGE_LABEL[s] ?? s;
-const webHref = (w: string) => (/^https?:\/\//i.test(w) ? w : `https://${w}`);
 
 /** Everything the lead research recorded about a business, shown when a deal is opened. */
 export function LeadDetails({ c }: { c: Contact }) {
@@ -42,7 +35,7 @@ export function LeadDetails({ c }: { c: Contact }) {
 }
 
 /** Pipeline board: one column per stage, a card per deal, moved with its stage menu. */
-export function Board({ contacts, busy, move }: { contacts: Contact[]; busy: boolean; move: (c: Contact, stage: string) => void }) {
+export function Board({ contacts, busy, move, open }: { contacts: Contact[]; busy: boolean; move: (c: Contact, stage: string) => void; open: (c: Contact) => void }) {
   return (
     <div className="board" role="list" aria-label="Pipeline board">
       {STAGES.map((s) => {
@@ -53,10 +46,13 @@ export function Board({ contacts, busy, move }: { contacts: Contact[]; busy: boo
             <div className="board-cards">
               {list.length === 0 ? <p className="muted small">Nothing here.</p> : list.map((c) => (
                 <div key={c.id} className="board-card">
-                  <div className="row-between"><strong className="small">{c.company || c.name}</strong>{c.rank ? <span className="muted small">#{c.rank}</span> : null}</div>
-                  {c.company && c.name !== c.company ? <span className="small">{c.name}</span> : null}
-                  {(c.niche || c.city) && <span className="muted small">{[c.niche, c.city].filter(Boolean).join(' · ')}</span>}
-                  {(c.dealTier || c.ease || c.value > 0) && <span className="muted small">{[c.value > 0 && money(c.value), c.dealTier && `Deal ${c.dealTier}`, c.ease && `Win ${c.ease}`].filter(Boolean).join(' · ')}</span>}
+                  <button type="button" className="board-open" aria-label={`Open ${c.company || c.name}`} onClick={() => open(c)}>
+                    <span className="row-between" style={{ width: '100%' }}><strong className="small">{c.company || c.name}</strong>{c.rank ? <span className="muted small">#{c.rank}</span> : null}</span>
+                    {c.company && c.name !== c.company ? <span className="small">{c.name}</span> : null}
+                    {(c.niche || c.city) && <span className="muted small">{[c.niche, c.city].filter(Boolean).join(' · ')}</span>}
+                    {(c.dealTier || c.ease || c.value > 0) && <span className="muted small">{[c.value > 0 && money(c.value), c.dealTier && `Deal ${c.dealTier}`, c.ease && `Win ${c.ease}`].filter(Boolean).join(' · ')}</span>}
+                    <span className="muted small">Tap to open the full record</span>
+                  </button>
                   <select aria-label={`Move ${c.name}`} value={c.stage} disabled={busy} onChange={(e) => move(c, e.target.value)}>{STAGES.map((x) => <option key={x} value={x}>{stageName(x)}</option>)}</select>
                 </div>
               ))}
@@ -82,15 +78,16 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [fileName, setFileName] = useState('');
+  const [customerId, setCustomerId] = useState<string | null>(null);
   async function importCsv(text: string): Promise<boolean> {
     setImporting(true);
     setImportMsg(null);
     try {
-      const r = await api<{ added: number; skipped: number; duplicates?: number }>('/api/crm', { method: 'POST', body: JSON.stringify({ action: 'import', csv: text }) });
-      const summary = `Added ${r.added} contact${r.added === 1 ? '' : 's'}${r.duplicates ? `, ${r.duplicates} already in the CRM` : ''}${r.skipped ? `, ${r.skipped} row${r.skipped === 1 ? '' : 's'} skipped` : ''}.`;
-      setImportMsg({ ok: r.added > 0 || !!r.duplicates, text: r.added === 0 && !r.duplicates ? `${summary} No row had a name or business we could read. Check the first row holds the column headers.` : summary });
+      const r = await api<{ added: number; skipped: number; duplicates?: number; updated?: number }>('/api/crm', { method: 'POST', body: JSON.stringify({ action: 'import', csv: text }) });
+      const summary = `Added ${r.added} contact${r.added === 1 ? '' : 's'}${r.updated ? `, filled in details for ${r.updated}` : ''}${r.duplicates ? `, ${r.duplicates} already in the CRM` : ''}${r.skipped ? `, ${r.skipped} row${r.skipped === 1 ? '' : 's'} skipped` : ''}.`;
+      setImportMsg({ ok: r.added > 0 || !!r.duplicates || !!r.updated, text: r.added === 0 && !r.duplicates && !r.updated ? `${summary} No row had a name or business we could read. Check the first row holds the column headers.` : summary });
       reload();
-      return r.added > 0 || !!r.duplicates;
+      return r.added > 0 || !!r.duplicates || !!r.updated;
     } catch (e) {
       setImportMsg({ ok: false, text: e instanceof Error ? e.message : 'Could not import the list.' });
       return false;
@@ -102,6 +99,9 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
   if (!data) return <Spinner label="Loading your CRM…" />;
   const { crm } = data;
   const t = crm.totals;
+  const customer = customerId ? crm.contacts.find((c) => c.id === customerId) : undefined;
+  const openCustomer = (c: Contact) => { setCustomerId(c.id); window.scrollTo?.({ top: 0 }); };
+  if (customer) return <CustomerPage key={customer.id} c={customer} busy={!!busy} msg={msg} post={post} back={() => setCustomerId(null)} goApprovals={goApprovals} />;
   const shown = crm.contacts.filter((c) => (filter === 'open' ? !['won', 'lost'].includes(c.stage) : filter === 'all' ? true : c.stage === filter));
 
   return (
@@ -121,7 +121,8 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
       <section className="panel glass-card">
         <p className="eyebrow">Pipeline board</p>
         <h2>Deals by stage</h2>
-        <Board contacts={crm.contacts} busy={!!busy} move={(c, stage) => post(c.id, { action: 'stage', contactId: c.id, stage })} />
+        <p className="muted small">Tap a card to open the customer's full record: data, research and history.</p>
+        <Board contacts={crm.contacts} busy={!!busy} move={(c, stage) => post(c.id, { action: 'stage', contactId: c.id, stage })} open={openCustomer} />
       </section>
 
       <section className="panel glass-card">
@@ -160,7 +161,7 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
         </form>
         <details open>
           <summary>Import a list <span className="muted small">Excel (.xlsx) or CSV file, or rows pasted from a spreadsheet</span></summary>
-          <p className="muted small">Columns are matched by their header, so a lead sheet with Rank, Business, Niche, City, Website, Main phone, Size, Decision maker, Deal size, Ease of win, Why they fit, Agent to pitch, Source and Check before outreach keeps every column. Contacts already in the CRM are skipped.</p>
+          <p className="muted small">Columns are matched by their header, so a lead sheet with Rank, Business, Niche, City, Website, Main phone, Size, Decision maker, Deal size, Ease of win, Why they fit, Agent to pitch, Source and Check before outreach keeps every column, and Pain points, Offer, Outreach angle and Research columns are kept too. Importing a list again never duplicates anyone: it only fills in details a customer is missing.</p>
           <label className="field"><span>Choose a file</span><input type="file" accept=".xlsx,.csv,.tsv,.txt,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={async (e) => {
             const file = e.target.files?.[0];
             e.target.value = '';
@@ -204,6 +205,7 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
                   <td className="nowrap">{since(c.lastTouch)}</td>
                   <td>{c.nextStep || <span className="muted small">—</span>}</td>
                   <td className="nowrap">
+                    <button type="button" className="btn-mini" aria-label={`Open record for ${c.name}`} onClick={() => openCustomer(c)}>Open</button>
                     <button type="button" className="btn-mini" aria-expanded={openId === c.id} onClick={() => setOpenId(openId === c.id ? null : c.id)}>{openId === c.id ? 'Close' : 'Sell'}</button>
                     <button type="button" className="btn-mini" disabled={!!busy} onClick={() => post(c.id, { action: 'touch', contactId: c.id, note: 'Spoke today' })}>Spoke today</button>
                     {data.apollo && c.apolloId && !c.email && <button type="button" className="btn-mini" disabled={!!busy} onClick={() => post(c.id, { action: 'apollo_enrich', contactId: c.id })}>Find email (1 credit)</button>}

@@ -206,7 +206,7 @@ test('CRM: CSV import keeps quoted commas and the optional next step and notes c
     '"Barber, Kris",The Barber Law Firm,,(972) 231-5800,web-search,,Verify office hours,"Niche: injury law; why: hours end 5 PM, Fridays 3 PM"',
     ',No name,,,,',
   ].join('\n');
-  assert.deepEqual(await importContacts(s, ORG, csv, 'f'), { added: 2, skipped: 1, duplicates: 0 });
+  assert.deepEqual(await importContacts(s, ORG, csv, 'f'), { added: 2, skipped: 1, duplicates: 0, updated: 0 });
   const byName = Object.fromEntries((await loadCrm(s, ORG)).contacts.map((c) => [c.name, c]));
   assert.equal(byName['Old Style'].value, 500, 'six-column rows still work');
   const k = byName['Barber, Kris'];
@@ -229,7 +229,7 @@ test('CRM: the lead sheet imports with its own headers, keeps every column, and 
     '7,Snellings Law,Personal injury law,Dallas,,(945) 205-0002 Dallas,Not stated,"David Scott Snellings, founder",High,Medium,Three offices.,Unified intake,Cornell LII profile,,web-search',
     '4,Ellis Air Conditioning & Heating,HVAC,Dallas,ellisac.com,,Not stated,Not stated,Medium,High,Gap after hours.,After-hours answering,ellisac.com home page,Find owner name,web-search',
   ].join('\n');
-  assert.deepEqual(await importContacts(s, ORG, csv, 'f'), { added: 4, skipped: 0, duplicates: 0 });
+  assert.deepEqual(await importContacts(s, ORG, csv, 'f'), { added: 4, skipped: 0, duplicates: 0, updated: 0 });
   const crm = await loadCrm(s, ORG);
   assert.deepEqual(crm.contacts.map((c) => c.rank), [1, 2, 4, 7], 'leads list in rank order');
   const t = crm.contacts.find((c) => c.company === 'Total Air & Plumbing')!;
@@ -251,7 +251,7 @@ test('CRM: the lead sheet imports with its own headers, keeps every column, and 
   assert.equal(e.checkFirst, 'Find owner name');
   assert.equal(crm.newLeads, 0, 'no emails, so Speed-to-Lead drafts nothing');
   assert.match(callPrepGoal(t), /Why they fit \(our research\): Advertises 24\/7[\s\S]*What we plan to pitch: AI receptionist/);
-  assert.deepEqual(await importContacts(s, ORG, csv, 'f'), { added: 0, skipped: 0, duplicates: 4 }, 'pasting the same list again adds nothing');
+  assert.deepEqual(await importContacts(s, ORG, csv, 'f'), { added: 0, skipped: 0, duplicates: 4, updated: 0 }, 'pasting the same list again adds nothing');
   assert.equal((await loadCrm(s, ORG)).contacts.length, 4);
 });
 
@@ -263,7 +263,7 @@ test('CRM: an Excel workbook picked in the import box becomes CSV with every col
   const csv = await xlsxToCsv(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
   assert.equal(csv.split('\n')[0], 'Rank,Business,Decision maker,Why they fit');
   const s = new MemoryStore();
-  assert.deepEqual(await importContacts(s, ORG, csv, 'f'), { added: 2, skipped: 0, duplicates: 0 });
+  assert.deepEqual(await importContacts(s, ORG, csv, 'f'), { added: 2, skipped: 0, duplicates: 0, updated: 0 });
   const crm = await loadCrm(s, ORG);
   const a = crm.contacts.find((c) => c.company === 'Acme & Sons, LLC')!;
   assert.equal(a.name, 'Jo Smith');
@@ -275,8 +275,39 @@ test('CRM: rows pasted straight from a spreadsheet (tab-separated) import with t
   const { importContacts, loadCrm } = await import('../core/crm.js');
   const s = new MemoryStore();
   const pasted = ['Rank\tBusiness\tCity\tDecision maker', '2\tTotal Air & Plumbing\tPlano, TX\tSteve Lauten, owner', '5\tBright Smiles\tDallas\tNot stated', ''].join('\r\n');
-  assert.deepEqual(await importContacts(s, ORG, pasted, 'f'), { added: 2, skipped: 0, duplicates: 0 });
+  assert.deepEqual(await importContacts(s, ORG, pasted, 'f'), { added: 2, skipped: 0, duplicates: 0, updated: 0 });
   const t = (await loadCrm(s, ORG)).contacts.find((c) => c.company === 'Total Air & Plumbing')!;
   assert.equal(t.city, 'Plano, TX');
   assert.equal(t.name, 'Steve Lauten');
+});
+
+test('CRM: each customer keeps a history, notes, edits that keep research, and re-imports that only fill gaps', async () => {
+  const { importContacts, loadCrm, addNote, upsertContact, setDealStage } = await import('../core/crm.js');
+  const s = new MemoryStore();
+  await importContacts(s, ORG, 'Rank,Business,Decision maker,Why they fit\n1,Barber Law,"Kris Barber, owner",Hours end 5 PM.', 'sunil');
+  let c = (await loadCrm(s, ORG)).contacts[0];
+  assert.deepEqual(c.history.map((h) => h.text), ['Imported from a list']);
+  assert.equal(c.history[0].by, 'sunil');
+  await addNote(s, ORG, c.id, 'research', 'Seven offices, intake team of three.', 'sunil');
+  assert.equal((await loadCrm(s, ORG)).contacts[0].lastTouch, null, 'a research note is not a touch');
+  await addNote(s, ORG, c.id, 'call', 'Left a voicemail with the office manager.', 'sunil');
+  await setDealStage(s, ORG, c.id, 'contacted', 'sunil');
+  await assert.rejects(addNote(s, ORG, c.id, 'note', '   ', 'sunil'), /Write something/);
+  c = (await loadCrm(s, ORG)).contacts[0];
+  assert.ok(c.lastTouch, 'a call counts as a touch');
+  assert.deepEqual(c.history.map((h) => h.kind), ['stage', 'call', 'research', 'update'], 'newest first');
+  await upsertContact(s, ORG, { id: c.id, name: c.name, company: c.company, painPoints: 'Calls after 5 PM go to voicemail', offer: '24/7 AI intake', angle: 'Missed after-hours calls' }, 'sunil');
+  c = (await loadCrm(s, ORG)).contacts[0];
+  assert.equal(c.whyFit, 'Hours end 5 PM.', 'editing keeps the research the form did not send');
+  assert.equal(c.title, 'owner');
+  assert.equal(c.painPoints, 'Calls after 5 PM go to voicemail');
+  assert.equal(c.stage, 'contacted', 'editing keeps the stage');
+  assert.equal(c.history[0].text, 'Details updated');
+  const again = 'Business,Decision maker,Why they fit,City,Offer\nBarber Law,"Kris Barber, owner",Something else,Plano,Other offer';
+  assert.deepEqual(await importContacts(s, ORG, again, 'sunil'), { added: 0, skipped: 0, duplicates: 0, updated: 1 });
+  c = (await loadCrm(s, ORG)).contacts[0];
+  assert.equal(c.city, 'Plano', 'a later sheet fills in what was missing');
+  assert.equal(c.whyFit, 'Hours end 5 PM.', 'but never overwrites');
+  assert.equal(c.offer, '24/7 AI intake');
+  assert.deepEqual(await importContacts(s, ORG, again, 'sunil'), { added: 0, skipped: 0, duplicates: 1, updated: 0 });
 });

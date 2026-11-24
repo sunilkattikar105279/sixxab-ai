@@ -202,3 +202,16 @@ th { color: var(--sub); font-weight: 500; font-size: 12px; text-transform: upper
 .lead-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px 16px; margin: 0; }
 .lead-facts dt { font-size: 12px; color: var(--sub); }
 .lead-facts dd { margin: 2px 0 0; font-size: 14px; overflow-wrap: anywhere; }
+.customer .row-wrap { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: flex-end; margin-top: 8px; }
+.customer .field.inline { margin: 0; }
+.customer-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 14px; }
+.customer-form .field.wide { grid-column: 1 / -1; }
+.research-item { padding: 8px 0; border-bottom: 1px solid var(--line); }
+.research-item:last-child { border-bottom: 0; }
+.research-item p { margin: 4px 0 0; }
+.prewrap { white-space: pre-wrap; overflow-wrap: anywhere; }
+.history { list-style: none; padding: 0; margin: 12px 0 0; display: flex; flex-direction: column; gap: 10px; }
+.history li { padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,0.03); }
+.history li p { margin: 4px 0 0; }
+.board-open { background: none; border: 0; padding: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 2px; width: 100%; }
+.board-open:hover strong, .board-open:focus-visible strong { color: var(--gold); text-decoration: underline; }

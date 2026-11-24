@@ -2256,10 +2256,10 @@ function computeGovernance(input) {
 
 // server/build-info.ts
 var BUILD_INFO = {
-  "builtAt": "2026-11-24T01:45:54.908Z",
-  "files": 82,
-  "lines": 8372,
-  "tests": 101,
+  "builtAt": "2026-11-24T01:49:48.247Z",
+  "files": 83,
+  "lines": 8609,
+  "tests": 102,
   "e2e": 11,
   "rlsTables": 9,
   "cspHeader": true,
@@ -2942,8 +2942,11 @@ function cleanMeddic(input) {
 var DEAL_STAGES = ["lead", "contacted", "qualified", "proposal", "won", "lost"];
 var SOURCES = ["website", "referral", "linkedin", "whatsapp", "walk-in", "event", "apollo", "web-search", "other"];
 var DEAL_TIERS = ["High", "Medium", "Low"];
-var EMPTY_PROFILE = { rank: null, niche: "", city: "", website: "", size: "", title: "", dealTier: "", ease: "", whyFit: "", pitch: "", sourceDetail: "", checkFirst: "" };
-var CRM_EVENTS = ["crm.contact", "crm.stage", "crm.touch", "crm.qualify", "crm.removed"];
+var EMPTY_PROFILE = { rank: null, niche: "", city: "", website: "", size: "", title: "", dealTier: "", ease: "", whyFit: "", pitch: "", sourceDetail: "", checkFirst: "", painPoints: "", offer: "", angle: "", research: "" };
+var NOTE_KINDS = ["note", "call", "email", "meeting", "research"];
+var TOUCH_KINDS = ["call", "email", "meeting"];
+var HISTORY_MAX = 100;
+var CRM_EVENTS = ["crm.contact", "crm.stage", "crm.touch", "crm.note", "crm.qualify", "crm.removed"];
 var EMAIL_RE2 = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 var PHONE_RE = /^\+?[\d\s()-]{7,20}$/;
 var STALE_DAYS = 7;
@@ -2979,12 +2982,17 @@ function cleanProfile(i) {
     whyFit: text2(i.whyFit, 1e3),
     pitch: text2(i.pitch, 300),
     sourceDetail: text2(i.sourceDetail, 200),
-    checkFirst: text2(i.checkFirst, 300)
+    checkFirst: text2(i.checkFirst, 300),
+    painPoints: text2(i.painPoints, 1e3),
+    offer: text2(i.offer, 500),
+    angle: text2(i.angle, 500),
+    research: text2(i.research, 8e3)
   };
 }
 async function upsertContact(store2, orgId, input, by) {
-  const c = clean(input);
-  await record2(store2, orgId, by, "crm.contact", { contact: c, summary: `Contact saved: ${c.name}` });
+  const prev = input.id ? (await loadCrm(store2, orgId)).contacts.find((x) => x.id === input.id) : void 0;
+  const c = clean(prev ? { ...prev, ...input } : input);
+  await record2(store2, orgId, by, "crm.contact", { contact: c, summary: prev ? `Contact updated: ${c.name}` : `Contact saved: ${c.name}` });
   return loadCrm(store2, orgId);
 }
 async function setDealStage(store2, orgId, id, stage, by) {
@@ -2998,6 +3006,16 @@ async function logTouch(store2, orgId, id, note, by) {
   const c = (await loadCrm(store2, orgId)).contacts.find((x) => x.id === id);
   if (!c) throw new Error("Contact not found");
   await record2(store2, orgId, by, "crm.touch", { contactId: id, note: text2(note, 500), summary: `Touched base with ${c.name}` });
+  return loadCrm(store2, orgId);
+}
+async function addNote(store2, orgId, id, kind, note, by) {
+  const c = (await loadCrm(store2, orgId)).contacts.find((x) => x.id === id);
+  if (!c) throw new Error("Contact not found");
+  const k = NOTE_KINDS.includes(kind) ? kind : "note";
+  const body = text2(note, 8e3);
+  if (!body) throw new Error("Write something to add to the history");
+  const touch = TOUCH_KINDS.includes(k);
+  await record2(store2, orgId, by, touch ? "crm.touch" : "crm.note", { contactId: id, kind: k, note: body, summary: `${touch ? "Touched base with" : "Note on"} ${c.name}` });
   return loadCrm(store2, orgId);
 }
 async function qualifyDeal(store2, orgId, id, meddic, callNotes, by) {
@@ -3082,7 +3100,11 @@ var COLUMNS = {
   whyFit: ["whytheyfit", "whyfit", "why"],
   pitch: ["agenttopitch", "pitch"],
   sourceDetail: ["sourcedetail", "sourcepage"],
-  checkFirst: ["checkbeforeoutreach", "checkfirst"]
+  checkFirst: ["checkbeforeoutreach", "checkfirst"],
+  painPoints: ["painpoints", "pains", "painpoint"],
+  offer: ["offer", "ouroffer"],
+  angle: ["outreachangle", "angle", "openingangle"],
+  research: ["research", "researchnotes"]
 };
 var POSITIONAL = ["name", "company", "email", "phone", "source", "value", "nextStep", "notes"];
 var norm = (h) => h.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -3128,7 +3150,11 @@ function rowToInput(cells, map) {
     whyFit: f.whyFit,
     pitch: f.pitch,
     sourceDetail,
-    checkFirst: f.checkFirst
+    checkFirst: f.checkFirst,
+    painPoints: f.painPoints,
+    offer: f.offer,
+    angle: f.angle,
+    research: f.research
   };
 }
 var dupKey = (name, company) => `${name.toLowerCase().trim()}|${company.toLowerCase().trim()}`;
@@ -3138,30 +3164,46 @@ async function importContacts(store2, orgId, csv, by) {
   const rows = lines.map((l) => tabbed ? l.split("	").map((c) => c.trim().replace(/^"([\s\S]*)"$/, "$1").replace(/""/g, '"')) : splitCsvLine(l.trim()));
   const map = rows[0] ? headerMap(rows[0]) : null;
   if (map) rows.shift();
-  const have = new Set((await loadCrm(store2, orgId)).contacts.map((c) => dupKey(c.name, c.company)));
+  const have = new Map((await loadCrm(store2, orgId)).contacts.map((c) => [dupKey(c.name, c.company), c]));
   let added = 0;
   let skipped = 0;
   let duplicates = 0;
+  let updated = 0;
   for (const cells of rows.slice(0, 500)) {
     try {
       const c = clean(rowToInput(cells, map ?? POSITIONAL));
       const key = dupKey(c.name, c.company);
-      if (have.has(key)) {
-        duplicates++;
+      const prev = have.get(key);
+      if (prev) {
+        const fill = {};
+        for (const [k, v] of Object.entries(c)) {
+          if (k === "id") continue;
+          const empty = (x) => x === void 0 || x === null || x === "" || x === 0;
+          if (!empty(v) && empty(prev[k])) fill[k] = v;
+        }
+        if (Object.keys(fill).length === 0) {
+          duplicates++;
+          continue;
+        }
+        const merged = clean({ ...prev, ...fill });
+        await record2(store2, orgId, by, "crm.contact", { contact: merged, summary: `Contact updated from a list: ${merged.name}` });
+        have.set(key, { ...prev, ...merged });
+        updated++;
         continue;
       }
       await record2(store2, orgId, by, "crm.contact", { contact: c, summary: `Contact imported: ${c.name}` });
-      have.add(key);
+      have.set(key, c);
       added++;
     } catch {
       skipped++;
     }
   }
-  return { added, skipped, duplicates };
+  return { added, skipped, duplicates, updated };
 }
 async function loadCrm(store2, orgId, now = Date.now()) {
   return computeCrm(await store2.listAuditByActions(orgId, CRM_EVENTS), now);
 }
+var addHistory = (h, item) => [item, ...h].slice(0, HISTORY_MAX);
 function computeCrm(events, now = Date.now()) {
   const map = /* @__PURE__ */ new Map();
   for (const e of events) {
@@ -3169,15 +3211,21 @@ function computeCrm(events, now = Date.now()) {
     if (e.action === "crm.contact") {
       const c = d.contact;
       const prev = map.get(c.id);
-      map.set(c.id, { ...EMPTY_PROFILE, ...c, stage: prev?.stage ?? "lead", createdAt: prev?.createdAt ?? e.at, updatedAt: e.at, lastTouch: prev?.lastTouch ?? null, meddic: prev?.meddic ?? null, callNotes: prev?.callNotes ?? "", score: prev?.score ?? null });
+      const summary = String(d.summary ?? "");
+      const what = !prev ? summary.startsWith("Contact imported") ? "Imported from a list" : "Added to the CRM" : summary.startsWith("Contact updated from a list") ? "Details filled in from a list" : "Details updated";
+      const history = addHistory(prev?.history ?? [], { at: e.at, by: e.actor, kind: "update", text: what });
+      map.set(c.id, { ...EMPTY_PROFILE, ...c, stage: prev?.stage ?? "lead", createdAt: prev?.createdAt ?? e.at, updatedAt: e.at, lastTouch: prev?.lastTouch ?? null, meddic: prev?.meddic ?? null, callNotes: prev?.callNotes ?? "", score: prev?.score ?? null, history });
     } else {
       const prev = map.get(String(d.contactId));
       if (!prev) continue;
-      if (e.action === "crm.stage") map.set(prev.id, { ...prev, stage: d.stage, updatedAt: e.at, lastTouch: e.at });
-      else if (e.action === "crm.touch") map.set(prev.id, { ...prev, updatedAt: e.at, lastTouch: e.at });
+      const log = (kind, t) => addHistory(prev.history, { at: e.at, by: e.actor, kind, text: t });
+      if (e.action === "crm.stage") map.set(prev.id, { ...prev, stage: d.stage, updatedAt: e.at, lastTouch: e.at, history: log("stage", String(d.stage)) });
+      else if (e.action === "crm.touch") map.set(prev.id, { ...prev, updatedAt: e.at, lastTouch: e.at, history: log(String(d.kind ?? "touch"), String(d.note ?? "") || "Touched base") });
+      else if (e.action === "crm.note") map.set(prev.id, { ...prev, updatedAt: e.at, history: log(String(d.kind ?? "note"), String(d.note ?? "")) });
       else if (e.action === "crm.qualify") {
         const m = cleanMeddic(d.meddic);
-        map.set(prev.id, { ...prev, meddic: m, callNotes: String(d.callNotes ?? ""), score: scoreMeddic(m).score, updatedAt: e.at, lastTouch: e.at });
+        const score = scoreMeddic(m).score;
+        map.set(prev.id, { ...prev, meddic: m, callNotes: String(d.callNotes ?? ""), score, updatedAt: e.at, lastTouch: e.at, history: log("qualify", `Qualified: MEDDIC ${score}%${d.callNotes ? `. ${String(d.callNotes).slice(0, 300)}` : ""}`) });
       } else if (e.action === "crm.removed") map.delete(prev.id);
     }
   }
@@ -3317,6 +3365,8 @@ var POST5 = handle(async (request) => {
         return json({ crm: await setDealStage(store2, orgId, id, b.stage, label) });
       case "touch":
         return json({ crm: await logTouch(store2, orgId, id, String(b.note ?? ""), label) });
+      case "note":
+        return json({ crm: await addNote(store2, orgId, id, String(b.kind ?? "note"), String(b.note ?? ""), label) });
       case "qualify":
         return json({ crm: await qualifyDeal(store2, orgId, id, b.meddic, String(b.callNotes ?? ""), label) });
       case "remove":
