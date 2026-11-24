@@ -6,20 +6,29 @@
 // POST /api/marketing { action: 'confirm', provider, ref }          → record a finished checkout when the browser comes back
 // POST /api/marketing { action: 'request_creative', creative }      → queue an image or video ad brief for the studio
 // POST /api/marketing { action: 'decide_creative', id, decision }   → approve or reject a finished ad (approving does not publish)
+// POST /api/marketing { action: 'draft_posts', creativeId, networks, text } → draft one social post per network from an approved ad
+// POST /api/marketing { action: 'discard_post', id }                → drop a draft
+// POST /api/marketing { action: 'publish_draft', id, when? }        → the owner's yes for one post: send it now or scheduled
 // Admin only: { action: 'studio_save', orgId, id, mediaUrl, ... } and { action: 'studio_fail', orgId, id, reason } save a studio
-// result for any business. A studio run can do the same with the x-studio-key header (env STUDIO_KEY) and no sign-in:
+// result for any business; { action: 'publishing_link', orgId, link } links a business to its social accounts in the
+// publishing service, and { action: 'publishing_channels' } lists the Postiz channels to pick from. A studio run can do the same with the x-studio-key header (env STUDIO_KEY) and no sign-in:
 // GET ?studio=queue lists queued ads across businesses; POST { action: 'studio_result' | 'studio_failed', orgId, ... }.
 import { isAdmin } from '../../core/automation.js';
 import {
   ASSESSMENT_SECTIONS, MARKETING_PLANS, assessorGoal, cmoPlanGoal, getMarketingPlan, loadMarketing, saveAssessment, syncAgencySales, type PlanId,
 } from '../../core/marketing.js';
 import { creativesGoal, decideCreative, failCreative, loadCreatives, markAdminStudio, requestCreative, saveCreativeResult, studioQueue } from '../../core/creatives.js';
+import {
+  channelNetworks, discardPost, draftPosts, linkedNetworks, listPostizChannels, loadPublishing, loadPublishLink, publicLink, publishDraft, publishingGoal,
+  publishSetup, setPublishLink, type PublishEnv,
+} from '../../core/publishing.js';
 import { confirmPaypalSubscription, confirmStripeSession, createPaypalSubscription, createStripeCheckout, paymentSetup, type PayEnv } from '../../core/payments.js';
 import { loadBusinessProfile } from '../../core/profile.js';
 import type { SupabaseStore } from '../../core/supabase-store.js';
 import { handle, HttpError, journeyOptions, json, readJson, requireUser, store as platformStore } from '../context.js';
 
 const payEnv = () => process.env as PayEnv;
+const pubEnv = () => process.env as PublishEnv;
 const rate = () => journeyOptions().inrPerUsd ?? 85;
 
 /** Paying businesses across the platform, for the admin's agency view. Syncs new ones into the admin's CRM first. */
@@ -57,14 +66,22 @@ async function view(store: SupabaseStore, orgId: string, label: string) {
   }
   const plan = marketing.tailored ?? marketing.plan30;
   const a = marketing.answers;
+  const setup = publishSetup(pubEnv());
+  const link = await loadPublishLink(store, orgId);
+  const linked = linkedNetworks(link, setup);
+  const publishing = await loadPublishing(store, orgId);
+  const agency = admin ? await agencyCustomers(store, orgId, label) : null;
   return {
     marketing, plans: MARKETING_PLANS, sections: ASSESSMENT_SECTIONS, payments: paymentSetup(payEnv()), creatives,
+    publishing, publishSetup: setup, publishLink: publicLink(link), linked,
     goals: {
       assessor: assessorGoal(marketing.answers), cmo: cmoPlanGoal(marketing),
       creatives: creativesGoal({ business: profile?.name ?? '', offer: a.services ?? '', bestCustomer: a.bestCustomer ?? '', voice: a.voice ?? '', avoid: a.avoid ?? '', channels: plan.channels, weekFocus: plan.weeks[0]?.focus ?? '', allowance: creatives.allowance }),
+      publishing: publishingGoal({ business: profile?.name ?? '', voice: a.voice ?? '', avoid: a.avoid ?? '', creatives: creatives.creatives, posts: publishing.posts, networks: linked.length ? linked : channelNetworks(plan.channels) }),
     },
-    admin, agency: admin ? await agencyCustomers(store, orgId, label) : null,
+    admin, agency,
     studio: admin ? await studioQueue(store, await store.listOrgIds(), (id) => aboutBusiness(store, id)) : null,
+    publishAdmin: admin ? await Promise.all([{ orgId, name: `${profile?.name ?? 'Your workspace'} (yours)` }, ...(agency?.customers ?? [])].map(async (c) => ({ orgId: c.orgId, name: c.name, link: publicLink(await loadPublishLink(store, c.orgId)) }))) : null,
   };
 }
 
@@ -111,6 +128,7 @@ interface Body {
   action?: string; answers?: unknown; planId?: string; provider?: string; ref?: string;
   creative?: Record<string, unknown>; id?: string; decision?: string; note?: string;
   orgId?: string; mediaUrl?: string; model?: string; credits?: number; generationId?: string; reason?: string;
+  creativeId?: string; networks?: unknown; text?: string; when?: string; link?: unknown;
 }
 
 export const POST = handle(async (request) => {
@@ -140,6 +158,27 @@ export const POST = handle(async (request) => {
     if (b.action === 'studio_save' || b.action === 'studio_fail') {
       if (!isAdmin(label, process.env.ADMIN_EMAILS)) throw new HttpError(403, 'Only the SIXXAB admin can save studio results');
       await studioWrite(store, b, label, b.action === 'studio_save');
+      return json(await view(store, orgId, label));
+    }
+    if (b.action === 'draft_posts') {
+      await draftPosts(store, orgId, { creativeId: b.creativeId, networks: b.networks, text: b.text }, label);
+      return json(await view(store, orgId, label));
+    }
+    if (b.action === 'discard_post') {
+      await discardPost(store, orgId, String(b.id ?? ''), label);
+      return json(await view(store, orgId, label));
+    }
+    if (b.action === 'publish_draft') {
+      // The signed-in owner pressed Publish on this one draft: that press is their yes for this post.
+      const post = await publishDraft(store, orgId, String(b.id ?? ''), b.when, pubEnv(), label);
+      return json({ post, ...(await view(store, orgId, label)) });
+    }
+    if (b.action === 'publishing_link' || b.action === 'publishing_channels') {
+      if (!isAdmin(label, process.env.ADMIN_EMAILS)) throw new HttpError(403, 'Only the SIXXAB admin can link social accounts');
+      if (b.action === 'publishing_channels') return json({ channels: await listPostizChannels(pubEnv()) });
+      const target = String(b.orgId ?? '');
+      if (!(await store.listOrgIds()).includes(target)) throw new HttpError(404, 'No such business');
+      await setPublishLink(store, target, b.link, label);
       return json(await view(store, orgId, label));
     }
     if (b.action === 'save') {

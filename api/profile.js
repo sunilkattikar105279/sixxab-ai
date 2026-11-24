@@ -1941,6 +1941,41 @@ async function requestCreative(store2, orgId, input, state, by) {
   return id;
 }
 
+// core/publishing.ts
+var NETWORKS = {
+  instagram: { label: "Instagram", maxChars: 2200, image: true, video: true, ayrshare: "instagram", postiz: ["instagram", "instagram-standalone"] },
+  facebook: { label: "Facebook Page", maxChars: 5e3, image: true, video: true, ayrshare: "facebook", postiz: ["facebook"] },
+  tiktok: { label: "TikTok", maxChars: 2200, image: false, video: true, ayrshare: "tiktok", postiz: ["tiktok"] },
+  linkedin: { label: "LinkedIn", maxChars: 3e3, image: true, video: true, ayrshare: "linkedin", postiz: ["linkedin", "linkedin-page"] },
+  // Ayrshare needs the business's own X developer keys for X since March 2026, so X goes through Postiz only.
+  x: { label: "X", maxChars: 280, image: true, video: true, ayrshare: null, postiz: ["x"] },
+  youtube: { label: "YouTube Shorts", maxChars: 5e3, image: false, video: true, ayrshare: "youtube", postiz: ["youtube"] },
+  threads: { label: "Threads", maxChars: 500, image: true, video: true, ayrshare: "threads", postiz: ["threads"] },
+  google: { label: "Google Business Profile", maxChars: 1500, image: true, video: false, ayrshare: "gmb", postiz: ["gmb"] }
+};
+var NETWORK_IDS = Object.keys(NETWORKS);
+var fits = (network, kind) => kind === "video" ? NETWORKS[network].video : NETWORKS[network].image;
+async function draftPosts(store2, orgId, input, by) {
+  const creative = (await loadCreatives(store2, orgId, null)).creatives.find((c) => c.id === input.creativeId);
+  if (!creative) throw new Error("Pick an ad from the ad studio");
+  if (creative.status !== "approved") throw new Error("Approve the ad in the ad studio before drafting posts");
+  const networks = [...new Set((Array.isArray(input.networks) ? input.networks : [input.networks]).filter((n) => NETWORK_IDS.includes(n)))];
+  if (!networks.length) throw new Error("Pick at least one network");
+  const text6 = typeof input.text === "string" ? input.text.trim() : "";
+  if (!text6) throw new Error("Write the caption");
+  for (const n of networks) {
+    if (!fits(n, creative.kind)) throw new Error(`${NETWORKS[n].label} doesn't take ${creative.kind === "video" ? "videos" : "images"} here`);
+    if (text6.length > NETWORKS[n].maxChars) throw new Error(`The caption is ${text6.length} characters; ${NETWORKS[n].label} allows ${NETWORKS[n].maxChars}`);
+  }
+  const ids = [];
+  for (const network of networks) {
+    const id = newId();
+    ids.push(id);
+    await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "post.drafted", taskId: null, detail: { id, creativeId: creative.id, network, text: text6, kind: creative.kind, mediaUrl: creative.mediaUrl, headline: creative.headline, summary: `Drafted a ${NETWORKS[network].label} post for the ad "${creative.headline || creative.brief.slice(0, 40)}"; waiting for the owner's yes` } });
+  }
+  return ids;
+}
+
 // core/marketing-tools.ts
 var str4 = { type: "string" };
 var MARKETING_TOOLS = {
@@ -2007,6 +2042,26 @@ var MARKETING_TOOLS = {
       const state = await loadCreatives(ctx.store, ctx.orgId, planId);
       await requestCreative(ctx.store, ctx.orgId, i, state, ctx.agent.name);
       return `Queued the ${i.kind === "video" ? "video" : "image"} ad "${String(i.headline ?? "").slice(0, 60)}" for the studio. The owner approves it once it is made.`;
+    }
+  },
+  draft_social_post: {
+    spec: {
+      name: "draft_social_post",
+      description: "Save a draft social post for one network from an approved ad: the ad's image or video with a caption written for that network. Nothing is posted; the owner publishes each draft from the Marketing tab, now or at a time they pick.",
+      input_schema: {
+        type: "object",
+        properties: {
+          creativeId: { type: "string", description: "The approved ad's id" },
+          network: { type: "string", enum: [...NETWORK_IDS] },
+          text: { type: "string", description: "The caption, within the network's length limit" }
+        },
+        required: ["creativeId", "network", "text"]
+      }
+    },
+    summarize: (i) => `Draft a ${NETWORKS[i.network]?.label ?? "social"} post`,
+    execute: async (i, ctx) => {
+      await draftPosts(ctx.store, ctx.orgId, { creativeId: i.creativeId, networks: [i.network], text: i.text }, ctx.agent.name);
+      return `Drafted the ${NETWORKS[i.network].label} post. The owner publishes it from the Marketing tab.`;
     }
   }
 };

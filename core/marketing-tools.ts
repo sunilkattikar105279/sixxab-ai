@@ -1,8 +1,9 @@
-// Tools for the AI Marketing Agency. They send nothing: they save the online check and the 30-day plan
-// onto the business's Marketing tab for the owner, so they have no task type (still audited).
+// Tools for the AI Marketing Agency. They send nothing: they save the online check, the 30-day plan, ad briefs and
+// draft social posts onto the business's Marketing tab for the owner, so they have no task type (still audited).
 import type { Tool } from './tools.js';
 import { CHECK_ITEMS, loadMarketing, saveTailoredPlan, saveValidation } from './marketing.js';
 import { CREATIVE_CTAS, CREATIVE_FORMATS, loadCreatives, requestCreative } from './creatives.js';
+import { NETWORKS, NETWORK_IDS, draftPosts } from './publishing.js';
 
 const str = { type: 'string' } as const;
 
@@ -68,6 +69,26 @@ export const MARKETING_TOOLS: Record<string, Tool> = {
       const state = await loadCreatives(ctx.store, ctx.orgId, planId);
       await requestCreative(ctx.store, ctx.orgId, i, state, ctx.agent.name);
       return `Queued the ${i.kind === 'video' ? 'video' : 'image'} ad "${String(i.headline ?? '').slice(0, 60)}" for the studio. The owner approves it once it is made.`;
+    },
+  },
+  draft_social_post: {
+    spec: {
+      name: 'draft_social_post',
+      description: 'Save a draft social post for one network from an approved ad: the ad\'s image or video with a caption written for that network. Nothing is posted; the owner publishes each draft from the Marketing tab, now or at a time they pick.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          creativeId: { type: 'string', description: 'The approved ad\'s id' },
+          network: { type: 'string', enum: [...NETWORK_IDS] },
+          text: { type: 'string', description: 'The caption, within the network\'s length limit' },
+        },
+        required: ['creativeId', 'network', 'text'],
+      },
+    },
+    summarize: (i) => `Draft a ${NETWORKS[i.network as keyof typeof NETWORKS]?.label ?? 'social'} post`,
+    execute: async (i, ctx) => {
+      await draftPosts(ctx.store, ctx.orgId, { creativeId: i.creativeId, networks: [i.network], text: i.text }, ctx.agent.name);
+      return `Drafted the ${NETWORKS[i.network as keyof typeof NETWORKS].label} post. The owner publishes it from the Marketing tab.`;
     },
   },
 };

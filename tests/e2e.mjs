@@ -477,7 +477,7 @@ await check('business tabs: add a CRM contact, open a support ticket, record inc
   await ctx.close();
 });
 
-await check('marketing tab: save the assessment, open card checkout, record the payment on return, and approve an ad', async () => {
+await check('marketing tab: save the assessment, open card checkout, record the payment on return, approve an ad and publish a post', async () => {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   const state = { otp: [], decisions: [], pending: [], profile: { name: 'Lone Star Dental' }, admin: [] };
   await mockServices(ctx, state);
@@ -525,6 +525,15 @@ await check('marketing tab: save the assessment, open card checkout, record the 
   await ad.getByRole('button', { name: 'Approve' }).click();
   await decided;
   assert.deepEqual(posts.at(-1), { action: 'decide_creative', id: 'cr-1', decision: 'approved' });
+  // A draft social post goes out only on the owner's Publish press, after the confirm dialog.
+  const draft = page.locator('.mk-post', { hasText: 'Book a cleaning this week.' });
+  await draft.getByText('draft, waiting for you').waitFor();
+  page.once('dialog', (d) => d.accept());
+  const published = page.waitForRequest((r) => r.url().endsWith('/api/marketing') && r.method() === 'POST');
+  await draft.getByRole('button', { name: 'Publish now' }).click();
+  await published;
+  assert.deepEqual(posts.at(-1), { action: 'publish_draft', id: 'post-1' });
+  await page.getByText('Published the Instagram post.').waitFor();
   await ctx.close();
 });
 

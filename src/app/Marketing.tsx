@@ -1,6 +1,6 @@
 // Marketing tab: the AI marketing agency under the CMO agent. The owner answers the assessment, sees readiness and gaps,
-// gets a 30-day plan (tailored by the CMO agent), and picks a plan at a Stripe or PayPal checkout. Nothing is posted or
-// spent from here; ads and posts the agents draft wait in Approvals.
+// gets a 30-day plan (tailored by the CMO agent), and picks a plan at a Stripe or PayPal checkout. Ads wait for the
+// owner's yes in the ad studio, and each social post goes out only when the owner presses Publish on it.
 import React, { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/auth';
 import type { Answers, MarketingPlan, MarketingState, Question } from '../../core/marketing';
@@ -10,13 +10,17 @@ import { Spinner } from './ui';
 import { useLoad } from './useLoad';
 import { AgentRun, money } from './AgentRun';
 import { AdStudio } from './AdStudio';
+import { Publishing } from './Publishing';
 import type { CreativesState, StudioJob } from '../../core/creatives';
+import type { Network, PublicLink, PublishingState, PublishSetup } from '../../core/publishing';
 
 interface Customer { orgId: string; name: string; planName: string; provider: string; mode: string; status: string; amount: number; currency: string; lastPaidAt: string; readiness: number }
 interface View {
   marketing: MarketingState; plans: MarketingPlan[]; sections: { title: string; questions: Question[] }[]; payments: PaySetup;
-  goals: { assessor: string; cmo: string; creatives: string }; admin: boolean; agency: { customers: Customer[]; added: number; monthlyLiveUsd: number } | null;
+  goals: { assessor: string; cmo: string; creatives: string; publishing: string }; admin: boolean; agency: { customers: Customer[]; added: number; monthlyLiveUsd: number } | null;
   creatives: CreativesState; studio: StudioJob[] | null;
+  publishing: PublishingState; publishSetup: PublishSetup; publishLink: PublicLink | null; linked: Network[];
+  publishAdmin: { orgId: string; name: string; link: PublicLink | null }[] | null;
 }
 
 const CHECKOUT_HOSTS = /^https:\/\/(checkout\.stripe\.com|(www\.)?(sandbox\.)?paypal\.com)\//;
@@ -163,6 +167,7 @@ export function Marketing({ goApprovals }: { goApprovals: () => void }) {
       </Fold>
 
       <AdStudio creatives={data.creatives} goal={data.goals.creatives} admin={data.admin} studio={data.studio} reload={reload} goApprovals={goApprovals} />
+      <Publishing publishing={data.publishing} setup={data.publishSetup} linked={data.linked} creatives={data.creatives.creatives} goal={data.goals.publishing} admin={data.publishAdmin} reload={reload} goApprovals={goApprovals} />
 
       {data.admin && data.agency && (
         <Fold id="mk-agency" title="Agency customers" hint={`${data.agency.customers.length} paying · ${money(data.agency.monthlyLiveUsd)} a month live`}>

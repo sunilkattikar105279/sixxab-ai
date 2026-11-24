@@ -1,8 +1,8 @@
 // GET /api/activity → recent audit log for the signed-in user's business.
-// Per-call model usage is summarised on the Agents tab instead of listed here.
+// Per-call model usage is summarised on the Agents tab instead of listed here, and social account links stay out.
 import { handle, json, requireUser } from '../context.js';
 
-const HIDDEN = new Set(['model.usage']);
+const HIDDEN = new Set(['model.usage', 'publishing.link']);
 
 export const GET = handle(async (request) => {
   const { orgId, store } = await requireUser(request);

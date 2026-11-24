@@ -2725,6 +2725,274 @@ function creativesGoal(o) {
   ].join("\n");
 }
 
+// core/publishing.ts
+var NETWORKS = {
+  instagram: { label: "Instagram", maxChars: 2200, image: true, video: true, ayrshare: "instagram", postiz: ["instagram", "instagram-standalone"] },
+  facebook: { label: "Facebook Page", maxChars: 5e3, image: true, video: true, ayrshare: "facebook", postiz: ["facebook"] },
+  tiktok: { label: "TikTok", maxChars: 2200, image: false, video: true, ayrshare: "tiktok", postiz: ["tiktok"] },
+  linkedin: { label: "LinkedIn", maxChars: 3e3, image: true, video: true, ayrshare: "linkedin", postiz: ["linkedin", "linkedin-page"] },
+  // Ayrshare needs the business's own X developer keys for X since March 2026, so X goes through Postiz only.
+  x: { label: "X", maxChars: 280, image: true, video: true, ayrshare: null, postiz: ["x"] },
+  youtube: { label: "YouTube Shorts", maxChars: 5e3, image: false, video: true, ayrshare: "youtube", postiz: ["youtube"] },
+  threads: { label: "Threads", maxChars: 500, image: true, video: true, ayrshare: "threads", postiz: ["threads"] },
+  google: { label: "Google Business Profile", maxChars: 1500, image: true, video: false, ayrshare: "gmb", postiz: ["gmb"] }
+};
+var NETWORK_IDS = Object.keys(NETWORKS);
+var POSTIZ_CLOUD = "https://api.postiz.com/public/v1";
+function postizBase(env2) {
+  const raw = env2.POSTIZ_URL?.trim().replace(/\/+$/, "") || POSTIZ_CLOUD;
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== "https:" || u.username || u.password || u.search || u.hash || !/\/public\/v1$/.test(u.pathname)) return null;
+    return `${u.origin}${u.pathname}`;
+  } catch {
+    return null;
+  }
+}
+function publishSetup(env2) {
+  if (env2.AYRSHARE_API_KEY?.trim()) return { provider: "ayrshare", connected: true, note: "Publishing through Ayrshare." };
+  if (env2.POSTIZ_API_KEY?.trim()) {
+    return postizBase(env2) ? { provider: "postiz", connected: true, note: "Publishing through Postiz." } : { provider: "postiz", connected: false, note: "POSTIZ_URL must be an https address ending in /public/v1." };
+  }
+  return { provider: null, connected: false, note: "Publishing is not connected yet: it needs Ayrshare or Postiz." };
+}
+var LINK_EVENT = "publishing.link";
+function publicLink(link) {
+  if (!link) return null;
+  if (link.provider === "ayrshare") return { provider: "ayrshare", networks: link.networks, channels: {} };
+  const networks = NETWORK_IDS.filter((n) => link.channels[n]);
+  return { provider: "postiz", networks, channels: Object.fromEntries(networks.map((n) => [n, link.channels[n].name])) };
+}
+function cleanLink(raw) {
+  if (raw === null) return null;
+  const r = raw ?? {};
+  if (r.provider === "ayrshare") {
+    const profileKey = String(r.profileKey ?? "").trim();
+    if (!/^[A-Za-z0-9-]{8,80}$/.test(profileKey)) throw new Error("Paste the Ayrshare profile key for this business");
+    const networks = (Array.isArray(r.networks) ? r.networks : []).filter((n) => NETWORK_IDS.includes(n) && NETWORKS[n].ayrshare !== null);
+    if (!networks.length) throw new Error("Tick the networks linked in that Ayrshare profile");
+    return { provider: "ayrshare", profileKey, networks: [...new Set(networks)] };
+  }
+  if (r.provider === "postiz") {
+    const channels = {};
+    for (const [net, c] of Object.entries(r.channels ?? {})) {
+      if (!NETWORK_IDS.includes(net) || !c) continue;
+      const id = String(c.id ?? "").trim();
+      const identifier = String(c.identifier ?? "").trim();
+      if (!/^[A-Za-z0-9_-]{4,80}$/.test(id) || !NETWORKS[net].postiz.includes(identifier)) throw new Error(`That ${NETWORKS[net].label} channel doesn't match`);
+      channels[net] = { id, identifier, name: String(c.name ?? "").slice(0, 80) };
+    }
+    if (!Object.keys(channels).length) throw new Error("Pick at least one Postiz channel");
+    return { provider: "postiz", channels };
+  }
+  throw new Error("Pick Ayrshare or Postiz");
+}
+async function setPublishLink(store2, orgId, raw, by) {
+  const link = cleanLink(raw);
+  const p = publicLink(link);
+  await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: LINK_EVENT, taskId: null, detail: { link, summary: p ? `Social accounts linked through ${p.provider === "ayrshare" ? "Ayrshare" : "Postiz"}: ${p.networks.map((n) => NETWORKS[n].label).join(", ")}` : "Social accounts unlinked" } });
+}
+async function loadPublishLink(store2, orgId) {
+  const last = (await store2.listAuditByActions(orgId, [LINK_EVENT])).at(-1);
+  return last?.detail.link ?? null;
+}
+function linkedNetworks(link, setup) {
+  if (!link || !setup.connected || link.provider !== setup.provider) return [];
+  return publicLink(link).networks;
+}
+var POST_EVENTS = ["post.drafted", "post.discarded", "post.sent", "post.failed"];
+function computePublishing(events) {
+  const map = /* @__PURE__ */ new Map();
+  for (const e of events) {
+    const d = e.detail;
+    const id = String(d.id ?? "");
+    if (e.action === "post.drafted") {
+      map.set(id, {
+        id,
+        creativeId: String(d.creativeId ?? ""),
+        network: d.network,
+        text: String(d.text ?? ""),
+        kind: d.kind,
+        mediaUrl: String(d.mediaUrl ?? ""),
+        headline: String(d.headline ?? ""),
+        status: "draft",
+        draftedBy: e.actor,
+        draftedAt: e.at,
+        sentBy: "",
+        sentAt: null,
+        scheduledFor: null,
+        provider: null,
+        providerId: "",
+        postUrl: "",
+        error: "",
+        attempts: 0
+      });
+      continue;
+    }
+    const p = map.get(id);
+    if (!p) continue;
+    if (e.action === "post.discarded") p.status = "discarded";
+    if (e.action === "post.sent") Object.assign(p, { status: "sent", sentBy: e.actor, sentAt: e.at, scheduledFor: d.scheduledFor ?? null, provider: d.provider, providerId: String(d.providerId ?? ""), postUrl: String(d.postUrl ?? ""), error: "" });
+    if (e.action === "post.failed") Object.assign(p, { status: "failed", error: String(d.reason ?? ""), attempts: p.attempts + 1 });
+  }
+  const posts = [...map.values()].filter((p) => p.status !== "discarded").reverse();
+  return { posts, drafts: posts.filter((p) => p.status === "draft").length, sent: posts.filter((p) => p.status === "sent").length, failed: posts.filter((p) => p.status === "failed").length };
+}
+async function loadPublishing(store2, orgId) {
+  return computePublishing(await store2.listAuditByActions(orgId, POST_EVENTS));
+}
+var fits = (network, kind) => kind === "video" ? NETWORKS[network].video : NETWORKS[network].image;
+async function draftPosts(store2, orgId, input, by) {
+  const creative = (await loadCreatives(store2, orgId, null)).creatives.find((c) => c.id === input.creativeId);
+  if (!creative) throw new Error("Pick an ad from the ad studio");
+  if (creative.status !== "approved") throw new Error("Approve the ad in the ad studio before drafting posts");
+  const networks = [...new Set((Array.isArray(input.networks) ? input.networks : [input.networks]).filter((n) => NETWORK_IDS.includes(n)))];
+  if (!networks.length) throw new Error("Pick at least one network");
+  const text11 = typeof input.text === "string" ? input.text.trim() : "";
+  if (!text11) throw new Error("Write the caption");
+  for (const n of networks) {
+    if (!fits(n, creative.kind)) throw new Error(`${NETWORKS[n].label} doesn't take ${creative.kind === "video" ? "videos" : "images"} here`);
+    if (text11.length > NETWORKS[n].maxChars) throw new Error(`The caption is ${text11.length} characters; ${NETWORKS[n].label} allows ${NETWORKS[n].maxChars}`);
+  }
+  const ids = [];
+  for (const network of networks) {
+    const id = newId();
+    ids.push(id);
+    await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "post.drafted", taskId: null, detail: { id, creativeId: creative.id, network, text: text11, kind: creative.kind, mediaUrl: creative.mediaUrl, headline: creative.headline, summary: `Drafted a ${NETWORKS[network].label} post for the ad "${creative.headline || creative.brief.slice(0, 40)}"; waiting for the owner's yes` } });
+  }
+  return ids;
+}
+async function discardPost(store2, orgId, id, by) {
+  const p = (await loadPublishing(store2, orgId)).posts.find((x) => x.id === id);
+  if (!p || p.status === "sent") throw new Error("Only a draft can be discarded");
+  await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "post.discarded", taskId: null, detail: { id, summary: `Discarded the ${NETWORKS[p.network].label} draft` } });
+}
+function scheduleTime(raw, now = /* @__PURE__ */ new Date()) {
+  if (raw === void 0 || raw === null || raw === "" || raw === "now") return null;
+  const t = new Date(String(raw));
+  if (Number.isNaN(t.getTime())) throw new Error("Pick a valid time");
+  const ms = t.getTime() - now.getTime();
+  if (ms < 10 * 6e4) throw new Error("Pick a time at least 10 minutes from now, or post now");
+  if (ms > 90 * 864e5) throw new Error("Pick a time within 90 days");
+  return t.toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+async function readJsonSafe(res) {
+  try {
+    return await res.json();
+  } catch {
+    return {};
+  }
+}
+async function sendAyrshare(env2, link, p, when, fetchImpl) {
+  const body = { post: p.text, platforms: [NETWORKS[p.network].ayrshare], mediaUrls: [p.mediaUrl], isVideo: p.kind === "video", idempotencyKey: p.attempts ? `${p.id}-${p.attempts}` : p.id };
+  if (when) body.scheduleDate = when;
+  if (p.network === "youtube") body.youTubeOptions = { title: (p.headline || p.text).slice(0, 100) };
+  const res = await fetchImpl("https://api.ayrshare.com/api/post", {
+    method: "POST",
+    signal: AbortSignal.timeout(25e3),
+    headers: { "content-type": "application/json", authorization: `Bearer ${env2.AYRSHARE_API_KEY.trim()}`, "profile-key": link.profileKey },
+    body: JSON.stringify(body)
+  });
+  const r = await readJsonSafe(res);
+  const entry = Array.isArray(r.posts) ? r.posts[0] : r;
+  const errors = entry?.errors ?? r.errors;
+  const status = String(entry?.status ?? r.status ?? "");
+  if (!res.ok || status === "error") throw new Error(`Ayrshare: ${errors?.[0]?.message ?? `error ${res.status}`}`);
+  const first = (entry?.postIds ?? [])[0];
+  return { providerId: String(entry?.id ?? r.id ?? ""), postUrl: typeof first?.postUrl === "string" && first.postUrl.startsWith("https://") ? first.postUrl : "", scheduledFor: when };
+}
+function postizSettings(network, identifier, p) {
+  const title = (p.headline || p.text).slice(0, 100).padEnd(2, ".");
+  switch (network) {
+    case "x":
+      return { __type: "x", who_can_reply_post: "everyone" };
+    case "instagram":
+      return { __type: identifier, post_type: "post" };
+    case "linkedin":
+      return { __type: identifier };
+    case "youtube":
+      return { __type: "youtube", title, type: "public" };
+    case "tiktok":
+      return { __type: "tiktok", privacy_level: "PUBLIC_TO_EVERYONE", duet: false, stitch: false, comment: true, autoAddMusic: "no", brand_content_toggle: false, brand_organic_toggle: false, content_posting_method: "DIRECT_POST", title: (p.headline || p.text).slice(0, 90) };
+    default:
+      return { __type: identifier };
+  }
+}
+async function sendPostiz(env2, link, p, when, fetchImpl, now) {
+  const base = postizBase(env2);
+  const channel = link.channels[p.network];
+  const headers = { "content-type": "application/json", authorization: env2.POSTIZ_API_KEY.trim() };
+  const up = await fetchImpl(`${base}/upload-from-url`, { method: "POST", headers, body: JSON.stringify({ url: p.mediaUrl }), signal: AbortSignal.timeout(25e3) });
+  const media = await readJsonSafe(up);
+  if (!up.ok || typeof media.id !== "string" || typeof media.path !== "string") throw new Error(`Postiz could not take the ad's media (${up.status}${media.message ? `: ${String(media.message)}` : ""})`);
+  const res = await fetchImpl(`${base}/posts`, {
+    method: "POST",
+    headers,
+    signal: AbortSignal.timeout(25e3),
+    body: JSON.stringify({
+      type: when ? "schedule" : "now",
+      date: when ?? now.toISOString(),
+      shortLink: false,
+      tags: [],
+      posts: [{ integration: { id: channel.id }, value: [{ content: p.text, image: [{ id: media.id, path: media.path }] }], settings: postizSettings(p.network, channel.identifier, p) }]
+    })
+  });
+  const r = await res.json().catch(() => null);
+  if (!res.ok || !Array.isArray(r) || !r[0]?.postId) throw new Error(`Postiz: ${!Array.isArray(r) && r?.message || `error ${res.status}`}`);
+  return { providerId: String(r[0].postId), postUrl: "", scheduledFor: when };
+}
+async function publishDraft(store2, orgId, id, rawWhen, env2, by, fetchImpl = fetch, now = /* @__PURE__ */ new Date()) {
+  const setup = publishSetup(env2);
+  if (!setup.connected) throw new Error("Publishing isn't connected yet");
+  const link = await loadPublishLink(store2, orgId);
+  const p = (await loadPublishing(store2, orgId)).posts.find((x) => x.id === id);
+  if (!p || p.status !== "draft" && p.status !== "failed") throw new Error("This post is not a draft");
+  if (!linkedNetworks(link, setup).includes(p.network)) throw new Error(`${NETWORKS[p.network].label} isn't linked for this business yet`);
+  const creative = (await loadCreatives(store2, orgId, null)).creatives.find((c) => c.id === p.creativeId);
+  if (creative?.status !== "approved") throw new Error("The ad is no longer approved in the ad studio");
+  const when = scheduleTime(rawWhen, now);
+  try {
+    const r = link.provider === "ayrshare" ? await sendAyrshare(env2, link, p, when, fetchImpl) : await sendPostiz(env2, link, p, when, fetchImpl, now);
+    await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "post.sent", taskId: null, detail: { id, provider: setup.provider, providerId: r.providerId, postUrl: r.postUrl, scheduledFor: r.scheduledFor, summary: `${r.scheduledFor ? "Scheduled" : "Published"} the ${NETWORKS[p.network].label} post for "${p.headline || "an ad"}"${r.scheduledFor ? ` for ${r.scheduledFor}` : ""}` } });
+  } catch (e) {
+    const reason = (e instanceof Error ? e.message : "The service did not take the post").slice(0, 300);
+    await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "post.failed", taskId: null, detail: { id, reason, summary: `The ${NETWORKS[p.network].label} post did not go out: ${reason.slice(0, 120)}` } });
+    throw new Error(reason);
+  }
+  return (await loadPublishing(store2, orgId)).posts.find((x) => x.id === id);
+}
+async function listPostizChannels(env2, fetchImpl = fetch) {
+  const base = postizBase(env2);
+  if (!env2.POSTIZ_API_KEY?.trim() || !base) throw new Error("Postiz is not connected");
+  const res = await fetchImpl(`${base}/integrations`, { headers: { authorization: env2.POSTIZ_API_KEY.trim() }, signal: AbortSignal.timeout(15e3) });
+  if (!res.ok) throw new Error(`Postiz: error ${res.status}`);
+  const rows = await res.json();
+  return (Array.isArray(rows) ? rows : []).map((c) => ({
+    id: String(c.id ?? ""),
+    name: String(c.name ?? ""),
+    identifier: String(c.identifier ?? ""),
+    profile: String(c.profile ?? ""),
+    customer: String(c.customer?.name ?? ""),
+    disabled: Boolean(c.disabled)
+  }));
+}
+function channelNetworks(channels) {
+  const words = [[/insta/i, "instagram"], [/facebook|meta\b/i, "facebook"], [/tiktok/i, "tiktok"], [/linkedin/i, "linkedin"], [/\bx\b|twitter/i, "x"], [/youtube|shorts/i, "youtube"], [/threads/i, "threads"], [/google|gbp|maps/i, "google"]];
+  return NETWORK_IDS.filter((n) => channels.some((c) => words.some(([re, net]) => net === n && re.test(c))));
+}
+function publishingGoal(o) {
+  const done = new Set(o.posts.map((p) => p.creativeId));
+  const ads = o.creatives.filter((c) => c.status === "approved" && !done.has(c.id)).slice(0, 5);
+  if (!ads.length || !o.networks.length) return "";
+  return [
+    `Draft social posts for ${o.business || "this business"} from these approved ads, and save each with draft_social_post. Networks: ${o.networks.map((n) => `${n} (${NETWORKS[n].label}, up to ${NETWORKS[n].maxChars} characters)`).join(", ")}.`,
+    ...ads.map((c) => `- Ad ${c.id}: ${c.kind}, headline "${c.headline}", text "${c.primaryText}", button "${c.cta}".`),
+    "For each ad, draft one post per network that fits its media (TikTok and YouTube take video only; Google takes images only). Write a caption native to each network: a hook in the first line, the offer from the ad text, the call to action, and two to four relevant hashtags on Instagram, TikTok and Threads only.",
+    `Brand voice: ${o.voice || "friendly and plain"}. Claims to avoid: ${o.avoid || "none given"}. Never invent prices, discounts, guarantees or results.`,
+    "You only draft. Nothing is posted in this task: the owner publishes each draft, now or at a time they pick."
+  ].join("\n");
+}
+
 // core/marketing-tools.ts
 var str4 = { type: "string" };
 var MARKETING_TOOLS = {
@@ -2791,6 +3059,26 @@ var MARKETING_TOOLS = {
       const state = await loadCreatives(ctx.store, ctx.orgId, planId);
       await requestCreative(ctx.store, ctx.orgId, i, state, ctx.agent.name);
       return `Queued the ${i.kind === "video" ? "video" : "image"} ad "${String(i.headline ?? "").slice(0, 60)}" for the studio. The owner approves it once it is made.`;
+    }
+  },
+  draft_social_post: {
+    spec: {
+      name: "draft_social_post",
+      description: "Save a draft social post for one network from an approved ad: the ad's image or video with a caption written for that network. Nothing is posted; the owner publishes each draft from the Marketing tab, now or at a time they pick.",
+      input_schema: {
+        type: "object",
+        properties: {
+          creativeId: { type: "string", description: "The approved ad's id" },
+          network: { type: "string", enum: [...NETWORK_IDS] },
+          text: { type: "string", description: "The caption, within the network's length limit" }
+        },
+        required: ["creativeId", "network", "text"]
+      }
+    },
+    summarize: (i) => `Draft a ${NETWORKS[i.network]?.label ?? "social"} post`,
+    execute: async (i, ctx) => {
+      await draftPosts(ctx.store, ctx.orgId, { creativeId: i.creativeId, networks: [i.network], text: i.text }, ctx.agent.name);
+      return `Drafted the ${NETWORKS[i.network].label} post. The owner publishes it from the Marketing tab.`;
     }
   }
 };
@@ -3355,6 +3643,19 @@ var AGENTS = [
     usesModel: true,
     maxTurns: 8,
     instructions: `You write ad creatives for a small business's marketing plan and queue each one with save_creative_brief. For each ad, write a visual brief a video or image model can follow (who is in it, what happens, the setting, light and mood), a headline of up to 8 words, a primary text of one or two sentences and a call to action. Match the format to where it runs: 4:5 or 1:1 for feed images, 9:16 for Reels, Stories and TikTok. Use real people and places that fit the business, no real brand logos, and no on-screen text in a video. Never invent prices, discounts, guarantees, results or reviews; write [OFFER] where an offer belongs, and respect the claims to avoid. Queue only as many ads as the goal asks. Making, posting and paying for ads is never your job. ${SHARED_RULES}`
+  },
+  {
+    id: "social-publisher",
+    name: "Social Publisher",
+    layer: "department",
+    stage: 2,
+    reportsTo: "cmo",
+    job: "Turns approved ads into draft posts for each social network, written natively for each one. The owner publishes every draft; it never posts.",
+    modelTier: "worker",
+    tools: ["recall", "draft_social_post"],
+    usesModel: true,
+    maxTurns: 10,
+    instructions: `You turn a small business's approved ads into social posts and save each one with draft_social_post. Write one caption per network the ad's media fits: a hook in the first line, the offer from the ad text, and the call to action. Keep within each network's length limit (X allows 280 characters, Threads 500). Add two to four relevant hashtags on Instagram, TikTok and Threads only. Match the brand voice and respect the claims to avoid. Never invent prices, discounts, guarantees, results or reviews. You only draft: the owner publishes each post, and posting is never your job. ${SHARED_RULES}`
   },
   {
     id: "social-poster",
@@ -4677,10 +4978,10 @@ function computeGovernance(input) {
 
 // server/build-info.ts
 var BUILD_INFO = {
-  "builtAt": "2026-11-24T19:11:16.387Z",
-  "files": 112,
-  "lines": 13504,
-  "tests": 158,
+  "builtAt": "2026-11-24T20:00:54.244Z",
+  "files": 114,
+  "lines": 14116,
+  "tests": 165,
   "e2e": 12,
   "rlsTables": 9,
   "cspHeader": true,
@@ -6273,6 +6574,7 @@ async function handlePaypalEvent(store2, env2, event, orgIds, fetchImpl = fetch)
 
 // server/routes/marketing.ts
 var payEnv = () => process.env;
+var pubEnv = () => process.env;
 var rate = () => journeyOptions().inrPerUsd ?? 85;
 async function agencyCustomers(store2, adminOrgId, by) {
   const ids = await store2.listOrgIds();
@@ -6308,20 +6610,31 @@ async function view(store2, orgId, label5) {
   }
   const plan = marketing.tailored ?? marketing.plan30;
   const a = marketing.answers;
+  const setup = publishSetup(pubEnv());
+  const link = await loadPublishLink(store2, orgId);
+  const linked = linkedNetworks(link, setup);
+  const publishing = await loadPublishing(store2, orgId);
+  const agency = admin ? await agencyCustomers(store2, orgId, label5) : null;
   return {
     marketing,
     plans: MARKETING_PLANS,
     sections: ASSESSMENT_SECTIONS,
     payments: paymentSetup(payEnv()),
     creatives,
+    publishing,
+    publishSetup: setup,
+    publishLink: publicLink(link),
+    linked,
     goals: {
       assessor: assessorGoal(marketing.answers),
       cmo: cmoPlanGoal(marketing),
-      creatives: creativesGoal({ business: profile?.name ?? "", offer: a.services ?? "", bestCustomer: a.bestCustomer ?? "", voice: a.voice ?? "", avoid: a.avoid ?? "", channels: plan.channels, weekFocus: plan.weeks[0]?.focus ?? "", allowance: creatives.allowance })
+      creatives: creativesGoal({ business: profile?.name ?? "", offer: a.services ?? "", bestCustomer: a.bestCustomer ?? "", voice: a.voice ?? "", avoid: a.avoid ?? "", channels: plan.channels, weekFocus: plan.weeks[0]?.focus ?? "", allowance: creatives.allowance }),
+      publishing: publishingGoal({ business: profile?.name ?? "", voice: a.voice ?? "", avoid: a.avoid ?? "", creatives: creatives.creatives, posts: publishing.posts, networks: linked.length ? linked : channelNetworks(plan.channels) })
     },
     admin,
-    agency: admin ? await agencyCustomers(store2, orgId, label5) : null,
-    studio: admin ? await studioQueue(store2, await store2.listOrgIds(), (id) => aboutBusiness(store2, id)) : null
+    agency,
+    studio: admin ? await studioQueue(store2, await store2.listOrgIds(), (id) => aboutBusiness(store2, id)) : null,
+    publishAdmin: admin ? await Promise.all([{ orgId, name: `${profile?.name ?? "Your workspace"} (yours)` }, ...agency?.customers ?? []].map(async (c) => ({ orgId: c.orgId, name: c.name, link: publicLink(await loadPublishLink(store2, c.orgId)) }))) : null
   };
 }
 async function studioKeyOk(request) {
@@ -6385,6 +6698,26 @@ var POST8 = handle(async (request) => {
     if (b.action === "studio_save" || b.action === "studio_fail") {
       if (!isAdmin(label5, process.env.ADMIN_EMAILS)) throw new HttpError(403, "Only the SIXXAB admin can save studio results");
       await studioWrite(store2, b, label5, b.action === "studio_save");
+      return json(await view(store2, orgId, label5));
+    }
+    if (b.action === "draft_posts") {
+      await draftPosts(store2, orgId, { creativeId: b.creativeId, networks: b.networks, text: b.text }, label5);
+      return json(await view(store2, orgId, label5));
+    }
+    if (b.action === "discard_post") {
+      await discardPost(store2, orgId, String(b.id ?? ""), label5);
+      return json(await view(store2, orgId, label5));
+    }
+    if (b.action === "publish_draft") {
+      const post = await publishDraft(store2, orgId, String(b.id ?? ""), b.when, pubEnv(), label5);
+      return json({ post, ...await view(store2, orgId, label5) });
+    }
+    if (b.action === "publishing_link" || b.action === "publishing_channels") {
+      if (!isAdmin(label5, process.env.ADMIN_EMAILS)) throw new HttpError(403, "Only the SIXXAB admin can link social accounts");
+      if (b.action === "publishing_channels") return json({ channels: await listPostizChannels(pubEnv()) });
+      const target = String(b.orgId ?? "");
+      if (!(await store2.listOrgIds()).includes(target)) throw new HttpError(404, "No such business");
+      await setPublishLink(store2, target, b.link, label5);
       return json(await view(store2, orgId, label5));
     }
     if (b.action === "save") {
