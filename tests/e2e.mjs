@@ -547,6 +547,63 @@ await check('marketing tab: save the assessment, open card checkout, record the 
   await ctx.close();
 });
 
+await check('marketing app: /marketing is the agency on its own; an Indian business sees rupee prices, pays on Razorpay and checks the payment', async () => {
+  const ctx = await browser.newContext({ ...devices['iPhone 13'] });
+  const state = { otp: [], decisions: [], pending: [], profile: { name: 'Radha Ortho' }, admin: [] };
+  await mockServices(ctx, state);
+  const view = JSON.parse(fs.readFileSync(new URL('./fixtures/marketing-view.json', import.meta.url), 'utf8'));
+  view.marketing.currency = 'INR';
+  view.payments.razorpay = { connected: true, mode: 'test', note: 'Razorpay test mode: no real money moves.' };
+  const posts = [];
+  await ctx.route(/\/api\/marketing$/, async (route) => {
+    if (route.request().method() === 'POST') {
+      const b = JSON.parse(route.request().postData() || '{}');
+      posts.push(b);
+      if (b.action === 'checkout') return route.fulfill({ json: { url: 'https://rzp.io/rzp/abc123' } });
+      if (b.action === 'confirm') {
+        view.pendingRazorpay = null;
+        view.marketing.subscription = { planId: 'growth', planName: 'Growth', provider: 'razorpay', subscriptionId: b.ref, mode: 'test', status: 'active', startedAt: new Date().toISOString(), lastPaidAt: new Date().toISOString(), amount: 9999, currency: 'INR' };
+        view.marketing.payments = [{ provider: 'razorpay', ref: b.ref, subscriptionId: b.ref, planId: 'growth', amount: 9999, currency: 'INR', mode: 'test', kind: 'first', payer: '', at: new Date().toISOString() }];
+        return route.fulfill({ json: { paid: true, ...view } });
+      }
+    }
+    return route.fulfill({ json: view });
+  });
+  await ctx.route('https://rzp.io/**', (r) => r.fulfill({ contentType: 'text/html', body: '<h1>Razorpay test page</h1>' }));
+  // Signed out, the app sends the owner to sign in and back here.
+  const out = await ctx.newPage();
+  await out.goto(BASE + '/marketing');
+  await out.waitForURL(/\/login\?next=marketing$/);
+  await out.close();
+  await ctx.addInitScript(() => localStorage.setItem('sixxab.session', JSON.stringify({ accessToken: 'at', refreshToken: 'rt', expiresAt: Math.floor(Date.now() / 1000) + 3600, user: { id: 'u1', email: 'owner@example.in' } })));
+  const page = await ctx.newPage();
+  await page.goto(BASE + '/marketing');
+  await page.getByText('Cost per lead to stay under').waitFor();
+  assert.equal(await page.locator('link[rel="manifest"]').getAttribute('href'), '/marketing.webmanifest', 'installs as its own app');
+  assert.equal(await page.getByRole('link', { name: 'Workspace' }).getAttribute('href'), '/app');
+  assert.equal(await page.getByRole('button', { name: 'Marketing', exact: true }).count(), 0, 'no workspace tabs');
+  const growth = page.locator('.mk-plan', { hasText: 'Growth' });
+  await growth.getByText('₹9,999').waitFor();
+  assert.equal(await growth.getByRole('button', { name: 'Card, Apple Pay or Google Pay' }).count(), 0, 'rupees first');
+  await page.screenshot({ path: `${SHOTS}/marketing-app.png`, fullPage: true });
+  await growth.getByRole('button', { name: 'UPI, card or netbanking' }).click();
+  await page.getByText('Razorpay test page').waitFor();
+  assert.deepEqual(posts[0], { action: 'checkout', planId: 'growth', provider: 'razorpay', app: 'marketing' });
+  // Back in the app, the open Razorpay payment can be checked.
+  view.pendingRazorpay = { ref: 'sub_TEST1234', planId: 'growth', at: new Date().toISOString() };
+  await page.goto(BASE + '/marketing');
+  await page.getByRole('button', { name: 'Check my payment' }).click();
+  await page.getByText('Payment received. Your marketing plan is active and onboarding has started.').waitFor();
+  assert.deepEqual(posts[1], { action: 'confirm', provider: 'razorpay', ref: 'sub_TEST1234' });
+  await page.locator('.mk-plan.on', { hasText: 'Growth' }).waitFor();
+  // Dollars stay one tap away.
+  await page.getByRole('button', { name: 'Pay in US dollars instead' }).click();
+  await page.locator('.mk-plan', { hasText: 'Starter' }).getByText('$79').waitFor();
+  const trend = page.locator('.mk-trend li');
+  assert.equal(await trend.count(), 8, 'eight weeks of leads');
+  await ctx.close();
+});
+
 await browser.close();
 for (const r of results) console.log(r.join('  '));
 const failed = results.filter((r) => r[0] === 'FAIL').length;

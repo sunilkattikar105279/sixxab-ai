@@ -2,8 +2,10 @@
 // GET  /api/marketing → the questionnaire, readiness, plan, payment setup and the goals for the Business Assessor and CMO agents.
 //                        Admins also get the agency's paying businesses, which are added to their CRM as won deals.
 // POST /api/marketing { action: 'save', answers }                 → save the assessment
-// POST /api/marketing { action: 'checkout', planId, provider }      → a Stripe or PayPal checkout page to send the browser to
-// POST /api/marketing { action: 'confirm', provider, ref }          → record a finished checkout when the browser comes back
+// POST /api/marketing { action: 'checkout', planId, provider, app? } → a Stripe, PayPal or Razorpay (INR) payment page to send
+//                                                                      the browser to; app 'marketing' comes back to the marketing app
+// POST /api/marketing { action: 'confirm', provider, ref }          → record a finished checkout when the browser comes back, or when
+//                                                                      the owner presses "Check my payment" after Razorpay
 // POST /api/marketing { action: 'request_creative', creative }      → queue an image or video ad brief for the studio
 // POST /api/marketing { action: 'decide_creative', id, decision }   → approve or reject a finished ad (approving does not publish)
 // POST /api/marketing { action: 'draft_posts', creativeId, networks, text } → draft one social post per network from an approved ad
@@ -27,7 +29,10 @@ import {
   channelNetworks, discardPost, draftPosts, linkedNetworks, listPostizChannels, loadPublishing, loadPublishLink, publicLink, publishDraft, publishingGoal,
   publishSetup, setPublishLink, type PublishEnv,
 } from '../../core/publishing.js';
-import { confirmPaypalSubscription, confirmStripeSession, createPaypalSubscription, createStripeCheckout, paymentSetup, type PayEnv } from '../../core/payments.js';
+import {
+  confirmPaypalSubscription, confirmRazorpaySubscription, confirmStripeSession, createPaypalSubscription, createRazorpaySubscription, createStripeCheckout,
+  paymentSetup, type PayEnv,
+} from '../../core/payments.js';
 import { loadBusinessProfile } from '../../core/profile.js';
 import type { SupabaseStore } from '../../core/supabase-store.js';
 import { handle, HttpError, journeyOptions, json, readJson, requireUser, store as platformStore } from '../context.js';
@@ -60,8 +65,27 @@ export async function agencyCustomers(store: SupabaseStore, adminOrgId: string, 
     };
   }));
   const customers = rows.filter((r): r is NonNullable<typeof r> => Boolean(r));
-  const live = customers.filter((c) => c.mode === 'live' && c.status === 'active');
-  return { customers, added, monthlyLiveUsd: live.filter((c) => c.currency === 'USD').reduce((s, c) => s + c.amount, 0) };
+  const active = customers.filter((c) => c.status === 'active');
+  const live = active.filter((c) => c.mode === 'live');
+  const sum = (cur: string) => live.filter((c) => c.currency === cur).reduce((s, c) => s + c.amount, 0);
+  const usd = sum('USD');
+  const inr = sum('INR');
+  const byPlan: Record<string, number> = {};
+  for (const c of active) byPlan[c.planName] = (byPlan[c.planName] ?? 0) + 1;
+  return {
+    customers, added, monthlyLiveUsd: usd, monthlyLiveInr: inr, monthlyLiveTotalUsd: Math.round(usd + inr / rate()),
+    active: active.length, live: live.length, test: active.length - live.length, byPlan,
+    leads30: customers.reduce((s, c) => s + c.leads30, 0), posted: customers.reduce((s, c) => s + c.posted, 0),
+  };
+}
+
+/** A Razorpay page opened in the last three days that hasn't been paid yet: the app offers "Check my payment" for it. */
+async function pendingRazorpay(store: SupabaseStore, orgId: string, m: MarketingState) {
+  const last = (await store.listAuditByActions(orgId, ['marketing.checkout'])).filter((e) => e.detail.provider === 'razorpay').at(-1);
+  if (!last || Date.now() - Date.parse(last.at) > 72 * 3_600_000) return null;
+  const ref = String(last.detail.ref ?? '');
+  if (m.payments.some((p) => p.provider === 'razorpay' && p.subscriptionId === ref)) return null;
+  return { ref, planId: String(last.detail.planId ?? ''), at: last.at };
 }
 
 /** What the studio needs to know about a business to make its ads. */
@@ -88,7 +112,7 @@ async function view(store: SupabaseStore, orgId: string, label: string) {
   const linked = linkedNetworks(link, setup);
   const publishing = await loadPublishing(store, orgId);
   const agency = admin ? await agencyCustomers(store, orgId, label) : null;
-  const [leads, crm, adsPlan] = await Promise.all([loadLeads(store, orgId), loadCrm(store, orgId), loadAdsPlan(store, orgId)]);
+  const [leads, crm, adsPlan, pending] = await Promise.all([loadLeads(store, orgId), loadCrm(store, orgId), loadAdsPlan(store, orgId), pendingRazorpay(store, orgId, marketing)]);
   const approved = creatives.creatives.filter((c) => c.status === 'approved');
   const spend = monthlySpend(marketing);
   const dashboard = computeDashboard({
@@ -96,7 +120,7 @@ async function view(store: SupabaseStore, orgId: string, label: string) {
     ceiling: marketing.cpl.ceiling, target: marketing.cpl.leadsTarget, spend,
   });
   return {
-    marketing, plans: MARKETING_PLANS, sections: ASSESSMENT_SECTIONS, payments: paymentSetup(payEnv()), creatives,
+    marketing, plans: MARKETING_PLANS, sections: ASSESSMENT_SECTIONS, payments: paymentSetup(payEnv()), pendingRazorpay: pending, inrPerUsd: rate(), creatives,
     publishing, publishSetup: setup, publishLink: publicLink(link), linked,
     dashboard, leadForm: leads.form ? { id: leads.form.id, on: leads.form.on, url: formUrl(leads.form) } : null,
     adsPlan, adPlatforms: AD_PLATFORMS,
@@ -132,12 +156,12 @@ async function studioWrite(store: SupabaseStore, b: Body, by: string, ok: boolea
   else await failCreative(store, target, String(b.id ?? ''), String(b.reason ?? ''), by);
 }
 
-/** Where the provider sends the browser back: this app, on the Marketing tab. */
-function returnBase(request: Request): string {
+/** Where the provider sends the browser back: the workspace's Marketing tab, or the marketing app. */
+function returnBase(request: Request, app?: string): string {
   const u = new URL(request.url);
   const local = u.hostname === 'localhost' || u.hostname === '127.0.0.1';
   if (u.protocol !== 'https:' && !local) throw new HttpError(400, 'Checkout needs a secure connection');
-  return `${u.protocol}//${u.host}/app`;
+  return `${u.protocol}//${u.host}${app === 'marketing' ? '/marketing' : '/app'}`;
 }
 
 export const GET = handle(async (request) => {
@@ -162,7 +186,7 @@ interface Body {
   action?: string; answers?: unknown; planId?: string; provider?: string; ref?: string;
   creative?: Record<string, unknown>; id?: string; decision?: string; note?: string;
   orgId?: string; mediaUrl?: string; model?: string; credits?: number; generationId?: string; reason?: string;
-  creativeId?: string; networks?: unknown; text?: string; when?: string; link?: unknown; leadLink?: boolean; change?: string;
+  creativeId?: string; networks?: unknown; text?: string; when?: string; link?: unknown; leadLink?: boolean; change?: string; app?: string;
 }
 
 export const POST = handle(async (request) => {
@@ -227,7 +251,7 @@ export const POST = handle(async (request) => {
     if (b.action === 'checkout') {
       const plan = getMarketingPlan(b.planId);
       if (!plan) throw new HttpError(400, 'Pick a plan');
-      const base = returnBase(request);
+      const base = returnBase(request, b.app);
       const cancelUrl = `${base}?marketing=cancelled`;
       if (b.provider === 'stripe') {
         const s = await createStripeCheckout(payEnv(), { planId: plan.id as PlanId, orgId, email: label.includes('@') ? label : undefined, successUrl: `${base}?marketing=stripe&ref={CHECKOUT_SESSION_ID}`, cancelUrl });
@@ -239,13 +263,19 @@ export const POST = handle(async (request) => {
         await store.audit({ id: crypto.randomUUID(), orgId, at: new Date().toISOString(), actor: label, action: 'marketing.checkout', taskId: null, detail: { provider: 'paypal', planId: plan.id, ref: s.id, summary: `Opened PayPal checkout for the Marketing ${plan.name} plan` } });
         return json({ url: s.url });
       }
-      throw new HttpError(400, 'Pay by card or PayPal');
+      if (b.provider === 'razorpay') {
+        const s = await createRazorpaySubscription(payEnv(), { planId: plan.id as PlanId, orgId });
+        await store.audit({ id: crypto.randomUUID(), orgId, at: new Date().toISOString(), actor: label, action: 'marketing.checkout', taskId: null, detail: { provider: 'razorpay', planId: plan.id, ref: s.id, summary: `Opened Razorpay checkout for the Marketing ${plan.name} plan in INR` } });
+        return json({ url: s.url });
+      }
+      throw new HttpError(400, 'Pay by card, PayPal or Razorpay');
     }
     if (b.action === 'confirm') {
       const ref = String(b.ref ?? '');
       const paid = b.provider === 'stripe' ? await confirmStripeSession(store, payEnv(), orgId, ref, label)
         : b.provider === 'paypal' ? await confirmPaypalSubscription(store, payEnv(), orgId, ref, label)
-          : (() => { throw new HttpError(400, 'Unknown payment provider'); })();
+          : b.provider === 'razorpay' ? await confirmRazorpaySubscription(store, payEnv(), orgId, ref, label)
+            : (() => { throw new HttpError(400, 'Unknown payment provider'); })();
       return json({ paid, ...(await view(store, orgId, label)) });
     }
   } catch (e) {

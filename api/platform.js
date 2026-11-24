@@ -2132,6 +2132,7 @@ var MARKETING_PLANS = [
     id: "starter",
     name: "Starter",
     priceUsd: 79,
+    priceInr: 2999,
     for: "Owners who run it themselves",
     images: 20,
     videos: 4,
@@ -2143,6 +2144,7 @@ var MARKETING_PLANS = [
     id: "growth",
     name: "Growth",
     priceUsd: 249,
+    priceInr: 9999,
     for: "Small businesses that want paid ads managed",
     images: 40,
     videos: 8,
@@ -2154,6 +2156,7 @@ var MARKETING_PLANS = [
     id: "agency",
     name: "Agency",
     priceUsd: 999,
+    priceInr: 39999,
     for: "Owners who want it done for them",
     images: 80,
     videos: 16,
@@ -2165,6 +2168,7 @@ var MARKETING_PLANS = [
     id: "scale",
     name: "Scale",
     priceUsd: 5e3,
+    priceInr: 25e4,
     for: "Larger and multi-location businesses",
     images: 0,
     videos: 0,
@@ -2332,7 +2336,8 @@ function recommendPlan(a, currency = "USD", inrPerUsd = 85) {
   if (budget >= 1e4) return { planId: "scale", reason: "Your ad budget is large enough for the full agent company, set up with you on a call." };
   if (budget >= 2500) return { planId: "agency", reason: "At this budget a person reviewing every creative and a landing page pay for themselves." };
   if (budget >= 500) return { planId: "growth", reason: "Your budget is enough for paid ads, so the Ads Manager runs them in your own accounts." };
-  return { planId: "starter", reason: budget > 0 ? "Under $500 a month of ads works best as steady organic posts plus small boosts." : "With no ad budget yet, start with organic posts and the leads they bring." };
+  const under = currency === "INR" ? `\u20B9${Math.round(500 * inrPerUsd).toLocaleString("en-IN")}` : "$500";
+  return { planId: "starter", reason: budget > 0 ? `Under ${under} a month of ads works best as steady organic posts plus small boosts.` : "With no ad budget yet, start with organic posts and the leads they bring." };
 }
 function costPerLead(a) {
   const sale = num3(a, "averageSale");
@@ -2446,6 +2451,7 @@ async function saveTailoredPlan(store2, orgId, input, by) {
   await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "marketing.plan", taskId: null, detail: { plan, summary: "CMO agent saved a tailored 30-day marketing plan" } });
   return "Saved the tailored 30-day plan. The owner sees it on the Marketing tab; nothing was posted or spent.";
 }
+var PROVIDER_LABEL = { stripe: "card", paypal: "PayPal", razorpay: "Razorpay" };
 async function recordPayment(store2, orgId, p, by) {
   const plan = getMarketingPlan(p.planId);
   if (!plan || !plan.checkout) throw new Error("Unknown plan");
@@ -2453,7 +2459,7 @@ async function recordPayment(store2, orgId, p, by) {
   const done = await store2.listAuditByActions(orgId, ["marketing.payment"]);
   if (done.some((e) => e.detail.provider === p.provider && e.detail.ref === p.ref)) return { recorded: false };
   const at = nowIso();
-  await store2.audit({ id: newId(), orgId, at, actor: by, action: "marketing.payment", taskId: null, detail: { ...p, summary: `${p.mode === "test" ? "Test payment" : "Payment"} received: Marketing ${plan.name}, ${p.amount} ${p.currency} by ${p.provider === "stripe" ? "card" : "PayPal"}` } });
+  await store2.audit({ id: newId(), orgId, at, actor: by, action: "marketing.payment", taskId: null, detail: { ...p, summary: `${p.mode === "test" ? "Test payment" : "Payment"} received: Marketing ${plan.name}, ${p.amount} ${p.currency} by ${PROVIDER_LABEL[p.provider] ?? p.provider}` } });
   if (p.mode === "live") {
     await setPlan(store2, orgId, { name: `Marketing ${plan.name}`, monthlyFee: p.amount, currency: p.currency }, by);
     const inv = await draftInvoice(store2, orgId, at.slice(0, 7), by);
@@ -2571,7 +2577,7 @@ async function syncAgencySales(store2, adminOrgId, orgIds, names, by) {
       sourceDetail: `Marketing ${plan?.name ?? ""} plan checkout`.replace("  ", " "),
       value: first.amount,
       nextStep: "Plan onboarding",
-      notes: `Paid for the Marketing ${plan?.name ?? first.planId} plan by ${first.provider === "stripe" ? "card" : "PayPal"}${test ? " in test mode; remove this deal when you are done testing" : ""}.`
+      notes: `Paid for the Marketing ${plan?.name ?? first.planId} plan by ${PROVIDER_LABEL[first.provider] ?? first.provider}${test ? " in test mode; remove this deal when you are done testing" : ""}.`
     }, by, `Marketing customer added: ${name}`);
     await setDealStage(store2, adminOrgId, contactId4, "won", by);
     await store2.audit({ id: newId(), orgId: adminOrgId, at: nowIso(), actor: by, action: "marketing.synced", taskId: null, detail: { customerOrgId: orgId, contactId: contactId4, summary: `${name} added to the CRM as a won deal` } });
@@ -3170,6 +3176,21 @@ async function captureLead(store2, orgId, state, lead, posts, now = /* @__PURE__
   } });
   return { contactId: contactId4, repeat: Boolean(match) };
 }
+function weeklyLeads(leads, wonIds, now, weeks = 8) {
+  const DAY4 = 864e5;
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const monday = today - (now.getUTCDay() + 6) % 7 * DAY4;
+  const rows = Array.from({ length: weeks }, (_, i) => ({ start: new Date(monday - (weeks - 1 - i) * 7 * DAY4).toISOString().slice(0, 10), leads: 0, won: 0 }));
+  const first = monday - (weeks - 1) * 7 * DAY4;
+  for (const l of leads) {
+    if (l.repeat) continue;
+    const i = Math.floor((Date.parse(l.at) - first) / (7 * DAY4));
+    if (i < 0 || i >= weeks) continue;
+    rows[i].leads++;
+    if (wonIds.has(l.contactId)) rows[i].won++;
+  }
+  return rows;
+}
 var REACHED = ["qualified", "proposal", "won"];
 function computeDashboard(o) {
   const now = o.now ?? /* @__PURE__ */ new Date();
@@ -3215,7 +3236,8 @@ function computeDashboard(o) {
     recent: o.leads.leads.slice(0, 8).map((l) => {
       const c = byId.get(l.contactId);
       return { at: l.at, name: c?.name ?? "Removed contact", label: `${sourceLabel(l.source)}${l.paid ? " ad" : ""}`, stage: c?.stage ?? null, contactId: l.contactId, repeat: l.repeat };
-    })
+    }),
+    weekly: weeklyLeads(o.leads.leads, new Set(won.map((c) => c.id)), now)
   };
 }
 
@@ -5313,11 +5335,11 @@ function computeGovernance(input) {
 
 // server/build-info.ts
 var BUILD_INFO = {
-  "builtAt": "2026-11-24T20:24:45.443Z",
-  "files": 118,
-  "lines": 14806,
-  "tests": 171,
-  "e2e": 12,
+  "builtAt": "2026-11-24T20:38:44.817Z",
+  "files": 120,
+  "lines": 15138,
+  "tests": 174,
+  "e2e": 13,
   "rlsTables": 9,
   "cspHeader": true,
   "apiRoutes": 12
@@ -6641,7 +6663,10 @@ function paymentSetup(env2) {
   const hasPaypal = Boolean(val(env2.PAYPAL_CLIENT_ID) && val(env2.PAYPAL_CLIENT_SECRET));
   const pMode = val(env2.PAYPAL_ENV).toLowerCase() === "live" ? "live" : "test";
   const paypal = !hasPaypal ? { connected: false, mode: null, note: "PayPal isn't connected yet." } : pMode === "live" && !liveOn(env2) ? { connected: false, mode: "live", note: LIVE_OFF } : { connected: true, mode: pMode, note: pMode === "test" ? "PayPal sandbox: no real money moves." : "Live: real charges." };
-  return { stripe, paypal };
+  const kid = val(env2.RAZORPAY_KEY_ID);
+  const rMode = /^rzp_test_/.test(kid) ? "test" : /^rzp_live_/.test(kid) ? "live" : null;
+  const razorpay = !kid || !val(env2.RAZORPAY_KEY_SECRET) ? { connected: false, mode: null, note: "UPI and Indian card payments (Razorpay) aren't connected yet." } : !rMode ? { connected: false, mode: null, note: "The Razorpay key ID doesn't look right: it starts with rzp_test_ or rzp_live_." } : rMode === "live" && !liveOn(env2) ? { connected: false, mode: "live", note: LIVE_OFF } : { connected: true, mode: rMode, note: rMode === "test" ? "Razorpay test mode: no real money moves." : "Live: real charges." };
+  return { stripe, paypal, razorpay };
 }
 var checkoutPlan = (planId) => {
   const plan = getMarketingPlan(planId);
@@ -6906,6 +6931,99 @@ async function handlePaypalEvent(store2, env2, event, orgIds, fetchImpl = fetch)
   }
   return `ignored: ${event.event_type}`;
 }
+var RAZORPAY = "https://api.razorpay.com/v1";
+var RAZORPAY_TOTAL_COUNT = 120;
+var RZP_PAGE = /^https:\/\/(rzp\.io|([a-z0-9-]+\.)?razorpay\.com)\//;
+async function razorpayCall(env2, path, init, fetchImpl) {
+  const basic = btoa(`${val(env2.RAZORPAY_KEY_ID)}:${val(env2.RAZORPAY_KEY_SECRET)}`);
+  const res = await fetchImpl(`${RAZORPAY}${path}`, {
+    method: init.method ?? (init.json ? "POST" : "GET"),
+    headers: { authorization: `Basic ${basic}`, "content-type": "application/json" },
+    body: init.json ? JSON.stringify(init.json) : void 0,
+    signal: AbortSignal.timeout(2e4)
+  });
+  const body = await res.json().catch(() => ({}));
+  if (res.status === 401) throw new Error("Razorpay sign-in failed; check the Razorpay keys");
+  if (!res.ok) throw new Error(`Razorpay ${res.status}: ${String(body.error?.description ?? "request failed").slice(0, 200)}`);
+  return body;
+}
+var rzpNotes = (n) => n && !Array.isArray(n) && typeof n === "object" ? n : {};
+async function ensureRazorpayPlan(env2, plan, fetchImpl) {
+  const amount = Math.round(plan.priceInr * 100);
+  if (!(amount > 0)) throw new Error(`${plan.name} has no INR price yet`);
+  const list3 = await razorpayCall(env2, "/plans?count=100", {}, fetchImpl);
+  const found = (list3.items ?? []).find((p) => p.period === "monthly" && p.interval === 1 && p.item?.amount === amount && p.item?.currency === "INR" && rzpNotes(p.notes).sixxab_plan === plan.id);
+  if (found) return found.id;
+  const created = await razorpayCall(env2, "/plans", {
+    json: { period: "monthly", interval: 1, item: { name: planName(plan), amount, currency: "INR", description: `${plan.name} plan, billed monthly` }, notes: { sixxab_plan: plan.id } }
+  }, fetchImpl);
+  if (!created.id || !/^plan_\w+$/.test(created.id)) throw new Error("Razorpay did not create the plan");
+  return created.id;
+}
+async function createRazorpaySubscription(env2, o, fetchImpl = fetch) {
+  const setup = paymentSetup(env2).razorpay;
+  if (!setup.connected) throw new Error(setup.note);
+  const plan = checkoutPlan(o.planId);
+  const rzpPlan = await ensureRazorpayPlan(env2, plan, fetchImpl);
+  const sub = await razorpayCall(env2, "/subscriptions", {
+    json: { plan_id: rzpPlan, total_count: RAZORPAY_TOTAL_COUNT, quantity: 1, customer_notify: 1, notes: { orgId: o.orgId, plan: plan.id } }
+  }, fetchImpl);
+  const url2 = sub.short_url ?? "";
+  if (!/^sub_\w+$/.test(sub.id ?? "") || !RZP_PAGE.test(url2)) throw new Error("Razorpay did not return a payment page");
+  return { id: sub.id, url: url2 };
+}
+async function recordRazorpay(store2, env2, s, orgId, o, by) {
+  const notes = rzpNotes(s.notes);
+  if (notes.orgId !== orgId) throw new Error("This subscription belongs to another workspace");
+  if (!((s.paid_count ?? 0) >= 1)) return false;
+  const plan = checkoutPlan(notes.plan);
+  await recordPayment(store2, orgId, {
+    provider: "razorpay",
+    ref: o.ref,
+    subscriptionId: s.id,
+    planId: plan.id,
+    amount: typeof o.payment?.amount === "number" ? o.payment.amount / 100 : plan.priceInr,
+    currency: (o.payment?.currency ?? "INR").toUpperCase(),
+    mode: paymentSetup(env2).razorpay.mode === "live" ? "live" : "test",
+    kind: o.kind,
+    payer: o.payment?.email ?? ""
+  }, by);
+  return true;
+}
+async function confirmRazorpaySubscription(store2, env2, orgId, subscriptionId, by, fetchImpl = fetch) {
+  if (!/^sub_[A-Za-z0-9]{6,40}$/.test(subscriptionId)) throw new Error("That Razorpay reference doesn't look right");
+  const setup = paymentSetup(env2).razorpay;
+  if (!setup.connected) throw new Error(setup.note);
+  const s = await razorpayCall(env2, `/subscriptions/${subscriptionId}`, {}, fetchImpl);
+  return recordRazorpay(store2, env2, s, orgId, { ref: s.id, kind: "first" }, by);
+}
+async function verifyRazorpaySignature(rawBody, header, secret) {
+  if (!header || !secret) return false;
+  const key = await globalThis.crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const expected = hex(await globalThis.crypto.subtle.sign("HMAC", key, enc.encode(rawBody)));
+  return sameText(header.trim().toLowerCase(), expected);
+}
+async function handleRazorpayEvent(store2, env2, event, orgIds) {
+  const s = event.payload?.subscription?.entity;
+  if (!s?.id) return `ignored: ${event.event}`;
+  const orgId = rzpNotes(s.notes).orgId ?? "";
+  if (!orgIds.includes(orgId)) return "ignored: unknown workspace";
+  const payment = event.payload?.payment?.entity;
+  if (event.event === "subscription.activated" || event.event === "subscription.authenticated") {
+    return await recordRazorpay(store2, env2, s, orgId, { ref: s.id, kind: "first", payment }, "razorpay") ? "recorded" : "not charged yet";
+  }
+  if (event.event === "subscription.charged") {
+    const first = (s.paid_count ?? 0) <= 1;
+    if (!first && !payment?.id) return "ignored: charge without a payment";
+    const ok = await recordRazorpay(store2, env2, s, orgId, { ref: first ? s.id : String(payment?.id), kind: first ? "first" : "renewal", payment }, "razorpay");
+    return !ok ? "not charged yet" : first ? "recorded" : "recorded renewal";
+  }
+  if (["subscription.cancelled", "subscription.completed", "subscription.expired"].includes(event.event)) {
+    await recordCancellation(store2, orgId, "razorpay", s.id, "razorpay");
+    return "recorded cancellation";
+  }
+  return `ignored: ${event.event}`;
+}
 
 // server/routes/marketing.ts
 var payEnv = () => process.env;
@@ -6939,8 +7057,33 @@ async function agencyCustomers(store2, adminOrgId, by) {
     };
   }));
   const customers = rows.filter((r) => Boolean(r));
-  const live = customers.filter((c) => c.mode === "live" && c.status === "active");
-  return { customers, added, monthlyLiveUsd: live.filter((c) => c.currency === "USD").reduce((s, c) => s + c.amount, 0) };
+  const active = customers.filter((c) => c.status === "active");
+  const live = active.filter((c) => c.mode === "live");
+  const sum = (cur) => live.filter((c) => c.currency === cur).reduce((s, c) => s + c.amount, 0);
+  const usd = sum("USD");
+  const inr = sum("INR");
+  const byPlan = {};
+  for (const c of active) byPlan[c.planName] = (byPlan[c.planName] ?? 0) + 1;
+  return {
+    customers,
+    added,
+    monthlyLiveUsd: usd,
+    monthlyLiveInr: inr,
+    monthlyLiveTotalUsd: Math.round(usd + inr / rate()),
+    active: active.length,
+    live: live.length,
+    test: active.length - live.length,
+    byPlan,
+    leads30: customers.reduce((s, c) => s + c.leads30, 0),
+    posted: customers.reduce((s, c) => s + c.posted, 0)
+  };
+}
+async function pendingRazorpay(store2, orgId, m) {
+  const last = (await store2.listAuditByActions(orgId, ["marketing.checkout"])).filter((e) => e.detail.provider === "razorpay").at(-1);
+  if (!last || Date.now() - Date.parse(last.at) > 72 * 36e5) return null;
+  const ref = String(last.detail.ref ?? "");
+  if (m.payments.some((p) => p.provider === "razorpay" && p.subscriptionId === ref)) return null;
+  return { ref, planId: String(last.detail.planId ?? ""), at: last.at };
 }
 async function aboutBusiness(store2, orgId) {
   const profile = await loadBusinessProfile(store2, orgId);
@@ -6964,7 +7107,7 @@ async function view(store2, orgId, label5) {
   const linked = linkedNetworks(link, setup);
   const publishing = await loadPublishing(store2, orgId);
   const agency = admin ? await agencyCustomers(store2, orgId, label5) : null;
-  const [leads, crm, adsPlan] = await Promise.all([loadLeads(store2, orgId), loadCrm(store2, orgId), loadAdsPlan(store2, orgId)]);
+  const [leads, crm, adsPlan, pending] = await Promise.all([loadLeads(store2, orgId), loadCrm(store2, orgId), loadAdsPlan(store2, orgId), pendingRazorpay(store2, orgId, marketing)]);
   const approved = creatives.creatives.filter((c) => c.status === "approved");
   const spend = monthlySpend(marketing);
   const dashboard = computeDashboard({
@@ -6982,6 +7125,8 @@ async function view(store2, orgId, label5) {
     plans: MARKETING_PLANS,
     sections: ASSESSMENT_SECTIONS,
     payments: paymentSetup(payEnv()),
+    pendingRazorpay: pending,
+    inrPerUsd: rate(),
     creatives,
     publishing,
     publishSetup: setup,
@@ -7020,11 +7165,11 @@ async function studioWrite(store2, b, by, ok) {
   if (ok) await saveCreativeResult(store2, target, { id: b.id, mediaUrl: b.mediaUrl, model: b.model, credits: b.credits, generationId: b.generationId }, by);
   else await failCreative(store2, target, String(b.id ?? ""), String(b.reason ?? ""), by);
 }
-function returnBase(request) {
+function returnBase(request, app) {
   const u = new URL(request.url);
   const local = u.hostname === "localhost" || u.hostname === "127.0.0.1";
   if (u.protocol !== "https:" && !local) throw new HttpError(400, "Checkout needs a secure connection");
-  return `${u.protocol}//${u.host}/app`;
+  return `${u.protocol}//${u.host}${app === "marketing" ? "/marketing" : "/app"}`;
 }
 var GET9 = handle(async (request) => {
   if (request.headers.has("x-studio-key")) {
@@ -7107,7 +7252,7 @@ var POST8 = handle(async (request) => {
     if (b.action === "checkout") {
       const plan = getMarketingPlan(b.planId);
       if (!plan) throw new HttpError(400, "Pick a plan");
-      const base = returnBase(request);
+      const base = returnBase(request, b.app);
       const cancelUrl = `${base}?marketing=cancelled`;
       if (b.provider === "stripe") {
         const s = await createStripeCheckout(payEnv(), { planId: plan.id, orgId, email: label5.includes("@") ? label5 : void 0, successUrl: `${base}?marketing=stripe&ref={CHECKOUT_SESSION_ID}`, cancelUrl });
@@ -7119,11 +7264,16 @@ var POST8 = handle(async (request) => {
         await store2.audit({ id: crypto.randomUUID(), orgId, at: (/* @__PURE__ */ new Date()).toISOString(), actor: label5, action: "marketing.checkout", taskId: null, detail: { provider: "paypal", planId: plan.id, ref: s.id, summary: `Opened PayPal checkout for the Marketing ${plan.name} plan` } });
         return json({ url: s.url });
       }
-      throw new HttpError(400, "Pay by card or PayPal");
+      if (b.provider === "razorpay") {
+        const s = await createRazorpaySubscription(payEnv(), { planId: plan.id, orgId });
+        await store2.audit({ id: crypto.randomUUID(), orgId, at: (/* @__PURE__ */ new Date()).toISOString(), actor: label5, action: "marketing.checkout", taskId: null, detail: { provider: "razorpay", planId: plan.id, ref: s.id, summary: `Opened Razorpay checkout for the Marketing ${plan.name} plan in INR` } });
+        return json({ url: s.url });
+      }
+      throw new HttpError(400, "Pay by card, PayPal or Razorpay");
     }
     if (b.action === "confirm") {
       const ref = String(b.ref ?? "");
-      const paid = b.provider === "stripe" ? await confirmStripeSession(store2, payEnv(), orgId, ref, label5) : b.provider === "paypal" ? await confirmPaypalSubscription(store2, payEnv(), orgId, ref, label5) : (() => {
+      const paid = b.provider === "stripe" ? await confirmStripeSession(store2, payEnv(), orgId, ref, label5) : b.provider === "paypal" ? await confirmPaypalSubscription(store2, payEnv(), orgId, ref, label5) : b.provider === "razorpay" ? await confirmRazorpaySubscription(store2, payEnv(), orgId, ref, label5) : (() => {
         throw new HttpError(400, "Unknown payment provider");
       })();
       return json({ paid, ...await view(store2, orgId, label5) });
@@ -7142,7 +7292,7 @@ __export(payments_exports, {
   POST: () => POST9
 });
 var MAX_BODY = 256e3;
-var GET10 = handle(async () => json({ ok: true, accepts: "POST from Stripe or PayPal" }));
+var GET10 = handle(async () => json({ ok: true, accepts: "POST from Stripe, PayPal or Razorpay" }));
 var POST9 = handle(async (request) => {
   const env2 = process.env;
   const provider = new URL(request.url).searchParams.get("provider");
@@ -7161,6 +7311,14 @@ var POST9 = handle(async (request) => {
     if (!await verifyPaypalWebhook(env2, request.headers, raw)) throw new HttpError(400, "Signature check failed");
     const s = store();
     const result = await handlePaypalEvent(s, env2, JSON.parse(raw), await s.listOrgIds());
+    return json({ received: true, result });
+  }
+  if (provider === "razorpay") {
+    const secret = env2.RAZORPAY_WEBHOOK_SECRET?.trim();
+    if (!secret || !env2.RAZORPAY_KEY_ID?.trim()) throw new HttpError(503, "Razorpay is not connected");
+    if (!await verifyRazorpaySignature(raw, request.headers.get("x-razorpay-signature") ?? "", secret)) throw new HttpError(400, "Signature check failed");
+    const s = store();
+    const result = await handleRazorpayEvent(s, env2, JSON.parse(raw), await s.listOrgIds());
     return json({ received: true, result });
   }
   throw new HttpError(404, "Unknown provider");

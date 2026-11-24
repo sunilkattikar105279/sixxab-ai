@@ -509,6 +509,10 @@ test('after sign-in, ?next=start|scale|run opens that part of the workspace; any
   assert.equal(afterSignInPath('?next=run'), '/app?journey=run');
   assert.equal(afterSignInPath(''), '/app');
   assert.equal(afterSignInPath('?next=https://evil.example'), '/app', 'never an open redirect');
+  assert.equal(afterSignInPath('?next=marketing'), '/marketing');
+  const { magicLinkPath } = await import('../src/lib/auth.js');
+  assert.equal(magicLinkPath('?next=marketing'), '/app?go=marketing', 'emailed links land on the allowed /app address');
+  assert.equal(magicLinkPath('?next=start'), '/app?journey=start');
 });
 
 // ---------- business onboarding profile ----------

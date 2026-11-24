@@ -351,3 +351,11 @@ th { color: var(--sub); font-weight: 500; font-size: 12px; text-transform: upper
 .mk-link { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; margin: 8px 0; }
 .mk-link .field { flex: 0 1 220px; margin: 0; }
 .mk-link code { flex: 1 1 260px; min-width: 0; overflow-wrap: anywhere; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); font-size: 13px; }
+.btn-link { min-height: 0; padding: 0; border: 0; background: none; color: #E7C766; font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.mk-trend { list-style: none; padding: 0; margin: 4px 0 12px; display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; height: 132px; }
+.mk-trend li { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; min-width: 0; }
+.mk-trend .bar { width: 100%; max-width: 28px; border-radius: 6px 6px 2px 2px; background: linear-gradient(#F3D27A, #C8962F); }
+.mk-trend .bar.zero { height: 2px; background: var(--line); }
+.mk-trend .small { white-space: nowrap; }
+.mk-app-top .app-user a { color: inherit; }
+@media (max-width: 520px) { .mk-trend { gap: 3px; } .mk-trend .muted.small { font-size: 10px; } }

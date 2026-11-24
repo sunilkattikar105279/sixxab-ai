@@ -1,7 +1,8 @@
 // Marketing tab: the AI marketing agency under the CMO agent. Results come first (posts, leads, cost per lead, wins, the
 // lead form and the paid ads plan). The owner answers the assessment, sees readiness and gaps, gets a 30-day plan
-// (tailored by the CMO agent), and picks a plan at a Stripe or PayPal checkout. Ads wait for the owner's yes in the
-// ad studio, and each social post goes out only when the owner presses Publish on it.
+// (tailored by the CMO agent), and picks a plan: in USD at a Stripe or PayPal checkout, or in INR on Razorpay (UPI AutoPay,
+// cards, netbanking). Ads wait for the owner's yes in the ad studio, and each social post goes out only when the owner
+// presses Publish on it. The same component is the whole of the standalone marketing app at /marketing.
 import React, { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/auth';
 import type { Answers, MarketingPlan, MarketingState, Question } from '../../core/marketing';
@@ -19,25 +20,33 @@ import type { CreativesState, StudioJob } from '../../core/creatives';
 import type { Network, PublicLink, PublishingState, PublishSetup } from '../../core/publishing';
 
 interface Customer { orgId: string; name: string; planName: string; provider: string; mode: string; status: string; amount: number; currency: string; lastPaidAt: string; readiness: number; leads30?: number; posted?: number }
+interface Agency {
+  customers: Customer[]; added: number; monthlyLiveUsd: number; monthlyLiveInr?: number; monthlyLiveTotalUsd?: number;
+  active?: number; live?: number; test?: number; byPlan?: Record<string, number>; leads30?: number; posted?: number;
+}
 interface View {
   marketing: MarketingState; plans: MarketingPlan[]; sections: { title: string; questions: Question[] }[]; payments: PaySetup;
-  goals: { assessor: string; cmo: string; creatives: string; publishing: string; ads: string }; admin: boolean; agency: { customers: Customer[]; added: number; monthlyLiveUsd: number } | null;
+  pendingRazorpay?: { ref: string; planId: string; at: string } | null; inrPerUsd?: number;
+  goals: { assessor: string; cmo: string; creatives: string; publishing: string; ads: string }; admin: boolean; agency: Agency | null;
   creatives: CreativesState; studio: StudioJob[] | null;
   publishing: PublishingState; publishSetup: PublishSetup; publishLink: PublicLink | null; linked: Network[];
   publishAdmin: { orgId: string; name: string; link: PublicLink | null }[] | null;
   dashboard: Dashboard; leadForm: LeadFormView | null; adsPlan: AdsPlan | null; adPlatforms: Record<string, { label: string; source: string; tool: string }>;
 }
 
-const CHECKOUT_HOSTS = /^https:\/\/(checkout\.stripe\.com|(www\.)?(sandbox\.)?paypal\.com)\//;
+const CHECKOUT_HOSTS = /^https:\/\/(checkout\.stripe\.com|(www\.)?(sandbox\.)?paypal\.com|rzp\.io|([a-z0-9-]+\.)?razorpay\.com)\//;
+type Provider = 'stripe' | 'paypal' | 'razorpay';
+const PAID_BY: Record<string, string> = { stripe: 'Card', paypal: 'PayPal', razorpay: 'Razorpay' };
 const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 
-export function Marketing({ goApprovals }: { goApprovals: () => void }) {
+export function Marketing({ goApprovals, app = 'workspace' }: { goApprovals: () => void; app?: 'workspace' | 'marketing' }) {
   const { data, error, reload } = useLoad<View>('/api/marketing');
   const [answers, setAnswers] = useState<Answers | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [booking, setBooking] = useState<string | null>(null);
+  const [usd, setUsd] = useState(false);
   const returned = useRef(false);
 
   useEffect(() => { if (data && !answers) setAnswers(data.marketing.answers); }, [data, answers]);
@@ -50,7 +59,7 @@ export function Marketing({ goApprovals }: { goApprovals: () => void }) {
     const q = new URLSearchParams(location.search);
     const from = q.get('marketing');
     if (!from) return;
-    history.replaceState(null, '', '/app');
+    history.replaceState(null, '', location.pathname);
     if (from === 'cancelled') { setNotice('Checkout was cancelled. Nothing was charged.'); return; }
     const provider = from === 'stripe' ? 'stripe' : from === 'paypal' ? 'paypal' : '';
     const ref = provider === 'stripe' ? q.get('ref') : q.get('subscription_id');
@@ -78,16 +87,32 @@ export function Marketing({ goApprovals }: { goApprovals: () => void }) {
     } catch (e) { setMsg(e instanceof Error ? e.message : 'Could not save.'); } finally { setBusy(null); }
   }
 
-  async function checkout(planId: string, provider: 'stripe' | 'paypal') {
+  async function checkout(planId: string, provider: Provider) {
     setBusy(`${planId}:${provider}`); setMsg(null);
     try {
-      const r = await api<{ url: string }>('/api/marketing', { method: 'POST', body: JSON.stringify({ action: 'checkout', planId, provider }) });
+      const r = await api<{ url: string }>('/api/marketing', { method: 'POST', body: JSON.stringify({ action: 'checkout', planId, provider, app }) });
       if (!CHECKOUT_HOSTS.test(r.url)) throw new Error('The checkout page address looked wrong, so it was not opened.');
       location.assign(r.url);
     } catch (e) { setMsg(e instanceof Error ? e.message : 'Could not open checkout.'); setBusy(null); }
   }
 
-  const testOnly = [data.payments.stripe, data.payments.paypal].some((p) => p.connected && p.mode === 'test');
+  // Razorpay's page has no way back to the app, so the owner checks the payment here (the webhook records it too).
+  async function checkRazorpay(ref: string) {
+    setBusy('rzp'); setMsg(null);
+    try {
+      const r = await api<{ paid: boolean }>('/api/marketing', { method: 'POST', body: JSON.stringify({ action: 'confirm', provider: 'razorpay', ref }) });
+      setNotice(r.paid ? 'Payment received. Your marketing plan is active and onboarding has started.' : 'Razorpay hasn\'t charged it yet. If you finished paying, check again in a minute.');
+      reload();
+    } catch (e) { setMsg(e instanceof Error ? e.message : 'Could not check the payment.'); } finally { setBusy(null); }
+  }
+
+  const rzp = data.payments.razorpay ?? { connected: false, mode: null, note: '' };
+  const inr = m.currency === 'INR';
+  const showUsd = !inr || usd;
+  const used = inr ? [rzp, ...(usd ? [data.payments.stripe, data.payments.paypal] : [])] : [data.payments.stripe, data.payments.paypal];
+  const testOnly = used.some((p) => p.connected && p.mode === 'test');
+  const pending = data.pendingRazorpay && !current ? data.pendingRazorpay : null;
+  const pendingPlan = pending ? data.plans.find((p) => p.id === pending.planId) : undefined;
 
   return (
     <div className="stack">
@@ -147,29 +172,39 @@ export function Marketing({ goApprovals }: { goApprovals: () => void }) {
 
       <Fold id="mk-plans" title="Plans" hint={current ? `${current.planName} active` : `${recommended?.name ?? ''} recommended`} open={!current}>
         <p className="muted small">{m.recommended.reason}</p>
-        {testOnly && <p className="notice">Test mode: checkout uses test cards and PayPal sandbox accounts, so no real money moves.</p>}
+        {testOnly && <p className="notice">Test mode: checkout uses test cards, test UPI and PayPal sandbox accounts, so no real money moves.</p>}
+        {pending && (
+          <div className="notice">
+            <p>Paid for {pendingPlan?.name ?? 'your plan'} on Razorpay? Check it here and the plan starts straight away.</p>
+            <button type="button" className="btn-primary" disabled={!!busy} onClick={() => checkRazorpay(pending.ref)}>{busy === 'rzp' ? <Spinner label="Checking…" /> : 'Check my payment'}</button>
+          </div>
+        )}
         <div className="mk-plans">
           {data.plans.map((p) => (
             <div key={p.id} className={`mk-plan${p.id === m.recommended.planId ? ' rec' : ''}${current?.planId === p.id ? ' on' : ''}`}>
               <p className="eyebrow">{p.id === m.recommended.planId ? 'Recommended' : current?.planId === p.id ? 'Your plan' : p.for}</p>
               <h3>{p.name}</h3>
-              <p className="mk-price">{money(p.priceUsd)}<span className="muted small"> a month</span></p>
+              <p className="mk-price">{inr && !usd ? money(p.priceInr, 'INR') : money(p.priceUsd)}<span className="muted small"> a month</span></p>
               <ul>{p.includes.map((x) => <li key={x}>{x}</li>)}</ul>
               {current?.planId === p.id ? <p className="muted small">Active since {day(current.startedAt)}.</p> : p.checkout ? (
                 <div className="stack-sm">
-                  <button type="button" className="btn-primary" disabled={!!busy || !data.payments.stripe.connected} onClick={() => checkout(p.id, 'stripe')}>{busy === `${p.id}:stripe` ? <Spinner label="Opening…" /> : 'Card, Apple Pay or Google Pay'}</button>
-                  <button type="button" className="btn-ghost" disabled={!!busy || !data.payments.paypal.connected} onClick={() => checkout(p.id, 'paypal')}>{busy === `${p.id}:paypal` ? <Spinner label="Opening…" /> : 'PayPal'}</button>
+                  {inr && !usd && <button type="button" className="btn-primary" disabled={!!busy || !rzp.connected} onClick={() => checkout(p.id, 'razorpay')}>{busy === `${p.id}:razorpay` ? <Spinner label="Opening…" /> : 'UPI, card or netbanking'}</button>}
+                  {showUsd && (
+                    <>
+                      <button type="button" className="btn-primary" disabled={!!busy || !data.payments.stripe.connected} onClick={() => checkout(p.id, 'stripe')}>{busy === `${p.id}:stripe` ? <Spinner label="Opening…" /> : 'Card, Apple Pay or Google Pay'}</button>
+                      <button type="button" className="btn-ghost" disabled={!!busy || !data.payments.paypal.connected} onClick={() => checkout(p.id, 'paypal')}>{busy === `${p.id}:paypal` ? <Spinner label="Opening…" /> : 'PayPal'}</button>
+                    </>
+                  )}
                 </div>
               ) : booking ? <a className="btn-ghost" href={booking} target="_blank" rel="noopener noreferrer">Book a setup call</a> : <p className="muted small">Set up with you on a call.</p>}
             </div>
           ))}
         </div>
-        {(!data.payments.stripe.connected || !data.payments.paypal.connected) && (
-          <p className="muted small">{[data.payments.stripe, data.payments.paypal].filter((x) => !x.connected).map((x) => x.note).join(' ')}</p>
-        )}
+        {inr && <p className="muted small">{usd ? 'Prices in US dollars, paid by card or PayPal.' : 'Prices in rupees, paid on Razorpay by UPI AutoPay, card or netbanking.'} <button type="button" className="btn-link" onClick={() => setUsd(!usd)}>{usd ? 'Pay in rupees instead' : 'Pay in US dollars instead'}</button></p>}
+        {used.some((x) => !x.connected) && <p className="muted small">{used.filter((x) => !x.connected).map((x) => x.note).join(' ')}</p>}
         {m.payments.length > 0 && (
           <ul className="mk-pays">
-            {m.payments.slice(0, 12).map((p) => <li key={`${p.provider}:${p.ref}`}><span>{day(p.at)} · {p.provider === 'stripe' ? 'Card' : 'PayPal'}{p.kind === 'renewal' ? ' renewal' : ''}{p.mode === 'test' ? ' · test' : ''}</span><strong>{money(p.amount, p.currency)}</strong></li>)}
+            {m.payments.slice(0, 12).map((p) => <li key={`${p.provider}:${p.ref}`}><span>{day(p.at)} · {PAID_BY[p.provider] ?? p.provider}{p.kind === 'renewal' ? ' renewal' : ''}{p.mode === 'test' ? ' · test' : ''}</span><strong>{money(p.amount, p.currency)}</strong></li>)}
           </ul>
         )}
       </Fold>
@@ -178,11 +213,17 @@ export function Marketing({ goApprovals }: { goApprovals: () => void }) {
       <Publishing publishing={data.publishing} setup={data.publishSetup} linked={data.linked} creatives={data.creatives.creatives} goal={data.goals.publishing} admin={data.publishAdmin} reload={reload} goApprovals={goApprovals} leadFormUrl={data.leadForm?.on ? data.leadForm.url : null} />
 
       {data.admin && data.agency && (
-        <Fold id="mk-agency" title="Agency customers" hint={`${data.agency.customers.length} paying · ${money(data.agency.monthlyLiveUsd)} a month live`}>
+        <Fold id="mk-agency" title="Agency customers" hint={`${data.agency.customers.length} paying · ${money(data.agency.monthlyLiveTotalUsd ?? data.agency.monthlyLiveUsd)} a month live`}>
+          <div className="cost-tiles">
+            <div><span className="muted small">Paying businesses</span><strong>{data.agency.active ?? data.agency.customers.length}</strong><span className="muted small">{data.agency.live ?? 0} live · {data.agency.test ?? 0} test</span></div>
+            <div><span className="muted small">Live a month</span><strong>{money(data.agency.monthlyLiveTotalUsd ?? data.agency.monthlyLiveUsd)}</strong><span className="muted small">{money(data.agency.monthlyLiveUsd)} + {money(data.agency.monthlyLiveInr ?? 0, 'INR')}</span></div>
+            <div><span className="muted small">Leads for customers</span><strong>{data.agency.leads30 ?? 0}</strong><span className="muted small">last 30 days</span></div>
+            <div><span className="muted small">Posts out</span><strong>{data.agency.posted ?? 0}</strong><span className="muted small">{Object.entries(data.agency.byPlan ?? {}).map(([k, n]) => `${n} ${k}`).join(' · ') || 'no plans yet'}</span></div>
+          </div>
           {data.agency.added > 0 && <p className="notice">{data.agency.added} new customer{data.agency.added === 1 ? '' : 's'} added to your CRM as won deals.</p>}
           {data.agency.customers.length === 0 ? <p className="muted small">No business has paid for a marketing plan yet. Paying businesses show here and join your CRM as won deals.</p> : (
             <ul className="mk-pays">
-              {data.agency.customers.map((c) => <li key={c.orgId}><span><strong>{c.name}</strong> <span className="muted small">· {c.planName} · {c.provider === 'stripe' ? 'card' : 'PayPal'}{c.mode === 'test' ? ' · test' : ''} · {c.status} · readiness {c.readiness}{c.leads30 !== undefined ? ` · ${c.leads30} leads in 30 days · ${c.posted ?? 0} posts out` : ''}</span></span><strong>{money(c.amount, c.currency)}</strong></li>)}
+              {data.agency.customers.map((c) => <li key={c.orgId}><span><strong>{c.name}</strong> <span className="muted small">· {c.planName} · {c.provider === 'stripe' ? 'card' : PAID_BY[c.provider] ?? c.provider}{c.mode === 'test' ? ' · test' : ''} · {c.status} · readiness {c.readiness}{c.leads30 !== undefined ? ` · ${c.leads30} leads in 30 days · ${c.posted ?? 0} posts out` : ''}</span></span><strong>{money(c.amount, c.currency)}</strong></li>)}
             </ul>
           )}
         </Fold>

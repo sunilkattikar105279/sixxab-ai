@@ -1498,6 +1498,7 @@ var MARKETING_PLANS = [
     id: "starter",
     name: "Starter",
     priceUsd: 79,
+    priceInr: 2999,
     for: "Owners who run it themselves",
     images: 20,
     videos: 4,
@@ -1509,6 +1510,7 @@ var MARKETING_PLANS = [
     id: "growth",
     name: "Growth",
     priceUsd: 249,
+    priceInr: 9999,
     for: "Small businesses that want paid ads managed",
     images: 40,
     videos: 8,
@@ -1520,6 +1522,7 @@ var MARKETING_PLANS = [
     id: "agency",
     name: "Agency",
     priceUsd: 999,
+    priceInr: 39999,
     for: "Owners who want it done for them",
     images: 80,
     videos: 16,
@@ -1531,6 +1534,7 @@ var MARKETING_PLANS = [
     id: "scale",
     name: "Scale",
     priceUsd: 5e3,
+    priceInr: 25e4,
     for: "Larger and multi-location businesses",
     images: 0,
     videos: 0,
@@ -1675,7 +1679,8 @@ function recommendPlan(a, currency = "USD", inrPerUsd = 85) {
   if (budget >= 1e4) return { planId: "scale", reason: "Your ad budget is large enough for the full agent company, set up with you on a call." };
   if (budget >= 2500) return { planId: "agency", reason: "At this budget a person reviewing every creative and a landing page pay for themselves." };
   if (budget >= 500) return { planId: "growth", reason: "Your budget is enough for paid ads, so the Ads Manager runs them in your own accounts." };
-  return { planId: "starter", reason: budget > 0 ? "Under $500 a month of ads works best as steady organic posts plus small boosts." : "With no ad budget yet, start with organic posts and the leads they bring." };
+  const under = currency === "INR" ? `\u20B9${Math.round(500 * inrPerUsd).toLocaleString("en-IN")}` : "$500";
+  return { planId: "starter", reason: budget > 0 ? `Under ${under} a month of ads works best as steady organic posts plus small boosts.` : "With no ad budget yet, start with organic posts and the leads they bring." };
 }
 function costPerLead(a) {
   const sale = num3(a, "averageSale");

@@ -21,6 +21,7 @@ function resolveStatic(p) {
   const clean = decodeURIComponent(p.split('?')[0]);
   const candidates = [clean, `${clean}.html`, path.join(clean, 'index.html')];
   if (clean.startsWith('/app')) candidates.push('/app/index.html');
+  if (clean.startsWith('/marketing')) candidates.push('/marketing/index.html');
   for (const c of candidates) {
     const f = path.join(dist, c);
     if (f.startsWith(dist) && fs.existsSync(f) && fs.statSync(f).isFile()) return f;
@@ -33,7 +34,7 @@ http.createServer(async (req, res) => {
   if (url.pathname.startsWith('/api/')) {
     let name = url.pathname.slice(5).replace(/\/$/, '');
     // Mirror vercel.json: the account and admin endpoints share one function.
-    if (['me', 'admin', 'governance', 'billing', 'raise', 'crm', 'support', 'accounts'].includes(name)) { url.searchParams.set('route', name); name = 'platform'; }
+    if (['me', 'admin', 'governance', 'billing', 'raise', 'crm', 'support', 'accounts', 'marketing', 'payments'].includes(name)) { url.searchParams.set('route', name); name = 'platform'; }
     const file = path.join(root, 'api', `${name}.js`);
     if (!/^[a-z-]+$/.test(name) || !fs.existsSync(file)) { res.writeHead(404).end('{"error":"not found"}'); return; }
     const mod = await import(pathToFileURL(file).href);

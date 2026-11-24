@@ -199,6 +199,9 @@ test('results dashboard: leads in 30 days, cost per lead against the ceiling, fu
   assert.deepEqual(d.bySource[0], { source: 'instagram', label: 'Instagram', leads: 2, won: 1 });
   assert.equal(d.recent[0].name, 'Na');
   assert.equal(d.recent.find((r) => r.repeat)?.label, 'Instagram');
+  assert.deepEqual(d.weekly.map((w) => w.start), ['2026-10-05', '2026-10-12', '2026-10-19', '2026-10-26', '2026-11-02', '2026-11-09', '2026-11-16', '2026-11-23'], 'eight weeks, each from a Monday');
+  assert.deepEqual(d.weekly.map((w) => w.leads), [0, 1, 0, 0, 0, 0, 2, 1], 'new leads per week; repeats left out');
+  assert.equal(d.weekly[7].won, 1);
   assert.equal(computeDashboard({ leads: { form: null, leads: [] }, crm: { contacts: [] } as never, creatives: [], posts: [], currency: 'USD', ceiling: null, target: null, spend: { plan: 0, ads: 0 } }).cpl, null);
 });
 

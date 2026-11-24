@@ -199,6 +199,25 @@ export interface Dashboard {
   spend: { plan: number; ads: number; total: number };
   cpl: number | null; ceiling: number | null;
   recent: { at: string; name: string; label: string; stage: DealStage | null; contactId: string; repeat: boolean }[];
+  /** New leads per week for the last 8 weeks, oldest first; each week starts on the date given (UTC, Monday). */
+  weekly: { start: string; leads: number; won: number }[];
+}
+
+/** New leads (and how many of them were won) per week, Monday to Sunday UTC, for the last `weeks` weeks. */
+export function weeklyLeads(leads: { at: string; contactId: string; repeat: boolean }[], wonIds: Set<string>, now: Date, weeks = 8): Dashboard['weekly'] {
+  const DAY = 86_400_000;
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const monday = today - ((now.getUTCDay() + 6) % 7) * DAY;
+  const rows = Array.from({ length: weeks }, (_, i) => ({ start: new Date(monday - (weeks - 1 - i) * 7 * DAY).toISOString().slice(0, 10), leads: 0, won: 0 }));
+  const first = monday - (weeks - 1) * 7 * DAY;
+  for (const l of leads) {
+    if (l.repeat) continue;
+    const i = Math.floor((Date.parse(l.at) - first) / (7 * DAY));
+    if (i < 0 || i >= weeks) continue;
+    rows[i].leads++;
+    if (wonIds.has(l.contactId)) rows[i].won++;
+  }
+  return rows;
 }
 
 const REACHED: DealStage[] = ['qualified', 'proposal', 'won'];
@@ -241,5 +260,6 @@ export function computeDashboard(o: {
       const c = byId.get(l.contactId);
       return { at: l.at, name: c?.name ?? 'Removed contact', label: `${sourceLabel(l.source)}${l.paid ? ' ad' : ''}`, stage: c?.stage ?? null, contactId: l.contactId, repeat: l.repeat };
     }),
+    weekly: weeklyLeads(o.leads.leads, new Set(won.map((c) => c.id)), now),
   };
 }

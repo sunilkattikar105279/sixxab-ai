@@ -7,12 +7,12 @@ import { MemoryStore } from '../core/store.js';
 import { getAgent } from '../core/agents.js';
 import { TOOLS } from '../core/tools.js';
 import {
-  computeMarketing, costPerLead, draftThirtyDayPlan, loadMarketing, MARKETING_PLANS, prefillAnswers, recommendPlan, recordPayment,
+  computeMarketing, costPerLead, draftThirtyDayPlan, loadMarketing, MARKETING_PLANS, planPrice, prefillAnswers, recommendPlan, recordPayment,
   saveAssessment, scoreReadiness, syncAgencySales, validateAnswers, cmoPlanGoal, assessorGoal,
 } from '../core/marketing.js';
 import {
-  confirmPaypalSubscription, confirmStripeSession, createPaypalSubscription, createStripeCheckout, handlePaypalEvent, handleStripeEvent,
-  paymentSetup, verifyStripeSignature, PAYPAL_PRODUCT_ID,
+  confirmPaypalSubscription, confirmRazorpaySubscription, confirmStripeSession, createPaypalSubscription, createRazorpaySubscription, createStripeCheckout,
+  handlePaypalEvent, handleRazorpayEvent, handleStripeEvent, paymentSetup, verifyRazorpaySignature, verifyStripeSignature, PAYPAL_PRODUCT_ID, RAZORPAY_TOTAL_COUNT,
 } from '../core/payments.js';
 import { listInvoices, loadPlan } from '../core/billing.js';
 import { loadCrm } from '../core/crm.js';
@@ -21,6 +21,7 @@ const ORG = 'org-shop';
 const ADMIN = 'org-admin';
 const STRIPE_TEST = { STRIPE_SECRET_KEY: 'sk_test_abc', STRIPE_WEBHOOK_SECRET: 'whsec_test' };
 const PAYPAL_TEST = { PAYPAL_CLIENT_ID: 'cid', PAYPAL_CLIENT_SECRET: 'csecret', PAYPAL_WEBHOOK_ID: 'WH-1' };
+const RZP_TEST = { RAZORPAY_KEY_ID: 'rzp_test_abc', RAZORPAY_KEY_SECRET: 'rsecret', RAZORPAY_WEBHOOK_SECRET: 'rwhsec' };
 
 const FULL = {
   name: 'Lone Star Dental', industry: 'Dentist', location: 'Dallas, TX', services: 'Cleaning $120, whitening $400, implants $3,000',
@@ -263,4 +264,77 @@ test('marketing state: the newest payment sets the plan; with none, the recommen
   assert.equal(withPay.subscription!.planName, 'Agency');
   assert.equal(withPay.plan30.planId, 'agency');
   assert.equal(withPay.subscription!.startedAt, paidAt);
+});
+
+test('INR plans: each checkout plan has a rupee price set for India, and Razorpay setup follows the key and the live switch', () => {
+  for (const p of MARKETING_PLANS) assert.ok(p.priceInr > 0, `${p.id} has an INR price`);
+  assert.deepEqual(MARKETING_PLANS.filter((p) => p.checkout).map((p) => planPrice(p, 'INR')), [2999, 9999, 39999]);
+  assert.equal(planPrice(MARKETING_PLANS[0], 'USD'), 79);
+  assert.match(recommendPlan({ adBudget: '20000' }, 'INR').reason, /₹42,500/);
+  assert.equal(paymentSetup({}).razorpay.connected, false);
+  assert.deepEqual(paymentSetup(RZP_TEST).razorpay, { connected: true, mode: 'test', note: 'Razorpay test mode: no real money moves.' });
+  assert.equal(paymentSetup({ RAZORPAY_KEY_ID: 'rzp_live_x', RAZORPAY_KEY_SECRET: 's' }).razorpay.connected, false, 'live stays off');
+  assert.equal(paymentSetup({ RAZORPAY_KEY_ID: 'rzp_live_x', RAZORPAY_KEY_SECRET: 's', PAYMENTS_LIVE: 'yes' }).razorpay.mode, 'live');
+  assert.match(paymentSetup({ RAZORPAY_KEY_ID: 'key', RAZORPAY_KEY_SECRET: 's' }).razorpay.note, /rzp_test_/);
+  assert.equal(paymentSetup({ RAZORPAY_KEY_ID: 'rzp_test_abc' }).razorpay.connected, false, 'needs the secret too');
+  assert.ok(!JSON.stringify(paymentSetup(RZP_TEST)).includes('rsecret'));
+});
+
+test('Razorpay: one plan per price, a subscription page in INR, the first charge recorded once, renewals and cancellation', async () => {
+  const store = new MemoryStore();
+  const plans: { id: string; period: string; interval: number; item: { amount: number; currency: string }; notes: unknown }[] = [{ id: 'plan_other', period: 'monthly', interval: 1, item: { amount: 999900, currency: 'INR' }, notes: [] }];
+  let sub: Record<string, unknown> = { id: 'sub_TEST1234', status: 'created', paid_count: 0, notes: { orgId: ORG, plan: 'growth' } };
+  const { f, calls } = fakeFetch({
+    'GET https://api.razorpay.com/v1/plans': () => ({ json: { entity: 'collection', count: plans.length, items: plans } }),
+    'POST https://api.razorpay.com/v1/plans': (b) => { const p = { id: `plan_${plans.length}`, ...JSON.parse(b) }; plans.push(p); return { json: p }; },
+    'POST https://api.razorpay.com/v1/subscriptions': () => ({ json: { ...sub, short_url: 'https://rzp.io/rzp/abc123' } }),
+    'GET https://api.razorpay.com/v1/subscriptions/': () => ({ json: sub }),
+  });
+  await assert.rejects(createRazorpaySubscription({}, { planId: 'growth', orgId: ORG }, f), /aren't connected/);
+  await assert.rejects(createRazorpaySubscription(RZP_TEST, { planId: 'scale', orgId: ORG }, f), /on a call/);
+  const s1 = await createRazorpaySubscription(RZP_TEST, { planId: 'growth', orgId: ORG }, f);
+  assert.deepEqual(s1, { id: 'sub_TEST1234', url: 'https://rzp.io/rzp/abc123' });
+  const made = JSON.parse(calls.find((c) => c.method === 'POST' && c.url.endsWith('/plans'))!.body);
+  assert.deepEqual(made.item, { name: 'SIXXAB Marketing Growth', amount: 999900, currency: 'INR', description: 'Growth plan, billed monthly' }, 'paise, INR, its own plan even beside a same-price plan without its notes');
+  assert.equal(made.period, 'monthly');
+  const subBody = JSON.parse(calls.find((c) => c.url.endsWith('/subscriptions'))!.body);
+  assert.deepEqual(subBody, { plan_id: 'plan_1', total_count: RAZORPAY_TOTAL_COUNT, quantity: 1, customer_notify: 1, notes: { orgId: ORG, plan: 'growth' } });
+  assert.match(String(calls[0].headers.authorization), /^Basic /);
+  await createRazorpaySubscription(RZP_TEST, { planId: 'growth', orgId: ORG }, f);
+  assert.equal(calls.filter((c) => c.method === 'POST' && c.url.endsWith('/plans')).length, 1, 'the plan is reused');
+  // A page from anywhere else is refused.
+  const bad = fakeFetch({ 'GET https://api.razorpay.com/v1/plans': () => ({ json: { items: plans } }), 'POST https://api.razorpay.com/v1/subscriptions': () => ({ json: { id: 'sub_TEST1234', short_url: 'https://evil.example/pay' } }) });
+  await assert.rejects(createRazorpaySubscription(RZP_TEST, { planId: 'growth', orgId: ORG }, bad.f), /payment page/);
+
+  // Before the first charge nothing is recorded; then once, under the subscription id.
+  await assert.rejects(confirmRazorpaySubscription(store, RZP_TEST, ORG, 'nope', 'owner', f), /doesn't look right/);
+  assert.equal(await confirmRazorpaySubscription(store, RZP_TEST, ORG, 'sub_TEST1234', 'owner', f), false);
+  sub = { ...sub, status: 'active', paid_count: 1 };
+  await assert.rejects(confirmRazorpaySubscription(store, RZP_TEST, 'org-other', 'sub_TEST1234', 'owner', f), /another workspace/);
+  assert.equal(await confirmRazorpaySubscription(store, RZP_TEST, ORG, 'sub_TEST1234', 'owner', f), true);
+  const charged = (paid: number, pay: string) => ({ event: 'subscription.charged', payload: { subscription: { entity: { ...sub, paid_count: paid } }, payment: { entity: { id: pay, amount: 999900, currency: 'INR', email: 'owner@shop.example' } } } });
+  assert.equal(await handleRazorpayEvent(store, RZP_TEST, { event: 'subscription.activated', payload: { subscription: { entity: sub as never } } }, [ORG]), 'recorded');
+  assert.equal(await handleRazorpayEvent(store, RZP_TEST, charged(1, 'pay_A1'), [ORG]), 'recorded');
+  let m = await loadMarketing(store, ORG, { name: 'Shop', currency: 'INR' });
+  assert.equal(m.payments.length, 1, 'confirm, activation and first charge count once');
+  assert.deepEqual([m.subscription!.provider, m.subscription!.amount, m.subscription!.currency, m.subscription!.mode], ['razorpay', 9999, 'INR', 'test']);
+  assert.equal(await handleRazorpayEvent(store, RZP_TEST, charged(2, 'pay_B2'), [ORG]), 'recorded renewal');
+  assert.equal(await handleRazorpayEvent(store, RZP_TEST, charged(2, 'pay_B2'), [ORG]), 'recorded renewal');
+  assert.equal(await handleRazorpayEvent(store, RZP_TEST, charged(2, 'pay_B2'), ['org-else']), 'ignored: unknown workspace');
+  assert.equal(await handleRazorpayEvent(store, RZP_TEST, { event: 'payment.captured', payload: {} }, [ORG]), 'ignored: payment.captured');
+  m = await loadMarketing(store, ORG, null);
+  assert.equal(m.payments.length, 2, 'a repeated notice counts once');
+  assert.equal(m.payments[0].kind, 'renewal');
+  assert.equal(await handleRazorpayEvent(store, RZP_TEST, { event: 'subscription.cancelled', payload: { subscription: { entity: sub as never } } }, [ORG]), 'recorded cancellation');
+  assert.equal((await loadMarketing(store, ORG, null)).subscription!.status, 'cancelled');
+  assert.equal((await loadPlan(store, ORG)), null, 'test payments set no plan');
+});
+
+test('Razorpay webhook signature: hex HMAC-SHA256 of the raw body with the webhook secret', async () => {
+  const body = JSON.stringify({ event: 'subscription.charged' });
+  const sig = createHmac('sha256', 'rwhsec').update(body).digest('hex');
+  assert.equal(await verifyRazorpaySignature(body, sig, 'rwhsec'), true);
+  assert.equal(await verifyRazorpaySignature(body, sig, 'other'), false);
+  assert.equal(await verifyRazorpaySignature(`${body} `, sig, 'rwhsec'), false);
+  assert.equal(await verifyRazorpaySignature(body, '', 'rwhsec'), false);
 });

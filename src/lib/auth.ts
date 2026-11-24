@@ -98,7 +98,7 @@ export function toE164(countryCode: string, local: string): string | null {
 }
 
 export async function sendEmailCode(email: string): Promise<void> {
-  const redirect = encodeURIComponent(`${location.origin}${afterSignInPath(location.search)}`);
+  const redirect = encodeURIComponent(`${location.origin}${magicLinkPath(location.search)}`);
   await authCall(`otp?redirect_to=${redirect}`, { email: email.trim().toLowerCase(), create_user: true });
 }
 
@@ -177,8 +177,17 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 const JOURNEY_HEADS = ['start', 'scale', 'run'] as const;
 
-/** Where to go after sign-in. Only the three journey heads are honoured, so ?next can never redirect off-site. */
+/** Where to go after sign-in. Only the three journey heads and the marketing app are honoured, so ?next can never
+ * redirect off-site. */
 export function afterSignInPath(search: string): string {
   const next = new URLSearchParams(search).get('next');
+  if (next === 'marketing') return '/marketing';
   return next && (JOURNEY_HEADS as readonly string[]).includes(next) ? `/app?journey=${next}` : '/app';
+}
+
+/** Where an emailed sign-in link lands. Links always land on /app (the redirect address sign-in allows); the
+ * workspace then forwards ?go=marketing to the marketing app. */
+export function magicLinkPath(search: string): string {
+  const path = afterSignInPath(search);
+  return path === '/marketing' ? '/app?go=marketing' : path;
 }

@@ -65,6 +65,24 @@ export function Results({ dashboard: d, leadForm, adsPlan, platforms, creatives,
           <div><span className="muted small">Spend a month</span><strong>{d.spend.total ? money(d.spend.total, c) : '—'}</strong><span className="muted small">plan {money(d.spend.plan, c)} + ads {money(d.spend.ads, c)}</span></div>
         </div>
         {over && <p className="notice">Leads cost more than you can afford right now. Put more of the budget behind the ad that brings the most leads, or post more often.</p>}
+        {d.weekly && d.weekly.some((w) => w.leads > 0) && (
+          <>
+            <h3 className="mk-sub">New leads a week</h3>
+            <ol className="mk-trend" aria-label="New leads in each of the last 8 weeks">
+              {d.weekly.map((w) => {
+                const top = Math.max(...d.weekly.map((x) => x.leads), 1);
+                const label = new Date(`${w.start}T00:00:00Z`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' });
+                return (
+                  <li key={w.start} aria-label={`Week of ${label}: ${w.leads} lead${w.leads === 1 ? '' : 's'}${w.won ? `, ${w.won} won` : ''}`}>
+                    <span className="small">{w.leads}</span>
+                    <span className={w.leads ? 'bar' : 'bar zero'} style={w.leads ? { height: `${Math.round((w.leads / top) * 84)}px` } : undefined} />
+                    <span className="muted small">{label}</span>
+                  </li>
+                );
+              })}
+            </ol>
+          </>
+        )}
         <ol className="mk-funnel" aria-label="From ads to wins">
           {[['Ads made', f.made], ['Approved', f.approved], ['Posts out', f.posted], ['Leads', f.leads], ['Qualified', f.qualified], ['Won', f.won]].map(([label, n]) => (
             <li key={label as string}><strong>{n}</strong><span className="muted small">{label}</span></li>

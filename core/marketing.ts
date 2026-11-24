@@ -10,31 +10,37 @@ import { addNewContact, setDealStage } from './crm.js';
 
 export type PlanId = 'starter' | 'growth' | 'agency' | 'scale';
 export interface MarketingPlan {
-  id: PlanId; name: string; priceUsd: number; for: string; images: number; videos: number; credits: number;
+  id: PlanId; name: string; priceUsd: number; priceInr: number; for: string; images: number; videos: number; credits: number;
   includes: string[]; checkout: boolean;
 }
 
-/** Monthly USD prices. Scale is the full agent company plan and is set up on a call, not at checkout. */
+/**
+ * Monthly prices in USD (card or PayPal) and INR (Razorpay). INR prices are set for the Indian market, not converted
+ * at the exchange rate, and wait for the owner's confirmation before live charges. Scale is the full agent company plan
+ * and is set up on a call, not at checkout.
+ */
 export const MARKETING_PLANS: MarketingPlan[] = [
   {
-    id: 'starter', name: 'Starter', priceUsd: 79, for: 'Owners who run it themselves', images: 20, videos: 4, credits: 100, checkout: true,
+    id: 'starter', name: 'Starter', priceUsd: 79, priceInr: 2999, for: 'Owners who run it themselves', images: 20, videos: 4, credits: 100, checkout: true,
     includes: ['Assessment and 30-day plan', '20 image ads and 4 short videos a month', 'Organic posting on your linked pages', 'Leads into your CRM'],
   },
   {
-    id: 'growth', name: 'Growth', priceUsd: 249, for: 'Small businesses that want paid ads managed', images: 40, videos: 8, credits: 200, checkout: true,
+    id: 'growth', name: 'Growth', priceUsd: 249, priceInr: 9999, for: 'Small businesses that want paid ads managed', images: 40, videos: 8, credits: 200, checkout: true,
     includes: ['Everything in Starter', 'Ads managed in your own Meta and Google accounts', '40 image ads and 8 short videos a month', 'Drafted replies to every lead', 'Weekly report'],
   },
   {
-    id: 'agency', name: 'Agency', priceUsd: 999, for: 'Owners who want it done for them', images: 80, videos: 16, credits: 400, checkout: true,
+    id: 'agency', name: 'Agency', priceUsd: 999, priceInr: 39999, for: 'Owners who want it done for them', images: 80, videos: 16, credits: 400, checkout: true,
     includes: ['Everything in Growth', 'A SIXXAB person reviews every creative', 'A landing page and a WhatsApp lead line', 'Monthly strategy call', 'Up to 3 locations, 80 images and 16 videos a month'],
   },
   {
-    id: 'scale', name: 'Scale', priceUsd: 5000, for: 'Larger and multi-location businesses', images: 0, videos: 0, credits: 0, checkout: false,
+    id: 'scale', name: 'Scale', priceUsd: 5000, priceInr: 250000, for: 'Larger and multi-location businesses', images: 0, videos: 0, credits: 0, checkout: false,
     includes: ['The 12-month small business plan with the full agent company', 'Set up with you on a call'],
   },
 ];
 
 export const getMarketingPlan = (id: unknown): MarketingPlan | undefined => MARKETING_PLANS.find((p) => p.id === id);
+/** The plan's monthly price in the business's currency (INR or USD). */
+export const planPrice = (p: MarketingPlan, currency: string): number => (currency === 'INR' ? p.priceInr : p.priceUsd);
 
 // ── Questionnaire ───────────────────────────────────────────────────────────
 
@@ -213,7 +219,8 @@ export function recommendPlan(a: Answers, currency = 'USD', inrPerUsd = 85): Rec
   if (budget >= 10000) return { planId: 'scale', reason: 'Your ad budget is large enough for the full agent company, set up with you on a call.' };
   if (budget >= 2500) return { planId: 'agency', reason: 'At this budget a person reviewing every creative and a landing page pay for themselves.' };
   if (budget >= 500) return { planId: 'growth', reason: 'Your budget is enough for paid ads, so the Ads Manager runs them in your own accounts.' };
-  return { planId: 'starter', reason: budget > 0 ? 'Under $500 a month of ads works best as steady organic posts plus small boosts.' : 'With no ad budget yet, start with organic posts and the leads they bring.' };
+  const under = currency === 'INR' ? `₹${Math.round(500 * inrPerUsd).toLocaleString('en-IN')}` : '$500';
+  return { planId: 'starter', reason: budget > 0 ? `Under ${under} a month of ads works best as steady organic posts plus small boosts.` : 'With no ad budget yet, start with organic posts and the leads they bring.' };
 }
 
 export interface CostPerLead { ceiling: number | null; closeRate: number; assumedClose: boolean; leadsTarget: number | null; budgetNote: string; formula: string }
@@ -348,7 +355,9 @@ export async function saveTailoredPlan(store: Store, orgId: string, input: Recor
   return 'Saved the tailored 30-day plan. The owner sees it on the Marketing tab; nothing was posted or spent.';
 }
 
-export type Provider = 'stripe' | 'paypal';
+export type Provider = 'stripe' | 'paypal' | 'razorpay';
+/** How each provider reads in plain words: "by card", "by PayPal", "by Razorpay". */
+export const PROVIDER_LABEL: Record<Provider, string> = { stripe: 'card', paypal: 'PayPal', razorpay: 'Razorpay' };
 export interface Payment {
   provider: Provider; ref: string; subscriptionId: string; planId: PlanId; amount: number; currency: string; mode: 'test' | 'live';
   kind: 'first' | 'renewal'; payer: string; at: string;
@@ -366,7 +375,7 @@ export async function recordPayment(store: Store, orgId: string, p: Omit<Payment
   const done = await store.listAuditByActions(orgId, ['marketing.payment']);
   if (done.some((e) => e.detail.provider === p.provider && e.detail.ref === p.ref)) return { recorded: false };
   const at = nowIso();
-  await store.audit({ id: newId(), orgId, at, actor: by, action: 'marketing.payment', taskId: null, detail: { ...p, summary: `${p.mode === 'test' ? 'Test payment' : 'Payment'} received: Marketing ${plan.name}, ${p.amount} ${p.currency} by ${p.provider === 'stripe' ? 'card' : 'PayPal'}` } });
+  await store.audit({ id: newId(), orgId, at, actor: by, action: 'marketing.payment', taskId: null, detail: { ...p, summary: `${p.mode === 'test' ? 'Test payment' : 'Payment'} received: Marketing ${plan.name}, ${p.amount} ${p.currency} by ${PROVIDER_LABEL[p.provider] ?? p.provider}` } });
   if (p.mode === 'live') {
     await setPlan(store, orgId, { name: `Marketing ${plan.name}`, monthlyFee: p.amount, currency: p.currency }, by);
     const inv = await draftInvoice(store, orgId, at.slice(0, 7), by);
@@ -478,7 +487,7 @@ export async function syncAgencySales(store: Store, adminOrgId: string, orgIds: 
     const contactId = await addNewContact(store, adminOrgId, {
       name: `${name}${test ? ' (test payment)' : ''}`, company: name, email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(first.payer ?? '') ? first.payer : '',
       source: 'website', sourceDetail: `Marketing ${plan?.name ?? ''} plan checkout`.replace('  ', ' '), value: first.amount, nextStep: 'Plan onboarding',
-      notes: `Paid for the Marketing ${plan?.name ?? first.planId} plan by ${first.provider === 'stripe' ? 'card' : 'PayPal'}${test ? ' in test mode; remove this deal when you are done testing' : ''}.`,
+      notes: `Paid for the Marketing ${plan?.name ?? first.planId} plan by ${PROVIDER_LABEL[first.provider] ?? first.provider}${test ? ' in test mode; remove this deal when you are done testing' : ''}.`,
     }, by, `Marketing customer added: ${name}`);
     await setDealStage(store, adminOrgId, contactId, 'won', by);
     await store.audit({ id: newId(), orgId: adminOrgId, at: nowIso(), actor: by, action: 'marketing.synced', taskId: null, detail: { customerOrgId: orgId, contactId, summary: `${name} added to the CRM as a won deal` } });

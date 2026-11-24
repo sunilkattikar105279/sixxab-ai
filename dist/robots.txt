@@ -1,4 +1,5 @@
 User-agent: *
 Allow: /
 Disallow: /app
+Disallow: /marketing
 Sitemap: https://sixxab.ai/sitemap.xml

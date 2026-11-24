@@ -25,7 +25,7 @@ const common = { bundle: true, minify: true, sourcemap: false, target: ['es2020'
 // 1. Client bundles
 await esbuild.build({
   ...common,
-  entryPoints: { landing: 'src/entries/landing.tsx', login: 'src/entries/login.tsx', app: 'src/entries/app.tsx' },
+  entryPoints: { landing: 'src/entries/landing.tsx', login: 'src/entries/login.tsx', app: 'src/entries/app.tsx', marketing: 'src/entries/marketing.tsx' },
   outdir: path.join(dist, 'assets'),
   format: 'esm',
   splitting: true,
@@ -54,7 +54,7 @@ const { render } = await import(pathToFileURL(ssrFile).href + `?t=${Date.now()}`
 const landingHtml = render();
 fs.rmSync(ssrFile);
 
-const head = ({ title = TITLE, desc = DESC, pathName = '/', css }) => `<meta charset="utf-8">
+const head = ({ title = TITLE, desc = DESC, pathName = '/', css, manifest = '/manifest.webmanifest', appName = 'SIXXAB' }) => `<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>${title}</title>
 <meta name="description" content="${desc}">
@@ -70,9 +70,9 @@ const head = ({ title = TITLE, desc = DESC, pathName = '/', css }) => `<meta cha
 <meta name="twitter:image" content="${SITE}/og.png">
 <link rel="icon" href="/icons/favicon-32.png" sizes="32x32">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-<link rel="manifest" href="/manifest.webmanifest">
+<link rel="manifest" href="${manifest}">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="SIXXAB">
+<meta name="apple-mobile-web-app-title" content="${appName}">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -96,6 +96,9 @@ fs.writeFileSync(path.join(dist, 'index.html'), page({ body: landingHtml, script
 fs.writeFileSync(path.join(dist, 'login.html'), page({ title: 'Sign in | SIXXAB AI', pathName: '/login', body: '', script: asset('src/entries/login.tsx'), css: acName }));
 fs.mkdirSync(path.join(dist, 'app'), { recursive: true });
 fs.writeFileSync(path.join(dist, 'app', 'index.html'), page({ title: 'Workspace | SIXXAB AI', pathName: '/app', body: '', script: asset('src/entries/app.tsx'), css: acName }).replace('<meta name="description"', '<meta name="robots" content="noindex">\n<meta name="description"'));
+// The marketing app: the AI marketing agency on its own, installable as its own phone app (own manifest and start page).
+fs.mkdirSync(path.join(dist, 'marketing'), { recursive: true });
+fs.writeFileSync(path.join(dist, 'marketing', 'index.html'), page({ title: 'Marketing | SIXXAB AI', desc: 'Your AI marketing agency: ads, posts, leads and results in one place.', pathName: '/marketing', body: '', script: asset('src/entries/marketing.tsx'), css: acName, manifest: '/marketing.webmanifest', appName: 'Marketing' }).replace('<meta name="description"', '<meta name="robots" content="noindex">\n<meta name="description"'));
 
 // 4. Legal pages
 // SIXXAB family SX mark (viewBox 0 0 50 42), gold on navy.
@@ -127,7 +130,17 @@ fs.writeFileSync(path.join(dist, 'manifest.webmanifest'), JSON.stringify({
   ],
 }, null, 2));
 
-const precache = ['/', '/login', '/app', lcName, acName, ...Object.keys(outputs).filter((k) => k.endsWith('.js')).map((k) => '/' + path.relative(dist, path.join(root, k)))];
+fs.writeFileSync(path.join(dist, 'marketing.webmanifest'), JSON.stringify({
+  id: '/marketing', name: 'SIXXAB Marketing', short_name: 'Marketing', description: 'Your AI marketing agency: ads, posts, leads and results in one place.',
+  start_url: '/marketing', scope: '/marketing', display: 'standalone', orientation: 'portrait', background_color: '#071426', theme_color: '#071426',
+  icons: [
+    { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+    { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+    { src: '/icons/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+  ],
+}, null, 2));
+
+const precache = ['/', '/login', '/app', '/marketing', lcName, acName, ...Object.keys(outputs).filter((k) => k.endsWith('.js')).map((k) => '/' + path.relative(dist, path.join(root, k)))];
 const version = hash(precache.join('|') + landingHtml.length);
 fs.writeFileSync(path.join(dist, 'sw.js'), `// SIXXAB AI service worker: offline shell, never caches API calls.
 const CACHE = 'sixxab-${version}';
@@ -138,13 +151,13 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== location.origin || url.pathname.startsWith('/api/')) return;
   if (e.request.mode === 'navigate') {
-    e.respondWith(fetch(e.request).then((r) => { const copy = r.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); return r; }).catch(() => caches.match(e.request).then((r) => r || caches.match(url.pathname.startsWith('/app') ? '/app' : '/'))));
+    e.respondWith(fetch(e.request).then((r) => { const copy = r.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); return r; }).catch(() => caches.match(e.request).then((r) => r || caches.match(url.pathname.startsWith('/app') ? '/app' : url.pathname.startsWith('/marketing') ? '/marketing' : '/'))));
     return;
   }
   e.respondWith(caches.match(e.request).then((r) => r || fetch(e.request)));
 });
 `);
-fs.writeFileSync(path.join(dist, 'robots.txt'), `User-agent: *\nAllow: /\nDisallow: /app\nSitemap: ${SITE}/sitemap.xml\n`);
+fs.writeFileSync(path.join(dist, 'robots.txt'), `User-agent: *\nAllow: /\nDisallow: /app\nDisallow: /marketing\nSitemap: ${SITE}/sitemap.xml\n`);
 fs.writeFileSync(path.join(dist, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${['/', '/investors', '/login', '/privacy', '/terms'].map((p) => `<url><loc>${SITE}${p}</loc></url>`).join('')}</urlset>\n`);
 
 // 5b. Build info for the admin Governance tab: code size, tests, security config (no secrets).

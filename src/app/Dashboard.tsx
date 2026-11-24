@@ -29,8 +29,12 @@ const STATUS: Record<string, string> = {
 export default function Dashboard() {
   const [session, setSession] = useState<Session | null>(null);
   const [checked, setChecked] = useState(false);
-  // Coming back from a marketing checkout (?marketing=…) opens the Marketing tab, which records the payment.
-  const [tab, setTab] = useState<Tab>(() => (new URLSearchParams(location.search).has('marketing') ? 'marketing' : 'journey'));
+  // Coming back from a marketing checkout (?marketing=…) opens the Marketing tab, which records the payment. The
+  // marketing app sends ?tab=approvals to open the approvals here.
+  const [tab, setTab] = useState<Tab>(() => {
+    const q = new URLSearchParams(location.search);
+    return q.has('marketing') ? 'marketing' : q.get('tab') === 'approvals' ? 'approvals' : 'journey';
+  });
   const [pendingCount, setPendingCount] = useState(0);
   const [admin, setAdmin] = useState(false);
 
@@ -39,6 +43,11 @@ export default function Dashboard() {
       const s = (await sessionFromRedirect()) ?? (await getSession());
       if (!s) {
         location.replace('/login');
+        return;
+      }
+      // An emailed sign-in link from the marketing app lands here first (?go=marketing): carry on to the app.
+      if (new URLSearchParams(location.search).get('go') === 'marketing') {
+        location.replace('/marketing');
         return;
       }
       setSession(s);

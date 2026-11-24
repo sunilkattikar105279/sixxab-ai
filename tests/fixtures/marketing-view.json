@@ -199,7 +199,8 @@
         "20 image ads and 4 short videos a month",
         "Organic posting on your linked pages",
         "Leads into your CRM"
-      ]
+      ],
+      "priceInr": 2999
     },
     {
       "id": "growth",
@@ -216,7 +217,8 @@
         "40 image ads and 8 short videos a month",
         "Drafted replies to every lead",
         "Weekly report"
-      ]
+      ],
+      "priceInr": 9999
     },
     {
       "id": "agency",
@@ -233,7 +235,8 @@
         "A landing page and a WhatsApp lead line",
         "Monthly strategy call",
         "Up to 3 locations, 80 images and 16 videos a month"
-      ]
+      ],
+      "priceInr": 39999
     },
     {
       "id": "scale",
@@ -247,7 +250,8 @@
       "includes": [
         "The 12-month small business plan with the full agent company",
         "Set up with you on a call"
-      ]
+      ],
+      "priceInr": 250000
     }
   ],
   "sections": [
@@ -464,6 +468,11 @@
       "connected": true,
       "mode": "test",
       "note": "PayPal sandbox: no real money moves."
+    },
+    "razorpay": {
+      "connected": false,
+      "mode": null,
+      "note": "UPI and Indian card payments (Razorpay) aren't connected yet."
     }
   },
   "goals": {
@@ -600,6 +609,48 @@
         "contactId": "c-1",
         "repeat": false
       }
+    ],
+    "weekly": [
+      {
+        "start": "2026-09-28",
+        "leads": 0,
+        "won": 0
+      },
+      {
+        "start": "2026-10-05",
+        "leads": 1,
+        "won": 0
+      },
+      {
+        "start": "2026-10-12",
+        "leads": 0,
+        "won": 0
+      },
+      {
+        "start": "2026-10-19",
+        "leads": 2,
+        "won": 0
+      },
+      {
+        "start": "2026-10-26",
+        "leads": 1,
+        "won": 1
+      },
+      {
+        "start": "2026-11-02",
+        "leads": 3,
+        "won": 0
+      },
+      {
+        "start": "2026-11-09",
+        "leads": 2,
+        "won": 1
+      },
+      {
+        "start": "2026-11-16",
+        "leads": 4,
+        "won": 0
+      }
     ]
   },
   "leadForm": {
@@ -619,5 +670,7 @@
       "source": "google",
       "tool": "Google Ads"
     }
-  }
+  },
+  "pendingRazorpay": null,
+  "inrPerUsd": 85
 }
