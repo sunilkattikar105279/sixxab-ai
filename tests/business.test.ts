@@ -254,3 +254,29 @@ test('CRM: the lead sheet imports with its own headers, keeps every column, and 
   assert.deepEqual(await importContacts(s, ORG, csv, 'f'), { added: 0, skipped: 0, duplicates: 4 }, 'pasting the same list again adds nothing');
   assert.equal((await loadCrm(s, ORG)).contacts.length, 4);
 });
+
+test('CRM: an Excel workbook picked in the import box becomes CSV with every column', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { xlsxToCsv } = await import('../src/lib/sheet.js');
+  const { importContacts, loadCrm } = await import('../core/crm.js');
+  const b = readFileSync(new URL('./fixtures/lead-sheet.xlsx', import.meta.url));
+  const csv = await xlsxToCsv(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
+  assert.equal(csv.split('\n')[0], 'Rank,Business,Decision maker,Why they fit');
+  const s = new MemoryStore();
+  assert.deepEqual(await importContacts(s, ORG, csv, 'f'), { added: 2, skipped: 0, duplicates: 0 });
+  const crm = await loadCrm(s, ORG);
+  const a = crm.contacts.find((c) => c.company === 'Acme & Sons, LLC')!;
+  assert.equal(a.name, 'Jo Smith');
+  assert.equal(a.rank, 3);
+  assert.equal(a.whyFit, 'Says "24/7" but closes at 5');
+});
+
+test('CRM: rows pasted straight from a spreadsheet (tab-separated) import with their headers', async () => {
+  const { importContacts, loadCrm } = await import('../core/crm.js');
+  const s = new MemoryStore();
+  const pasted = ['Rank\tBusiness\tCity\tDecision maker', '2\tTotal Air & Plumbing\tPlano, TX\tSteve Lauten, owner', '5\tBright Smiles\tDallas\tNot stated', ''].join('\r\n');
+  assert.deepEqual(await importContacts(s, ORG, pasted, 'f'), { added: 2, skipped: 0, duplicates: 0 });
+  const t = (await loadCrm(s, ORG)).contacts.find((c) => c.company === 'Total Air & Plumbing')!;
+  assert.equal(t.city, 'Plano, TX');
+  assert.equal(t.name, 'Steve Lauten');
+});

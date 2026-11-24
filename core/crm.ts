@@ -227,7 +227,10 @@ const dupKey = (name: string, company: string) => `${name.toLowerCase().trim()}|
  * contacts already in the CRM (same name and company), are skipped.
  */
 export async function importContacts(store: Store, orgId: string, csv: string, by: string): Promise<{ added: number; skipped: number; duplicates: number }> {
-  const rows = String(csv ?? '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean).map(splitCsvLine);
+  const lines = String(csv ?? '').replace(/^\uFEFF/, '').split(/\r?\n/).filter((l) => l.trim());
+  // Rows copied straight out of Excel or Google Sheets arrive tab-separated.
+  const tabbed = !!lines[0]?.includes('\t');
+  const rows = lines.map((l) => (tabbed ? l.split('\t').map((c) => c.trim().replace(/^"([\s\S]*)"$/, '$1').replace(/""/g, '"')) : splitCsvLine(l.trim())));
   const map = rows[0] ? headerMap(rows[0]) : null;
   if (map) rows.shift();
   const have = new Set((await loadCrm(store, orgId)).contacts.map((c) => dupKey(c.name, c.company)));

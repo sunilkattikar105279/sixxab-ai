@@ -2256,10 +2256,10 @@ function computeGovernance(input) {
 
 // server/build-info.ts
 var BUILD_INFO = {
-  "builtAt": "2026-11-24T01:34:11.391Z",
-  "files": 81,
-  "lines": 8256,
-  "tests": 99,
+  "builtAt": "2026-11-24T01:45:54.908Z",
+  "files": 82,
+  "lines": 8372,
+  "tests": 101,
   "e2e": 11,
   "rlsTables": 9,
   "cspHeader": true,
@@ -3133,7 +3133,9 @@ function rowToInput(cells, map) {
 }
 var dupKey = (name, company) => `${name.toLowerCase().trim()}|${company.toLowerCase().trim()}`;
 async function importContacts(store2, orgId, csv, by) {
-  const rows = String(csv ?? "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean).map(splitCsvLine);
+  const lines = String(csv ?? "").replace(/^\uFEFF/, "").split(/\r?\n/).filter((l) => l.trim());
+  const tabbed = !!lines[0]?.includes("	");
+  const rows = lines.map((l) => tabbed ? l.split("	").map((c) => c.trim().replace(/^"([\s\S]*)"$/, "$1").replace(/""/g, '"')) : splitCsvLine(l.trim()));
   const map = rows[0] ? headerMap(rows[0]) : null;
   if (map) rows.shift();
   const have = new Set((await loadCrm(store2, orgId)).contacts.map((c) => dupKey(c.name, c.company)));

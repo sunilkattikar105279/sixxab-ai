@@ -8,6 +8,7 @@ import { pipelineReviewGoal, type Meddic } from '../../core/gtm';
 import { leadSearchGoal } from '../../core/crm';
 import { ApolloSearch } from './ApolloSearch';
 import { api } from '../lib/auth';
+import { fileToCsv } from '../lib/sheet';
 
 /** CSV lead rows (name,company,email,phone,source,value) found in an agent's output. */
 const leadRows = (out: string) => out.split(/\r?\n/).map((l) => l.trim().replace(/^[-*]\s*/, '')).filter((l) => l.split(',').length === 6 && !/^name\s*,/i.test(l));
@@ -79,17 +80,19 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [importing, setImporting] = useState(false);
-  const [importMsg, setImportMsg] = useState<string | null>(null);
+  const [importMsg, setImportMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [fileName, setFileName] = useState('');
   async function importCsv(text: string): Promise<boolean> {
     setImporting(true);
     setImportMsg(null);
     try {
       const r = await api<{ added: number; skipped: number; duplicates?: number }>('/api/crm', { method: 'POST', body: JSON.stringify({ action: 'import', csv: text }) });
-      setImportMsg(`Added ${r.added} contact${r.added === 1 ? '' : 's'}${r.duplicates ? `, ${r.duplicates} already in the CRM` : ''}${r.skipped ? `, ${r.skipped} row${r.skipped === 1 ? '' : 's'} skipped` : ''}.`);
+      const summary = `Added ${r.added} contact${r.added === 1 ? '' : 's'}${r.duplicates ? `, ${r.duplicates} already in the CRM` : ''}${r.skipped ? `, ${r.skipped} row${r.skipped === 1 ? '' : 's'} skipped` : ''}.`;
+      setImportMsg({ ok: r.added > 0 || !!r.duplicates, text: r.added === 0 && !r.duplicates ? `${summary} No row had a name or business we could read. Check the first row holds the column headers.` : summary });
       reload();
-      return true;
+      return r.added > 0 || !!r.duplicates;
     } catch (e) {
-      setImportMsg(e instanceof Error ? e.message : 'Could not import the list.');
+      setImportMsg({ ok: false, text: e instanceof Error ? e.message : 'Could not import the list.' });
       return false;
     } finally {
       setImporting(false);
@@ -155,13 +158,27 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
           <label className="field"><span>Next step</span><input value={f.nextStep} onChange={(e) => setF({ ...f, nextStep: e.target.value })} maxLength={200} placeholder="e.g. send price list on Friday" /></label>
           <div className="row-end"><button type="submit" className="btn-primary" disabled={!!busy || !f.name.trim()}>{busy === 'add' ? <Spinner label="Saving…" /> : 'Add contact'}</button></div>
         </form>
-        <details>
-          <summary>Import a list <span className="muted small">CSV with a header row, or name, company, email, phone, source, value</span></summary>
+        <details open>
+          <summary>Import a list <span className="muted small">Excel (.xlsx) or CSV file, or rows pasted from a spreadsheet</span></summary>
           <p className="muted small">Columns are matched by their header, so a lead sheet with Rank, Business, Niche, City, Website, Main phone, Size, Decision maker, Deal size, Ease of win, Why they fit, Agent to pitch, Source and Check before outreach keeps every column. Contacts already in the CRM are skipped.</p>
-          <label className="field"><span>CSV file</span><input type="file" accept=".csv,text/csv" onChange={async (e) => { const file = e.target.files?.[0]; if (file) setCsv(await file.text()); e.target.value = ''; }} /></label>
-          <textarea aria-label="Contacts CSV" rows={4} value={csv} onChange={(e) => setCsv(e.target.value)} placeholder="Asha Rao,Rao Clinic,asha@example.com,+91 98xxxxxx,referral,5000" />
-          <div className="row-end"><button type="button" className="btn-ghost" disabled={!!busy || importing || !csv.trim()} onClick={async () => { if (await importCsv(csv)) setCsv(''); }}>{importing ? <Spinner label="Importing…" /> : 'Import'}</button></div>
-          {importMsg && <p className="small" role="status">{importMsg}</p>}
+          <label className="field"><span>Choose a file</span><input type="file" accept=".xlsx,.csv,.tsv,.txt,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={async (e) => {
+            const file = e.target.files?.[0];
+            e.target.value = '';
+            if (!file) return;
+            setImportMsg(null);
+            try {
+              const text = await fileToCsv(file);
+              setCsv(text);
+              setFileName(file.name);
+              const rows = text.split(/\r?\n/).filter((l) => l.trim()).length;
+              setImportMsg({ ok: true, text: `Loaded ${file.name}: ${Math.max(0, rows - 1)} rows under the header. Press Import to add them.` });
+            } catch (err) {
+              setImportMsg({ ok: false, text: err instanceof Error ? err.message : 'Could not read that file.' });
+            }
+          }} /></label>
+          <textarea aria-label="Contacts CSV" rows={4} value={csv} onChange={(e) => { setCsv(e.target.value); setFileName(''); }} placeholder="Or paste rows here, header row first" />
+          <div className="row-end"><button type="button" className={csv.trim() ? 'btn-primary' : 'btn-ghost'} disabled={!!busy || importing || !csv.trim()} onClick={async () => { if (await importCsv(csv)) { setCsv(''); setFileName(''); } }}>{importing ? <Spinner label="Importing…" /> : fileName ? `Import ${fileName}` : 'Import'}</button></div>
+          {importMsg && <p className={importMsg.ok ? 'small' : 'error'} role={importMsg.ok ? 'status' : 'alert'}>{importMsg.text}</p>}
         </details>
         {msg && <p className="error" role="alert">{msg}</p>}
       </section>
