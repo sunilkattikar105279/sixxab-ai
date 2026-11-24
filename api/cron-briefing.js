@@ -82,8 +82,8 @@ async function buildBriefing(store2, orgId, now = /* @__PURE__ */ new Date(), mo
         messages: [{ role: "user", content: JSON.stringify({ shipped, needsYou, learned }) }],
         maxTokens: 300
       });
-      const text4 = resp.content.filter((b) => b.type === "text").map((b) => b.text).join(" ").trim();
-      if (text4) summary = text4;
+      const text5 = resp.content.filter((b) => b.type === "text").map((b) => b.text).join(" ").trim();
+      if (text5) summary = text5;
     } catch {
     }
   }
@@ -1225,9 +1225,23 @@ var AGENTS = [
     reportsTo: "founder-orchestrator",
     job: "Owns the marketing plan and leads the marketing agents.",
     modelTier: "worker",
-    tools: ["recall", "remember", "write_note", "publish_post", "send_email_campaign", "spend_money"],
+    tools: ["recall", "remember", "write_note", "save_marketing_plan", "publish_post", "send_email_campaign", "spend_money"],
     usesModel: true,
-    instructions: `You are the CMO agent. Plan campaigns that fit the company's niche and budget, then draft the posts and emails. ${SHARED_RULES}`
+    instructions: `You are the CMO agent. Plan campaigns that fit the company's niche and budget, then draft the posts and emails. When asked for a 30-day plan, save it with save_marketing_plan: concrete weekly actions tied to the channels, the budget and the cost-per-lead ceiling you are given, and nothing the business cannot do yet. ${SHARED_RULES}`
+  },
+  {
+    id: "business-assessor",
+    name: "Business Assessor",
+    layer: "department",
+    stage: 2,
+    reportsTo: "cmo",
+    job: "Checks a business's website, booking link, Google profile, social pages, reviews and tracking before its marketing starts, and saves what is in place and the gaps. Never sends.",
+    modelTier: "worker",
+    tools: ["recall", "save_assessment_check", "web_search"],
+    usesModel: true,
+    maxTurns: 10,
+    starter: "Check the online presence named in the goal on public pages and save it with save_assessment_check.",
+    instructions: `You check a business's online presence for its marketing assessment, from public pages you can cite: its own site, its maps or Google listing, its social pages and review sites. Confirm each page belongs to this business by its name, phone number, address or website. A check is "found" only with the page that shows it, "missing" when you looked and it is not there, and "unclear" when you cannot tell. You cannot see page code, so a tracking pixel is unclear unless a public page plainly states it. Note the review count and rating only as the page shows them. Business information only: nothing behind a login, no personal accounts. Save the result with save_assessment_check, with a short summary of what is in place and the top gaps. Contacting anyone is never your job. ${SHARED_RULES}`
   },
   {
     id: "social-poster",
@@ -2010,6 +2024,152 @@ var RESEARCH_TOOLS = {
   }
 };
 
+// core/marketing.ts
+var REPEAT_RATES = ["Once", "A few times a year", "Monthly or more", "Not sure"];
+var REPLY_SPEEDS = ["Within 5 minutes", "Within an hour", "Same day", "Next day or later", "Not sure"];
+var PIXEL_ANSWERS = ["Yes", "No", "Not sure"];
+var ASSET_ANSWERS = ["Logo, photos and videos", "Logo and photos", "Logo only", "Nothing yet"];
+var ASSESSMENT_SECTIONS = [
+  {
+    title: "Business",
+    questions: [
+      { key: "name", label: "Business name", kind: "text" },
+      { key: "industry", label: "Industry", kind: "text" },
+      { key: "location", label: "Location and service area", kind: "text", hint: "e.g. Dallas, TX and 20 miles around" },
+      { key: "founded", label: "Year started", kind: "number" },
+      { key: "team", label: "Team size", kind: "text" }
+    ]
+  },
+  {
+    title: "Offer",
+    questions: [
+      { key: "services", label: "Top 3 services or products, with the price of each", kind: "long" },
+      { key: "averageSale", label: "Average first sale", kind: "number", hint: "In your currency, e.g. 450" },
+      { key: "repeatRate", label: "How often customers buy again", kind: "choice", options: REPEAT_RATES }
+    ]
+  },
+  {
+    title: "Customers",
+    questions: [
+      { key: "bestCustomer", label: "Your best customer", kind: "long", hint: "Who they are and why they choose you" },
+      { key: "sources", label: "Where customers come from today", kind: "text" },
+      { key: "closeRate", label: "Out of 10 people who ask, how many buy?", kind: "number", hint: "0 to 10" },
+      { key: "seasons", label: "Busy and slow months", kind: "text" }
+    ]
+  },
+  {
+    title: "Goals",
+    questions: [
+      { key: "leadsWanted", label: "New leads wanted a month", kind: "number" },
+      { key: "revenueGoal", label: "Monthly revenue goal", kind: "number" },
+      { key: "adBudget", label: "Monthly ad budget", kind: "number", hint: "Paid to Meta or Google directly, not to SIXXAB" },
+      { key: "startDate", label: "When to start", kind: "text" }
+    ]
+  },
+  {
+    title: "Marketing today",
+    questions: [
+      { key: "website", label: "Website", kind: "text" },
+      { key: "booking", label: "Booking or buy link", kind: "text" },
+      { key: "googleProfile", label: "Google Business Profile link", kind: "text" },
+      { key: "social", label: "Social pages", kind: "long", hint: "One link per line" },
+      { key: "reviews", label: "Number of Google reviews", kind: "number" },
+      { key: "pixel", label: "Is a Meta pixel or Google tag on your website?", kind: "choice", options: PIXEL_ANSWERS },
+      { key: "adsToday", label: "Ad spend and results today", kind: "text", hint: "e.g. $300 a month on Facebook, about 10 leads" },
+      { key: "replySpeed", label: "How fast new leads get a reply", kind: "choice", options: REPLY_SPEEDS }
+    ]
+  },
+  {
+    title: "Assets and limits",
+    questions: [
+      { key: "assets", label: "Photos, videos and logo you have", kind: "choice", options: ASSET_ANSWERS },
+      { key: "voice", label: "Brand voice", kind: "text" },
+      { key: "avoid", label: "Claims to avoid", kind: "long", hint: "Medical, legal or financial ad rules, or anything you never say" },
+      { key: "approver", label: "Who approves ads before they go out", kind: "text" }
+    ]
+  }
+];
+var QUESTIONS = ASSESSMENT_SECTIONS.flatMap((s) => s.questions);
+var CHECK_ITEMS = ["website", "booking", "google", "social", "reviews", "pixel"];
+var text4 = (v, max = 600) => typeof v === "string" ? v.trim().slice(0, max) : typeof v === "number" ? String(v) : "";
+var httpsOrEmpty = (v) => {
+  const s = text4(v, 500);
+  return /^https:\/\/\S+$/i.test(s) ? s : "";
+};
+async function saveValidation(store2, orgId, input, by) {
+  const raw = Array.isArray(input.checks) ? input.checks : [];
+  const checks = [];
+  for (const c of raw.slice(0, 12)) {
+    if (!c || typeof c !== "object") continue;
+    const r = c;
+    const item = r.item;
+    const status = r.status;
+    if (!CHECK_ITEMS.includes(item) || !["found", "missing", "unclear"].includes(status) || checks.some((x) => x.item === item)) continue;
+    const source = httpsOrEmpty(r.source);
+    checks.push({ item, status: status === "found" && !source ? "unclear" : status, note: text4(r.note, 300), source });
+  }
+  if (!checks.length) throw new Error("Give at least one check: item (website, booking, google, social, reviews or pixel), status (found, missing or unclear), note and source.");
+  const summary = text4(input.summary, 1200);
+  await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "marketing.validation", taskId: null, detail: { checks, summary, summaryLine: `${checks.filter((c) => c.status === "found").length} of ${checks.length} confirmed online` } });
+  return `Saved the online check: ${checks.map((c) => `${c.item} ${c.status}`).join(", ")}. The owner sees it on the Marketing tab.`;
+}
+async function saveTailoredPlan(store2, orgId, input, by) {
+  const list2 = (v, n, max = 200) => Array.isArray(v) ? v.map((x) => text4(x, max)).filter(Boolean).slice(0, n) : [];
+  const weeks = (Array.isArray(input.weeks) ? input.weeks : []).slice(0, 5).map((w, i) => {
+    const r = w && typeof w === "object" ? w : {};
+    return { week: Number(r.week) || i + 1, focus: text4(r.focus, 80), actions: list2(r.actions, 6, 240) };
+  }).filter((w) => w.focus && w.actions.length);
+  const summary = text4(input.summary, 1500);
+  if (!summary || weeks.length < 4) throw new Error("A 30-day plan needs a summary and four weeks, each with a focus and actions.");
+  const plan = { summary, channels: list2(input.channels, 6, 60), weeks, kpis: list2(input.kpis, 6) };
+  await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "marketing.plan", taskId: null, detail: { plan, summary: "CMO agent saved a tailored 30-day marketing plan" } });
+  return "Saved the tailored 30-day plan. The owner sees it on the Marketing tab; nothing was posted or spent.";
+}
+
+// core/marketing-tools.ts
+var str4 = { type: "string" };
+var MARKETING_TOOLS = {
+  save_assessment_check: {
+    spec: {
+      name: "save_assessment_check",
+      description: `Save the check of a business's online presence for its marketing assessment: for each of website, booking, google, social, reviews and pixel, found, missing or unclear, a short note and the public page that shows it. A "found" without a page is saved as unclear. Nothing is sent.`,
+      input_schema: {
+        type: "object",
+        properties: {
+          checks: {
+            type: "array",
+            minItems: 1,
+            maxItems: 6,
+            items: { type: "object", properties: { item: { type: "string", enum: [...CHECK_ITEMS] }, status: { type: "string", enum: ["found", "missing", "unclear"] }, note: str4, source: { type: "string", description: "The public page (https://...)" } }, required: ["item", "status"] }
+          },
+          summary: { type: "string", description: "Two or three sentences: what is in place and the top gaps" }
+        },
+        required: ["checks", "summary"]
+      }
+    },
+    summarize: () => "Save the marketing assessment check",
+    execute: (i, ctx) => saveValidation(ctx.store, ctx.orgId, i, ctx.agent.name)
+  },
+  save_marketing_plan: {
+    spec: {
+      name: "save_marketing_plan",
+      description: "Save a tailored 30-day marketing plan on the business's Marketing tab: a summary, the channels, four weeks each with a focus and 3 to 5 actions, and the KPIs. Nothing is posted or spent; the owner reads it there.",
+      input_schema: {
+        type: "object",
+        properties: {
+          summary: str4,
+          channels: { type: "array", items: str4, maxItems: 6 },
+          weeks: { type: "array", minItems: 4, maxItems: 5, items: { type: "object", properties: { week: { type: "number" }, focus: str4, actions: { type: "array", items: str4, minItems: 1, maxItems: 6 } }, required: ["week", "focus", "actions"] } },
+          kpis: { type: "array", items: str4, maxItems: 6 }
+        },
+        required: ["summary", "weeks"]
+      }
+    },
+    summarize: () => "Save the 30-day marketing plan",
+    execute: (i, ctx) => saveTailoredPlan(ctx.store, ctx.orgId, i, ctx.agent.name)
+  }
+};
+
 // core/tools.ts
 function formatMoney(amountMinor, currency) {
   if (!Number.isFinite(amountMinor)) return `? ${currency}`;
@@ -2028,17 +2188,17 @@ var field = (input, name, max = 4e3) => {
   return t.slice(0, max);
 };
 function parseLinkedInComment(input) {
-  let text4 = input.trim();
+  let text5 = input.trim();
   try {
-    text4 = decodeURIComponent(text4);
+    text5 = decodeURIComponent(text5);
   } catch {
   }
-  const m = text4.match(/urn:li:comment:\((?:urn:li:)?(activity|ugcPost|share):(\d+),(\d+)\)/);
+  const m = text5.match(/urn:li:comment:\((?:urn:li:)?(activity|ugcPost|share):(\d+),(\d+)\)/);
   if (m) {
     const threadUrn2 = `urn:li:${m[1]}:${m[2]}`;
     return { threadUrn: threadUrn2, commentUrn: `urn:li:comment:(${threadUrn2},${m[3]})` };
   }
-  const d = text4.match(/urn:li:fsd_comment:\((\d+),urn:li:(activity|ugcPost|share):(\d+)\)/);
+  const d = text5.match(/urn:li:fsd_comment:\((\d+),urn:li:(activity|ugcPost|share):(\d+)\)/);
   if (!d) return null;
   const threadUrn = `urn:li:${d[2]}:${d[3]}`;
   return { threadUrn, commentUrn: `urn:li:comment:(${threadUrn},${d[1]})` };
@@ -2180,7 +2340,8 @@ ${body}`, agentId: ctx.agent.id, at: nowIso() });
   // Lead generation: read the CRM and save drafts, scores and suggestions onto it (nothing is sent).
   ...LEADGEN_TOOLS,
   ...SALESFLOW_TOOLS,
-  ...RESEARCH_TOOLS
+  ...RESEARCH_TOOLS,
+  ...MARKETING_TOOLS
 };
 var WEB_SEARCH_TOOL = { type: "web_search_20260209", name: "web_search", max_uses: 5 };
 function toolsFor(agent) {
@@ -2188,9 +2349,9 @@ function toolsFor(agent) {
 }
 var WEBHOOK_TIMEOUT_MS = 3e4;
 var RECEIPT_MAX = 500;
-function parseReceipt(text4) {
+function parseReceipt(text5) {
   try {
-    const body = JSON.parse(text4);
+    const body = JSON.parse(text5);
     if (!body || typeof body !== "object") return void 0;
     const { ok, message } = body;
     return {
@@ -2305,9 +2466,9 @@ function profileText(p) {
   }).filter(Boolean);
   return [PROFILE_PREFIX, ...lines].join("\n");
 }
-function parseProfile(text4) {
+function parseProfile(text5) {
   const out = {};
-  for (const line of text4.split("\n").slice(1)) {
+  for (const line of text5.split("\n").slice(1)) {
     const i = line.indexOf(": ");
     if (i < 0) continue;
     const label5 = line.slice(0, i);
@@ -3106,8 +3267,8 @@ var SupabaseStore = class {
       }
     });
     if (!res.ok) throw new Error(`Supabase ${res.status} on ${path.split("?")[0]}: ${(await res.text()).slice(0, 300)}`);
-    const text4 = await res.text();
-    return text4 ? JSON.parse(text4) : [];
+    const text5 = await res.text();
+    return text5 ? JSON.parse(text5) : [];
   }
   one(rows, what) {
     if (!rows[0]) throw new Error(`${what} not found`);

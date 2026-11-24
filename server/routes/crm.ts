@@ -3,6 +3,8 @@
 import { addNote, importApolloPeople, importContacts, loadCrm, logTouch, qualifyDeal, removeContact, setContactEmail, setDealStage, upsertContact, type ContactInput, type DealStage } from '../../core/crm.js';
 import { apolloEnrich, apolloSearch, type ApolloFilters, type ApolloPerson } from '../../core/apollo.js';
 import { isAdmin } from '../../core/automation.js';
+import { syncAgencySales } from '../../core/marketing.js';
+import { loadBusinessProfile } from '../../core/profile.js';
 import { decideProspects, dismissSync, markStepSent, removeIcp, saveIcp, saveIcpNotes } from '../../core/leadgen.js';
 import { markCustomerSent, markOnboardingStep, setAutofind, setAutopilot, skipAction } from '../../core/salesflow.js';
 import { editProposal, markProposalSent, useResearchField } from '../../core/research.js';
@@ -27,7 +29,10 @@ async function crmView(store: Store, orgId: string) {
 
 export const GET = handle(async (request) => {
   const { orgId, label, store } = await requireUser(request);
-  return json({ crm: await crmView(store, orgId), apollo: Boolean(apolloFor(label)), admin: isAdmin(label, process.env.ADMIN_EMAILS) });
+  const admin = isAdmin(label, process.env.ADMIN_EMAILS);
+  // Businesses that paid for a marketing plan join the admin's pipeline as won deals, which starts their onboarding.
+  if (admin) await syncAgencySales(store, orgId, await store.listOrgIds(), async (id) => (await loadBusinessProfile(store, id))?.name ?? null, label).catch((e) => console.error('agency sync', e));
+  return json({ crm: await crmView(store, orgId), apollo: Boolean(apolloFor(label)), admin });
 });
 
 interface Body {

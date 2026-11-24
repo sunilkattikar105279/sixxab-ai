@@ -139,14 +139,14 @@ function profileText(p) {
   }).filter(Boolean);
   return [PROFILE_PREFIX, ...lines].join("\n");
 }
-function parseProfile(text9) {
+function parseProfile(text10) {
   const out = {};
-  for (const line of text9.split("\n").slice(1)) {
-    const i = line.indexOf(": ");
+  for (const line2 of text10.split("\n").slice(1)) {
+    const i = line2.indexOf(": ");
     if (i < 0) continue;
-    const label5 = line.slice(0, i);
+    const label5 = line2.slice(0, i);
     const field2 = PROFILE_FIELDS.find((f) => f.label === label5) ?? PROFILE_FIELDS.find((f) => f.aliases?.includes(label5));
-    if (field2) out[field2.key] = line.slice(i + 2);
+    if (field2) out[field2.key] = line2.slice(i + 2);
   }
   return out;
 }
@@ -291,8 +291,8 @@ var SupabaseStore = class {
       }
     });
     if (!res.ok) throw new Error(`Supabase ${res.status} on ${path.split("?")[0]}: ${(await res.text()).slice(0, 300)}`);
-    const text9 = await res.text();
-    return text9 ? JSON.parse(text9) : [];
+    const text10 = await res.text();
+    return text10 ? JSON.parse(text10) : [];
   }
   one(rows, what) {
     if (!rows[0]) throw new Error(`${what} not found`);
@@ -1247,14 +1247,14 @@ async function setContactEmail(store2, orgId, id, email, by) {
   if (!c) throw new Error("Contact not found");
   return upsertContact(store2, orgId, { ...c, email, value: c.value }, by);
 }
-function splitCsvLine(line) {
+function splitCsvLine(line2) {
   const out = [];
   let cur = "";
   let quoted = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
+  for (let i = 0; i < line2.length; i++) {
+    const ch = line2[i];
     if (quoted) {
-      if (ch === '"' && line[i + 1] === '"') {
+      if (ch === '"' && line2[i + 1] === '"') {
         cur += '"';
         i++;
       } else if (ch === '"') quoted = false;
@@ -1698,10 +1698,10 @@ function icpFull(i) {
   return [`ICP id ${i.id}: ${i.name}`, `Summary: ${i.summary}`, i.industries && `Industries: ${i.industries}`, i.locations && `Locations: ${i.locations}`, i.size && `Size: ${i.size}`, i.buyer && `Buyer: ${i.buyer}`, i.pains && `Pains: ${i.pains}`, i.signals && `Buying signals: ${i.signals}`, i.disqualifiers && `Disqualifiers: ${i.disqualifiers}`, i.offer && `Offer: ${i.offer}`, i.valueCase && `Why it pays: ${i.valueCase}`, i.voice && `Voice: ${i.voice}`].filter(Boolean).join("\n");
 }
 var READ_VIEWS = ["pipeline", "deal", "deals", "icps", "icp_notes", "existing", "issues"];
-async function readCrm(store2, orgId, view, contactId4, contactIds) {
+async function readCrm(store2, orgId, view2, contactId4, contactIds) {
   const crm = await loadCrm(store2, orgId);
   let out;
-  switch (view) {
+  switch (view2) {
     case "deal": {
       const c = crm.contacts.find((x) => x.id === String(contactId4 ?? ""));
       out = c ? dealFull(c) : `No deal with id "${String(contactId4 ?? "")}". Read the pipeline view for ids.`;
@@ -2063,6 +2063,567 @@ var RESEARCH_TOOLS = {
   }
 };
 
+// core/billing.ts
+var MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+var CURRENCIES2 = ["USD", "INR"];
+async function setPlan(store2, orgId, plan, by) {
+  const name = String(plan.name ?? "").trim().slice(0, 60);
+  const fee = Number(plan.monthlyFee);
+  if (!name || !Number.isFinite(fee) || fee < 0 || !CURRENCIES2.includes(plan.currency)) throw new Error("A plan needs a name, a monthly fee of zero or more, and USD or INR");
+  await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "billing.plan", taskId: null, detail: { name, monthlyFee: fee, currency: plan.currency, summary: `Plan set: ${name}, ${fee} ${plan.currency} a month` } });
+}
+async function loadPlan(store2, orgId) {
+  const last = (await store2.listAuditByActions(orgId, ["billing.plan"])).at(-1);
+  return last ? { name: String(last.detail.name), monthlyFee: Number(last.detail.monthlyFee), currency: String(last.detail.currency) } : null;
+}
+async function listInvoices(store2, orgId) {
+  const events = await store2.listAuditByActions(orgId, ["invoice.drafted", "invoice.status"]);
+  const map = /* @__PURE__ */ new Map();
+  for (const e of events) {
+    const d = e.detail;
+    if (e.action === "invoice.drafted") {
+      map.set(String(d.invoiceId), {
+        id: String(d.invoiceId),
+        number: String(d.number),
+        orgId,
+        period: String(d.period),
+        currency: String(d.currency),
+        lines: d.lines,
+        total: Number(d.total),
+        status: "draft",
+        createdAt: e.at,
+        sentAt: null,
+        paidAt: null
+      });
+    } else {
+      const inv = map.get(String(d.invoiceId));
+      if (!inv) continue;
+      inv.status = d.status;
+      if (d.status === "sent") inv.sentAt = e.at;
+      if (d.status === "paid") inv.paidAt = e.at;
+    }
+  }
+  return [...map.values()].sort((a, b) => a.period < b.period ? 1 : -1);
+}
+async function draftInvoice(store2, orgId, period, by) {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) throw new Error("period must look like 2026-11");
+  const existing = (await listInvoices(store2, orgId)).find((i) => i.period === period && i.status !== "void");
+  if (existing) return existing;
+  const plan = await loadPlan(store2, orgId);
+  if (!plan) throw new Error("Set a plan for this business before invoicing");
+  const id = newId();
+  const number = `SIX-${period.replace("-", "")}-${orgId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
+  const lines = [{ description: `${plan.name} plan, ${MONTHS[Number(period.slice(5)) - 1]} ${period.slice(0, 4)}`, amount: plan.monthlyFee }];
+  const total = lines.reduce((s, l) => s + l.amount, 0);
+  await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "invoice.drafted", taskId: null, detail: { invoiceId: id, number, period, currency: plan.currency, lines, total, summary: `Invoice ${number} drafted: ${total} ${plan.currency}` } });
+  return (await listInvoices(store2, orgId)).find((i) => i.id === id);
+}
+async function setInvoiceStatus(store2, orgId, invoiceId, status, by) {
+  if (!["sent", "paid", "void"].includes(status)) throw new Error("status must be sent, paid or void");
+  const inv = (await listInvoices(store2, orgId)).find((i) => i.id === invoiceId);
+  if (!inv) throw new Error("Invoice not found");
+  await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "invoice.status", taskId: null, detail: { invoiceId, status, summary: `Invoice ${inv.number} marked ${status}` } });
+  return (await listInvoices(store2, orgId)).find((i) => i.id === invoiceId);
+}
+
+// core/marketing.ts
+var MARKETING_PLANS = [
+  {
+    id: "starter",
+    name: "Starter",
+    priceUsd: 79,
+    for: "Owners who run it themselves",
+    images: 20,
+    videos: 4,
+    credits: 100,
+    checkout: true,
+    includes: ["Assessment and 30-day plan", "20 image ads and 4 short videos a month", "Organic posting on your linked pages", "Leads into your CRM"]
+  },
+  {
+    id: "growth",
+    name: "Growth",
+    priceUsd: 249,
+    for: "Small businesses that want paid ads managed",
+    images: 40,
+    videos: 8,
+    credits: 200,
+    checkout: true,
+    includes: ["Everything in Starter", "Ads managed in your own Meta and Google accounts", "40 image ads and 8 short videos a month", "Drafted replies to every lead", "Weekly report"]
+  },
+  {
+    id: "agency",
+    name: "Agency",
+    priceUsd: 999,
+    for: "Owners who want it done for them",
+    images: 80,
+    videos: 16,
+    credits: 400,
+    checkout: true,
+    includes: ["Everything in Growth", "A SIXXAB person reviews every creative", "A landing page and a WhatsApp lead line", "Monthly strategy call", "Up to 3 locations, 80 images and 16 videos a month"]
+  },
+  {
+    id: "scale",
+    name: "Scale",
+    priceUsd: 5e3,
+    for: "Larger and multi-location businesses",
+    images: 0,
+    videos: 0,
+    credits: 0,
+    checkout: false,
+    includes: ["The 12-month small business plan with the full agent company", "Set up with you on a call"]
+  }
+];
+var getMarketingPlan = (id) => MARKETING_PLANS.find((p) => p.id === id);
+var REPEAT_RATES = ["Once", "A few times a year", "Monthly or more", "Not sure"];
+var REPLY_SPEEDS = ["Within 5 minutes", "Within an hour", "Same day", "Next day or later", "Not sure"];
+var PIXEL_ANSWERS = ["Yes", "No", "Not sure"];
+var ASSET_ANSWERS = ["Logo, photos and videos", "Logo and photos", "Logo only", "Nothing yet"];
+var ASSESSMENT_SECTIONS = [
+  {
+    title: "Business",
+    questions: [
+      { key: "name", label: "Business name", kind: "text" },
+      { key: "industry", label: "Industry", kind: "text" },
+      { key: "location", label: "Location and service area", kind: "text", hint: "e.g. Dallas, TX and 20 miles around" },
+      { key: "founded", label: "Year started", kind: "number" },
+      { key: "team", label: "Team size", kind: "text" }
+    ]
+  },
+  {
+    title: "Offer",
+    questions: [
+      { key: "services", label: "Top 3 services or products, with the price of each", kind: "long" },
+      { key: "averageSale", label: "Average first sale", kind: "number", hint: "In your currency, e.g. 450" },
+      { key: "repeatRate", label: "How often customers buy again", kind: "choice", options: REPEAT_RATES }
+    ]
+  },
+  {
+    title: "Customers",
+    questions: [
+      { key: "bestCustomer", label: "Your best customer", kind: "long", hint: "Who they are and why they choose you" },
+      { key: "sources", label: "Where customers come from today", kind: "text" },
+      { key: "closeRate", label: "Out of 10 people who ask, how many buy?", kind: "number", hint: "0 to 10" },
+      { key: "seasons", label: "Busy and slow months", kind: "text" }
+    ]
+  },
+  {
+    title: "Goals",
+    questions: [
+      { key: "leadsWanted", label: "New leads wanted a month", kind: "number" },
+      { key: "revenueGoal", label: "Monthly revenue goal", kind: "number" },
+      { key: "adBudget", label: "Monthly ad budget", kind: "number", hint: "Paid to Meta or Google directly, not to SIXXAB" },
+      { key: "startDate", label: "When to start", kind: "text" }
+    ]
+  },
+  {
+    title: "Marketing today",
+    questions: [
+      { key: "website", label: "Website", kind: "text" },
+      { key: "booking", label: "Booking or buy link", kind: "text" },
+      { key: "googleProfile", label: "Google Business Profile link", kind: "text" },
+      { key: "social", label: "Social pages", kind: "long", hint: "One link per line" },
+      { key: "reviews", label: "Number of Google reviews", kind: "number" },
+      { key: "pixel", label: "Is a Meta pixel or Google tag on your website?", kind: "choice", options: PIXEL_ANSWERS },
+      { key: "adsToday", label: "Ad spend and results today", kind: "text", hint: "e.g. $300 a month on Facebook, about 10 leads" },
+      { key: "replySpeed", label: "How fast new leads get a reply", kind: "choice", options: REPLY_SPEEDS }
+    ]
+  },
+  {
+    title: "Assets and limits",
+    questions: [
+      { key: "assets", label: "Photos, videos and logo you have", kind: "choice", options: ASSET_ANSWERS },
+      { key: "voice", label: "Brand voice", kind: "text" },
+      { key: "avoid", label: "Claims to avoid", kind: "long", hint: "Medical, legal or financial ad rules, or anything you never say" },
+      { key: "approver", label: "Who approves ads before they go out", kind: "text" }
+    ]
+  }
+];
+var QUESTIONS = ASSESSMENT_SECTIONS.flatMap((s) => s.questions);
+var MAX_ANSWER = 1500;
+var firstNumber = (s) => {
+  const m = (s ?? "").replace(/,/g, "").match(/\d+(\.\d+)?/);
+  return m ? m[0] : "";
+};
+function prefillAnswers(p) {
+  if (!p) return {};
+  const out = {
+    name: p.name ?? "",
+    industry: p.industry ?? "",
+    location: [p.location, p.markets].filter(Boolean).join("; "),
+    founded: p.founded ?? "",
+    team: p.team ?? "",
+    services: [p.offer, p.pricing].filter(Boolean).join("\n"),
+    bestCustomer: p.customers ?? "",
+    sources: p.sources ?? "",
+    revenueGoal: firstNumber(p.revenueGoal),
+    adBudget: firstNumber(p.budget),
+    website: p.links ?? "",
+    googleProfile: p.googleProfile ?? "",
+    social: [p.instagram, p.facebook, p.linkedin].filter(Boolean).join("\n"),
+    voice: p.voice ?? ""
+  };
+  return Object.fromEntries(Object.entries(out).filter(([, v]) => v));
+}
+function validateAnswers(body) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("Send the answers as an object");
+  const src = body;
+  const out = {};
+  for (const q of QUESTIONS) {
+    const raw = src[q.key];
+    if (raw === void 0 || raw === null || raw === "") continue;
+    if (typeof raw !== "string" && typeof raw !== "number") throw new Error(`${q.label} must be text`);
+    const v = String(raw).trim().slice(0, MAX_ANSWER);
+    if (!v) continue;
+    if (q.kind === "number") {
+      const n = Number(v.replace(/,/g, ""));
+      if (!Number.isFinite(n) || n < 0) throw new Error(`${q.label} must be a number of zero or more`);
+      if (q.key === "closeRate" && n > 10) throw new Error("Out of 10 people, the number who buy must be 0 to 10");
+      out[q.key] = String(n);
+      continue;
+    }
+    if (q.kind === "choice" && !q.options.includes(v)) throw new Error(`${q.label} must be one of: ${q.options.join(", ")}`);
+    out[q.key] = v;
+  }
+  return out;
+}
+var num3 = (a, k) => {
+  const n = Number(a[k]);
+  return a[k] !== void 0 && a[k] !== "" && Number.isFinite(n) ? n : null;
+};
+var CHECK_ITEMS = ["website", "booking", "google", "social", "reviews", "pixel"];
+var CHECKS = [
+  { key: "website", item: "website", label: "Website", weight: 15, fix: "Add a website, even one page, so ads have somewhere to send people", earn: (a) => a.website ? 1 : 0 },
+  { key: "google", item: "google", label: "Google Business Profile", weight: 15, fix: "Claim your Google Business Profile so local searches find you", earn: (a) => a.googleProfile ? 1 : 0 },
+  { key: "booking", item: "booking", label: "Booking or buy link", weight: 10, fix: "Add a booking or buy link so a lead can act at once", earn: (a) => a.booking ? 1 : 0 },
+  { key: "social", item: "social", label: "Social pages", weight: 10, fix: "Open an Instagram or Facebook page for posts and ads", earn: (a) => a.social ? 1 : 0 },
+  { key: "reviews", item: "reviews", label: "Reviews", weight: 10, fix: "Ask happy customers for Google reviews; 10 or more makes ads convert better", earn: (a) => {
+    const n = num3(a, "reviews") ?? 0;
+    return n >= 10 ? 1 : n > 0 ? 0.5 : 0;
+  } },
+  { key: "pixel", item: "pixel", label: "Tracking pixel", weight: 10, fix: "Install the Meta pixel or Google tag so ads can be measured", earn: (a) => a.pixel === "Yes" ? 1 : 0 },
+  { key: "offer", label: "Clear offer and price", weight: 10, fix: "Name your top services with a price and your average first sale", earn: (a) => a.services && (num3(a, "averageSale") ?? 0) > 0 ? 1 : a.services ? 0.5 : 0 },
+  { key: "customer", label: "Best customer described", weight: 5, fix: "Describe your best customer so ads target the right people", earn: (a) => a.bestCustomer ? 1 : 0 },
+  { key: "budget", label: "Ad budget set", weight: 5, fix: "Set a monthly ad budget, even a small one", earn: (a) => (num3(a, "adBudget") ?? 0) > 0 ? 1 : 0 },
+  { key: "assets", label: "Photos and logo", weight: 5, fix: "Gather a logo and a few real photos for the ads", earn: (a) => a.assets === "Logo, photos and videos" ? 1 : a.assets === "Logo and photos" ? 0.8 : a.assets === "Logo only" ? 0.4 : 0 },
+  { key: "reply", label: "Fast replies to leads", weight: 5, fix: "Reply to new leads within 5 minutes; the Speed-to-Lead agent can draft them", earn: (a) => a.replySpeed === "Within 5 minutes" ? 1 : a.replySpeed === "Within an hour" ? 0.6 : 0 }
+];
+function scoreReadiness(a, validation) {
+  const checks = CHECKS.map((c) => {
+    const v = c.item ? validation?.checks.find((x) => x.item === c.item) : void 0;
+    let earned = c.earn(a);
+    let confirmed = null;
+    if (v?.status === "found") {
+      earned = c.key === "reviews" ? Math.max(earned, 0.5) : 1;
+      confirmed = true;
+    }
+    if (v?.status === "missing") {
+      earned = 0;
+      confirmed = false;
+    }
+    return { key: c.key, label: c.label, weight: c.weight, earned: Math.round(earned * c.weight * 10) / 10, fix: c.fix, confirmed };
+  });
+  const score = Math.round(checks.reduce((s, c) => s + c.earned, 0));
+  const gaps = checks.filter((c) => c.earned < c.weight).sort((x, y) => y.weight - y.earned - (x.weight - x.earned)).map((c) => c.fix);
+  return { score, checks, gaps };
+}
+var toUsd = (amount, currency, inrPerUsd = 85) => currency === "INR" ? amount / inrPerUsd : amount;
+function recommendPlan(a, currency = "USD", inrPerUsd = 85) {
+  const budget = toUsd(num3(a, "adBudget") ?? 0, currency, inrPerUsd);
+  if (budget >= 1e4) return { planId: "scale", reason: "Your ad budget is large enough for the full agent company, set up with you on a call." };
+  if (budget >= 2500) return { planId: "agency", reason: "At this budget a person reviewing every creative and a landing page pay for themselves." };
+  if (budget >= 500) return { planId: "growth", reason: "Your budget is enough for paid ads, so the Ads Manager runs them in your own accounts." };
+  return { planId: "starter", reason: budget > 0 ? "Under $500 a month of ads works best as steady organic posts plus small boosts." : "With no ad budget yet, start with organic posts and the leads they bring." };
+}
+function costPerLead(a) {
+  const sale = num3(a, "averageSale");
+  const given = num3(a, "closeRate");
+  const closeRate = given !== null ? given / 10 : 0.2;
+  const assumedClose = given === null;
+  const ceiling = sale && sale > 0 && closeRate > 0 ? Math.max(1, Math.round(sale * closeRate * 0.3)) : null;
+  const budget = num3(a, "adBudget") ?? 0;
+  const wanted = num3(a, "leadsWanted");
+  const affordable = ceiling && budget > 0 ? Math.floor(budget / ceiling) : null;
+  const leadsTarget = wanted ?? affordable;
+  let budgetNote = "";
+  if (ceiling && wanted && budget > 0 && wanted * ceiling > budget) budgetNote = `Your budget buys about ${affordable} leads at that ceiling; raise the budget or lower the goal to ${affordable}.`;
+  else if (ceiling && wanted && budget === 0) budgetNote = `${wanted} leads a month at up to ${ceiling} each needs about ${wanted * ceiling} of ads, or organic posts alone.`;
+  const formula = ceiling ? `${sale} average sale \xD7 ${Math.round(closeRate * 100)}% who buy${assumedClose ? " (assumed)" : ""} \xD7 30%` : "Add your average first sale to work this out";
+  return { ceiling, closeRate, assumedClose, leadsTarget, budgetNote, formula };
+}
+var B2B = ["Professional services", "Technology or software"];
+function pickChannels(a) {
+  const s = `${a.social ?? ""} ${a.sources ?? ""}`.toLowerCase();
+  const out = [];
+  if (/instagram|facebook|meta/.test(s) || !s.trim()) out.push("Instagram and Facebook");
+  if (/linkedin/.test(s) || B2B.includes(a.industry ?? "")) out.push("LinkedIn");
+  if (/tiktok/.test(s)) out.push("TikTok");
+  if (/youtube/.test(s)) out.push("YouTube Shorts");
+  if (a.googleProfile) out.push("Google Business Profile posts");
+  if (!out.includes("Instagram and Facebook") && out.length < 2) out.unshift("Instagram and Facebook");
+  return out.slice(0, 4);
+}
+function draftThirtyDayPlan(a, planId, currency = "USD") {
+  const plan = getMarketingPlan(planId);
+  const channels = pickChannels(a);
+  const r = scoreReadiness(a);
+  const cpl = costPerLead(a);
+  const budget = num3(a, "adBudget") ?? 0;
+  const images = plan.images || 40;
+  const videos = plan.videos || 8;
+  const money3 = (n) => `${currency === "INR" ? "\u20B9" : "$"}${Math.round(n).toLocaleString("en-US")}`;
+  const paid = planId !== "starter" && budget > 0;
+  const weeks = [
+    { week: 1, focus: "Set up", actions: [
+      ...r.gaps.slice(0, 2),
+      `Link ${channels.join(", ")} so posts can go out after your approval`,
+      "Confirm the offer, the prices to show and the claims to avoid"
+    ] },
+    { week: 2, focus: "First creatives", actions: [
+      `Make ${Math.ceil(images / 4)} image ads and ${Math.ceil(videos / 4)} short videos from your top offer`,
+      `Post ${channels.length > 1 ? "daily across" : "daily on"} ${channels.join(" and ")}, each post approved by you`,
+      "Every lead and comment lands in your CRM with a drafted reply"
+    ] },
+    { week: 3, focus: paid ? "Launch ads" : "Grow reach", actions: paid ? [
+      `Start ads at about ${money3(budget / 4)} a week on ${channels[0]}, created paused until you approve`,
+      cpl.ceiling ? `Pause any ad above ${money3(cpl.ceiling)} a lead` : "Pause any ad whose leads cost more than your average sale allows",
+      "Test 3 hooks and keep the 2 that bring the cheapest leads"
+    ] : [
+      "Post daily and reply to every comment within an hour",
+      "Boost the best organic post with a small budget if it brings leads",
+      "Ask your last 10 customers for a Google review"
+    ] },
+    { week: 4, focus: "Review and double down", actions: [
+      "Keep the 2 best creatives and replace the rest",
+      `Report: leads${cpl.leadsTarget ? ` against the goal of ${cpl.leadsTarget}` : ""}, cost per lead, calls booked and sales`,
+      "Plan next month's creatives from what worked"
+    ] }
+  ];
+  const kpis = [
+    cpl.leadsTarget ? `${cpl.leadsTarget} new leads a month` : "New leads a month",
+    cpl.ceiling ? `Cost per lead at or under ${money3(cpl.ceiling)}` : "Cost per lead",
+    "First reply to every lead within 5 minutes"
+  ];
+  return { planId, channels, weeks: weeks.map((w) => ({ ...w, actions: w.actions.filter(Boolean).slice(0, 4) })), kpis };
+}
+var MARKETING_EVENTS = ["marketing.assessment", "marketing.validation", "marketing.plan", "marketing.payment", "marketing.subscription"];
+async function saveAssessment(store2, orgId, body, by) {
+  const answers = validateAnswers(body);
+  if (Object.keys(answers).length < 3) throw new Error("Answer at least a few questions before saving");
+  await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "marketing.assessment", taskId: null, detail: { answers, summary: `Marketing assessment saved: ${Object.keys(answers).length} answers` } });
+  return answers;
+}
+var text5 = (v, max = 600) => typeof v === "string" ? v.trim().slice(0, max) : typeof v === "number" ? String(v) : "";
+var httpsOrEmpty = (v) => {
+  const s = text5(v, 500);
+  return /^https:\/\/\S+$/i.test(s) ? s : "";
+};
+async function saveValidation(store2, orgId, input, by) {
+  const raw = Array.isArray(input.checks) ? input.checks : [];
+  const checks = [];
+  for (const c of raw.slice(0, 12)) {
+    if (!c || typeof c !== "object") continue;
+    const r = c;
+    const item = r.item;
+    const status = r.status;
+    if (!CHECK_ITEMS.includes(item) || !["found", "missing", "unclear"].includes(status) || checks.some((x) => x.item === item)) continue;
+    const source = httpsOrEmpty(r.source);
+    checks.push({ item, status: status === "found" && !source ? "unclear" : status, note: text5(r.note, 300), source });
+  }
+  if (!checks.length) throw new Error("Give at least one check: item (website, booking, google, social, reviews or pixel), status (found, missing or unclear), note and source.");
+  const summary = text5(input.summary, 1200);
+  await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "marketing.validation", taskId: null, detail: { checks, summary, summaryLine: `${checks.filter((c) => c.status === "found").length} of ${checks.length} confirmed online` } });
+  return `Saved the online check: ${checks.map((c) => `${c.item} ${c.status}`).join(", ")}. The owner sees it on the Marketing tab.`;
+}
+async function saveTailoredPlan(store2, orgId, input, by) {
+  const list3 = (v, n, max = 200) => Array.isArray(v) ? v.map((x) => text5(x, max)).filter(Boolean).slice(0, n) : [];
+  const weeks = (Array.isArray(input.weeks) ? input.weeks : []).slice(0, 5).map((w, i) => {
+    const r = w && typeof w === "object" ? w : {};
+    return { week: Number(r.week) || i + 1, focus: text5(r.focus, 80), actions: list3(r.actions, 6, 240) };
+  }).filter((w) => w.focus && w.actions.length);
+  const summary = text5(input.summary, 1500);
+  if (!summary || weeks.length < 4) throw new Error("A 30-day plan needs a summary and four weeks, each with a focus and actions.");
+  const plan = { summary, channels: list3(input.channels, 6, 60), weeks, kpis: list3(input.kpis, 6) };
+  await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "marketing.plan", taskId: null, detail: { plan, summary: "CMO agent saved a tailored 30-day marketing plan" } });
+  return "Saved the tailored 30-day plan. The owner sees it on the Marketing tab; nothing was posted or spent.";
+}
+async function recordPayment(store2, orgId, p, by) {
+  const plan = getMarketingPlan(p.planId);
+  if (!plan || !plan.checkout) throw new Error("Unknown plan");
+  if (!p.ref) throw new Error("A payment needs its reference");
+  const done = await store2.listAuditByActions(orgId, ["marketing.payment"]);
+  if (done.some((e) => e.detail.provider === p.provider && e.detail.ref === p.ref)) return { recorded: false };
+  const at = nowIso();
+  await store2.audit({ id: newId(), orgId, at, actor: by, action: "marketing.payment", taskId: null, detail: { ...p, summary: `${p.mode === "test" ? "Test payment" : "Payment"} received: Marketing ${plan.name}, ${p.amount} ${p.currency} by ${p.provider === "stripe" ? "card" : "PayPal"}` } });
+  if (p.mode === "live") {
+    await setPlan(store2, orgId, { name: `Marketing ${plan.name}`, monthlyFee: p.amount, currency: p.currency }, by);
+    const inv = await draftInvoice(store2, orgId, at.slice(0, 7), by);
+    if (inv.status !== "paid") await setInvoiceStatus(store2, orgId, inv.id, "paid", by);
+  }
+  return { recorded: true };
+}
+async function recordCancellation(store2, orgId, provider, subscriptionId, by) {
+  await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "marketing.subscription", taskId: null, detail: { provider, subscriptionId, status: "cancelled", summary: `Marketing plan cancelled (${provider})` } });
+}
+function computeMarketing(events, profile, inrPerUsd = 85) {
+  const currency = profile?.currency === "INR" ? "INR" : "USD";
+  let saved = null;
+  let validation = null;
+  let tailored = null;
+  const payments = [];
+  const cancelled = /* @__PURE__ */ new Set();
+  for (const e of events) {
+    const d = e.detail;
+    if (e.action === "marketing.assessment") saved = { answers: d.answers, at: e.at };
+    if (e.action === "marketing.validation") validation = { checks: d.checks, summary: String(d.summary ?? ""), at: e.at, by: e.actor };
+    if (e.action === "marketing.plan") tailored = { ...d.plan, at: e.at, by: e.actor };
+    if (e.action === "marketing.payment") payments.push({ ...d, at: e.at });
+    if (e.action === "marketing.subscription" && d.status === "cancelled") cancelled.add(`${d.provider}:${d.subscriptionId}`);
+  }
+  const answers = { ...prefillAnswers(profile), ...saved?.answers ?? {} };
+  const readiness = scoreReadiness(answers, validation);
+  const recommended = recommendPlan(answers, currency, inrPerUsd);
+  const last = payments.at(-1);
+  let subscription = null;
+  if (last) {
+    const first = payments.find((p) => p.subscriptionId === last.subscriptionId && p.provider === last.provider) ?? last;
+    const plan = getMarketingPlan(last.planId);
+    subscription = {
+      planId: last.planId,
+      planName: plan?.name ?? last.planId,
+      provider: last.provider,
+      subscriptionId: last.subscriptionId,
+      mode: last.mode,
+      status: cancelled.has(`${last.provider}:${last.subscriptionId}`) ? "cancelled" : "active",
+      startedAt: first.at,
+      lastPaidAt: last.at,
+      amount: last.amount,
+      currency: last.currency
+    };
+  }
+  return {
+    currency,
+    answers,
+    savedAt: saved?.at ?? null,
+    answered: QUESTIONS.filter((q) => answers[q.key]).length,
+    total: QUESTIONS.length,
+    readiness,
+    recommended,
+    cpl: costPerLead(answers),
+    plan30: draftThirtyDayPlan(answers, subscription?.planId ?? recommended.planId, currency),
+    validation,
+    tailored,
+    subscription,
+    payments: payments.slice().reverse()
+  };
+}
+async function loadMarketing(store2, orgId, profile, inrPerUsd = 85) {
+  return computeMarketing(await store2.listAuditByActions(orgId, MARKETING_EVENTS), profile, inrPerUsd);
+}
+var line = (label5, v) => v ? `${label5}: ${v}` : `${label5}: not given`;
+function assessorGoal(a) {
+  return [
+    `Check this business's online presence before its marketing starts. Business: ${a.name ?? "see the company profile"}${a.location ? `, ${a.location}` : ""}.`,
+    line("Website", a.website),
+    line("Booking or buy link", a.booking),
+    line("Google Business Profile", a.googleProfile),
+    line("Social pages", a.social?.replace(/\n+/g, ", ")),
+    line("Google reviews the owner reported", a.reviews),
+    "For each of website, booking, google, social, reviews and pixel, say found, missing or unclear with a note and the public page that shows it.",
+    "You cannot see page code, so a pixel is unclear unless a public page plainly states it. Never guess.",
+    "Save the result with save_assessment_check, with a short summary of the top gaps."
+  ].join("\n");
+}
+function cmoPlanGoal(m) {
+  const a = m.answers;
+  const plan = getMarketingPlan(m.subscription?.planId ?? m.recommended.planId);
+  return [
+    `Tailor a 30-day marketing plan for this business on the ${plan.name} plan (${plan.images} images and ${plan.videos} short videos a month).`,
+    `Readiness ${m.readiness.score}/100. Top gaps: ${m.readiness.gaps.slice(0, 3).join("; ") || "none"}.`,
+    line("Offer", a.services),
+    line("Average first sale", a.averageSale),
+    line("Best customer", a.bestCustomer),
+    line("Where customers come from", a.sources),
+    line("Monthly ad budget", a.adBudget),
+    line("Leads wanted a month", a.leadsWanted),
+    line("Claims to avoid", a.avoid),
+    line("Brand voice", a.voice),
+    `Cost-per-lead ceiling: ${m.cpl.ceiling ?? "unknown"} (${m.cpl.formula}).`,
+    `Draft to improve on: ${m.plan30.weeks.map((w) => `week ${w.week} ${w.focus}: ${w.actions.join("; ")}`).join(" | ")}.`,
+    "Save the plan with save_marketing_plan: a summary, the channels, four weeks each with a focus and 3 to 5 actions, and the KPIs.",
+    "In this task do not draft posts, emails or ads and do not spend; only save the plan."
+  ].join("\n");
+}
+async function syncAgencySales(store2, adminOrgId, orgIds, names, by) {
+  const synced = new Set((await store2.listAuditByActions(adminOrgId, ["marketing.synced"])).map((e) => String(e.detail.customerOrgId)));
+  const todo = orgIds.filter((id) => id !== adminOrgId && !synced.has(id));
+  const firsts = await Promise.all(todo.map(async (orgId) => ({ orgId, first: (await store2.listAuditByActions(orgId, ["marketing.payment"]))[0]?.detail })));
+  let added = 0;
+  for (const { orgId, first } of firsts) {
+    if (!first) continue;
+    const plan = getMarketingPlan(first.planId);
+    const name = await names(orgId) ?? "Marketing customer";
+    const test = first.mode === "test";
+    const contactId4 = await addNewContact(store2, adminOrgId, {
+      name: `${name}${test ? " (test payment)" : ""}`,
+      company: name,
+      email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(first.payer ?? "") ? first.payer : "",
+      source: "website",
+      sourceDetail: `Marketing ${plan?.name ?? ""} plan checkout`.replace("  ", " "),
+      value: first.amount,
+      nextStep: "Plan onboarding",
+      notes: `Paid for the Marketing ${plan?.name ?? first.planId} plan by ${first.provider === "stripe" ? "card" : "PayPal"}${test ? " in test mode; remove this deal when you are done testing" : ""}.`
+    }, by, `Marketing customer added: ${name}`);
+    await setDealStage(store2, adminOrgId, contactId4, "won", by);
+    await store2.audit({ id: newId(), orgId: adminOrgId, at: nowIso(), actor: by, action: "marketing.synced", taskId: null, detail: { customerOrgId: orgId, contactId: contactId4, summary: `${name} added to the CRM as a won deal` } });
+    added++;
+  }
+  return added;
+}
+
+// core/marketing-tools.ts
+var str4 = { type: "string" };
+var MARKETING_TOOLS = {
+  save_assessment_check: {
+    spec: {
+      name: "save_assessment_check",
+      description: `Save the check of a business's online presence for its marketing assessment: for each of website, booking, google, social, reviews and pixel, found, missing or unclear, a short note and the public page that shows it. A "found" without a page is saved as unclear. Nothing is sent.`,
+      input_schema: {
+        type: "object",
+        properties: {
+          checks: {
+            type: "array",
+            minItems: 1,
+            maxItems: 6,
+            items: { type: "object", properties: { item: { type: "string", enum: [...CHECK_ITEMS] }, status: { type: "string", enum: ["found", "missing", "unclear"] }, note: str4, source: { type: "string", description: "The public page (https://...)" } }, required: ["item", "status"] }
+          },
+          summary: { type: "string", description: "Two or three sentences: what is in place and the top gaps" }
+        },
+        required: ["checks", "summary"]
+      }
+    },
+    summarize: () => "Save the marketing assessment check",
+    execute: (i, ctx) => saveValidation(ctx.store, ctx.orgId, i, ctx.agent.name)
+  },
+  save_marketing_plan: {
+    spec: {
+      name: "save_marketing_plan",
+      description: "Save a tailored 30-day marketing plan on the business's Marketing tab: a summary, the channels, four weeks each with a focus and 3 to 5 actions, and the KPIs. Nothing is posted or spent; the owner reads it there.",
+      input_schema: {
+        type: "object",
+        properties: {
+          summary: str4,
+          channels: { type: "array", items: str4, maxItems: 6 },
+          weeks: { type: "array", minItems: 4, maxItems: 5, items: { type: "object", properties: { week: { type: "number" }, focus: str4, actions: { type: "array", items: str4, minItems: 1, maxItems: 6 } }, required: ["week", "focus", "actions"] } },
+          kpis: { type: "array", items: str4, maxItems: 6 }
+        },
+        required: ["summary", "weeks"]
+      }
+    },
+    summarize: () => "Save the 30-day marketing plan",
+    execute: (i, ctx) => saveTailoredPlan(ctx.store, ctx.orgId, i, ctx.agent.name)
+  }
+};
+
 // core/tools.ts
 function formatMoney(amountMinor, currency) {
   if (!Number.isFinite(amountMinor)) return `? ${currency}`;
@@ -2081,17 +2642,17 @@ var field = (input, name, max = 4e3) => {
   return t.slice(0, max);
 };
 function parseLinkedInComment(input) {
-  let text9 = input.trim();
+  let text10 = input.trim();
   try {
-    text9 = decodeURIComponent(text9);
+    text10 = decodeURIComponent(text10);
   } catch {
   }
-  const m = text9.match(/urn:li:comment:\((?:urn:li:)?(activity|ugcPost|share):(\d+),(\d+)\)/);
+  const m = text10.match(/urn:li:comment:\((?:urn:li:)?(activity|ugcPost|share):(\d+),(\d+)\)/);
   if (m) {
     const threadUrn2 = `urn:li:${m[1]}:${m[2]}`;
     return { threadUrn: threadUrn2, commentUrn: `urn:li:comment:(${threadUrn2},${m[3]})` };
   }
-  const d = text9.match(/urn:li:fsd_comment:\((\d+),urn:li:(activity|ugcPost|share):(\d+)\)/);
+  const d = text10.match(/urn:li:fsd_comment:\((\d+),urn:li:(activity|ugcPost|share):(\d+)\)/);
   if (!d) return null;
   const threadUrn = `urn:li:${d[2]}:${d[3]}`;
   return { threadUrn, commentUrn: `urn:li:comment:(${threadUrn},${d[1]})` };
@@ -2233,7 +2794,8 @@ ${body}`, agentId: ctx.agent.id, at: nowIso() });
   // Lead generation: read the CRM and save drafts, scores and suggestions onto it (nothing is sent).
   ...LEADGEN_TOOLS,
   ...SALESFLOW_TOOLS,
-  ...RESEARCH_TOOLS
+  ...RESEARCH_TOOLS,
+  ...MARKETING_TOOLS
 };
 var WEB_SEARCH_TOOL = { type: "web_search_20260209", name: "web_search", max_uses: 5 };
 function toolsFor(agent) {
@@ -2241,9 +2803,9 @@ function toolsFor(agent) {
 }
 var WEBHOOK_TIMEOUT_MS = 3e4;
 var RECEIPT_MAX = 500;
-function parseReceipt(text9) {
+function parseReceipt(text10) {
   try {
-    const body = JSON.parse(text9);
+    const body = JSON.parse(text10);
     if (!body || typeof body !== "object") return void 0;
     const { ok, message } = body;
     return {
@@ -2322,8 +2884,8 @@ function requireAdmin(label5) {
   if (!isAdmin(label5, env("ADMIN_EMAILS"))) throw new HttpError(403, "Admins only");
 }
 function journeyOptions() {
-  const rate = Number(env("INR_PER_USD"));
-  return Number.isFinite(rate) && rate > 0 ? { inrPerUsd: rate } : {};
+  const rate2 = Number(env("INR_PER_USD"));
+  return Number.isFinite(rate2) && rate2 > 0 ? { inrPerUsd: rate2 } : {};
 }
 async function requireUser(request) {
   const url2 = supabaseUrl();
@@ -2342,10 +2904,10 @@ async function requireUser(request) {
   return { userId: user.id, orgId, label: label5, store: s };
 }
 async function readJson(request, maxBytes = 64e3) {
-  const text9 = await request.text();
-  if (text9.length > maxBytes) throw new HttpError(413, "Request too large");
+  const text10 = await request.text();
+  if (text10.length > maxBytes) throw new HttpError(413, "Request too large");
   try {
-    return JSON.parse(text9 || "{}");
+    return JSON.parse(text10 || "{}");
   } catch {
     throw new HttpError(400, "Invalid JSON");
   }
@@ -2393,71 +2955,6 @@ __export(billing_exports, {
   GET: () => GET2,
   POST: () => POST2
 });
-
-// core/billing.ts
-var MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-var CURRENCIES2 = ["USD", "INR"];
-async function setPlan(store2, orgId, plan, by) {
-  const name = String(plan.name ?? "").trim().slice(0, 60);
-  const fee = Number(plan.monthlyFee);
-  if (!name || !Number.isFinite(fee) || fee < 0 || !CURRENCIES2.includes(plan.currency)) throw new Error("A plan needs a name, a monthly fee of zero or more, and USD or INR");
-  await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "billing.plan", taskId: null, detail: { name, monthlyFee: fee, currency: plan.currency, summary: `Plan set: ${name}, ${fee} ${plan.currency} a month` } });
-}
-async function loadPlan(store2, orgId) {
-  const last = (await store2.listAuditByActions(orgId, ["billing.plan"])).at(-1);
-  return last ? { name: String(last.detail.name), monthlyFee: Number(last.detail.monthlyFee), currency: String(last.detail.currency) } : null;
-}
-async function listInvoices(store2, orgId) {
-  const events = await store2.listAuditByActions(orgId, ["invoice.drafted", "invoice.status"]);
-  const map = /* @__PURE__ */ new Map();
-  for (const e of events) {
-    const d = e.detail;
-    if (e.action === "invoice.drafted") {
-      map.set(String(d.invoiceId), {
-        id: String(d.invoiceId),
-        number: String(d.number),
-        orgId,
-        period: String(d.period),
-        currency: String(d.currency),
-        lines: d.lines,
-        total: Number(d.total),
-        status: "draft",
-        createdAt: e.at,
-        sentAt: null,
-        paidAt: null
-      });
-    } else {
-      const inv = map.get(String(d.invoiceId));
-      if (!inv) continue;
-      inv.status = d.status;
-      if (d.status === "sent") inv.sentAt = e.at;
-      if (d.status === "paid") inv.paidAt = e.at;
-    }
-  }
-  return [...map.values()].sort((a, b) => a.period < b.period ? 1 : -1);
-}
-async function draftInvoice(store2, orgId, period, by) {
-  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) throw new Error("period must look like 2026-11");
-  const existing = (await listInvoices(store2, orgId)).find((i) => i.period === period && i.status !== "void");
-  if (existing) return existing;
-  const plan = await loadPlan(store2, orgId);
-  if (!plan) throw new Error("Set a plan for this business before invoicing");
-  const id = newId();
-  const number = `SIX-${period.replace("-", "")}-${orgId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
-  const lines = [{ description: `${plan.name} plan, ${MONTHS[Number(period.slice(5)) - 1]} ${period.slice(0, 4)}`, amount: plan.monthlyFee }];
-  const total = lines.reduce((s, l) => s + l.amount, 0);
-  await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "invoice.drafted", taskId: null, detail: { invoiceId: id, number, period, currency: plan.currency, lines, total, summary: `Invoice ${number} drafted: ${total} ${plan.currency}` } });
-  return (await listInvoices(store2, orgId)).find((i) => i.id === id);
-}
-async function setInvoiceStatus(store2, orgId, invoiceId, status, by) {
-  if (!["sent", "paid", "void"].includes(status)) throw new Error("status must be sent, paid or void");
-  const inv = (await listInvoices(store2, orgId)).find((i) => i.id === invoiceId);
-  if (!inv) throw new Error("Invoice not found");
-  await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "invoice.status", taskId: null, detail: { invoiceId, status, summary: `Invoice ${inv.number} marked ${status}` } });
-  return (await listInvoices(store2, orgId)).find((i) => i.id === invoiceId);
-}
-
-// server/routes/billing.ts
 var GET2 = handle(async (request) => {
   const { label: label5, store: store2 } = await requireUser(request);
   requireAdmin(label5);
@@ -2657,9 +3154,23 @@ var AGENTS = [
     reportsTo: "founder-orchestrator",
     job: "Owns the marketing plan and leads the marketing agents.",
     modelTier: "worker",
-    tools: ["recall", "remember", "write_note", "publish_post", "send_email_campaign", "spend_money"],
+    tools: ["recall", "remember", "write_note", "save_marketing_plan", "publish_post", "send_email_campaign", "spend_money"],
     usesModel: true,
-    instructions: `You are the CMO agent. Plan campaigns that fit the company's niche and budget, then draft the posts and emails. ${SHARED_RULES}`
+    instructions: `You are the CMO agent. Plan campaigns that fit the company's niche and budget, then draft the posts and emails. When asked for a 30-day plan, save it with save_marketing_plan: concrete weekly actions tied to the channels, the budget and the cost-per-lead ceiling you are given, and nothing the business cannot do yet. ${SHARED_RULES}`
+  },
+  {
+    id: "business-assessor",
+    name: "Business Assessor",
+    layer: "department",
+    stage: 2,
+    reportsTo: "cmo",
+    job: "Checks a business's website, booking link, Google profile, social pages, reviews and tracking before its marketing starts, and saves what is in place and the gaps. Never sends.",
+    modelTier: "worker",
+    tools: ["recall", "save_assessment_check", "web_search"],
+    usesModel: true,
+    maxTurns: 10,
+    starter: "Check the online presence named in the goal on public pages and save it with save_assessment_check.",
+    instructions: `You check a business's online presence for its marketing assessment, from public pages you can cite: its own site, its maps or Google listing, its social pages and review sites. Confirm each page belongs to this business by its name, phone number, address or website. A check is "found" only with the page that shows it, "missing" when you looked and it is not there, and "unclear" when you cannot tell. You cannot see page code, so a tracking pixel is unclear unless a public page plainly states it. Note the review count and rating only as the page shows them. Business information only: nothing behind a login, no personal accounts. Save the result with save_assessment_check, with a short summary of what is in place and the top gaps. Contacting anyone is never your job. ${SHARED_RULES}`
   },
   {
     id: "social-poster",
@@ -3515,12 +4026,12 @@ var MILESTONES = [
 ];
 var EVENTS = ["profile.updated", "journey.step_done", "journey.step_reopened", "revenue.recorded", "milestone.reached", "tool.executed", "autonomy.promoted"];
 var monthIndex = (m) => Number(m.slice(0, 4)) * 12 + Number(m.slice(5, 7)) - 1;
-function revenueSnapshot(byMonth, toUsd) {
+function revenueSnapshot(byMonth, toUsd2) {
   const months = [...byMonth.keys()].sort();
   if (!months.length) return { bestRecentMonthUsd: 0, last12Usd: 0 };
   const latest = monthIndex(months.at(-1));
-  const bestRecentMonthUsd = Math.max(...months.slice(-3).map((m) => toUsd(byMonth.get(m))));
-  const last12Usd = months.filter((m) => latest - monthIndex(m) < 12).reduce((sum, m) => sum + toUsd(byMonth.get(m)), 0);
+  const bestRecentMonthUsd = Math.max(...months.slice(-3).map((m) => toUsd2(byMonth.get(m))));
+  const last12Usd = months.filter((m) => latest - monthIndex(m) < 12).reduce((sum, m) => sum + toUsd2(byMonth.get(m)), 0);
   return { bestRecentMonthUsd, last12Usd };
 }
 function stageFor(bestRecentMonthUsd, last12Usd) {
@@ -3546,13 +4057,13 @@ var usdText = (n) => `$${Math.round(n).toLocaleString("en-US")}`;
 function computeJourney(profile, events, opts = {}) {
   const currency = profile?.currency ?? "USD";
   const inrPerUsd = opts.inrPerUsd && opts.inrPerUsd > 0 ? opts.inrPerUsd : DEFAULT_INR_PER_USD;
-  const toUsd = (n) => currency === "INR" ? n / inrPerUsd : n;
+  const toUsd2 = (n) => currency === "INR" ? n / inrPerUsd : n;
   const byMonth = /* @__PURE__ */ new Map();
   const crossed = { first_customer: null, month_10k: null, month_50k: null, month_100k: null, month_1m: null, month_10m: null };
   for (const e of events) {
     if (e.action !== "revenue.recorded") continue;
     byMonth.set(String(e.detail.month), Number(e.detail.amount));
-    const snap = revenueSnapshot(byMonth, toUsd);
+    const snap = revenueSnapshot(byMonth, toUsd2);
     const mark = (k, ok) => {
       if (ok && !crossed[k]) crossed[k] = e.at;
     };
@@ -3564,7 +4075,7 @@ function computeJourney(profile, events, opts = {}) {
     mark("month_10m", snap.bestRecentMonthUsd >= 1e7);
   }
   const months = [...byMonth.entries()].sort(([a], [b]) => a < b ? -1 : 1).map(([month, amount]) => ({ month, amount, currency }));
-  const { bestRecentMonthUsd, last12Usd } = revenueSnapshot(byMonth, toUsd);
+  const { bestRecentMonthUsd, last12Usd } = revenueSnapshot(byMonth, toUsd2);
   const done = stepsDone(events);
   const firstProfile = events.find((e) => e.action === "profile.updated");
   if (profile?.name && profile.offer && firstProfile) done.set("onboard", done.get("onboard") ?? firstProfile.at);
@@ -3912,8 +4423,8 @@ function computeGovernance(input) {
   const now = input.now.getTime();
   const within = (e, days) => now - Date.parse(e.at) <= days * DAY2;
   const all = input.orgs.flatMap((o) => o.events30d);
-  const rate = input.inrPerUsd && input.inrPerUsd > 0 ? input.inrPerUsd : DEFAULT_INR_PER_USD;
-  const toUsd = (amount, currency) => currency === "INR" ? amount / rate : amount;
+  const rate2 = input.inrPerUsd && input.inrPerUsd > 0 ? input.inrPerUsd : DEFAULT_INR_PER_USD;
+  const toUsd2 = (amount, currency) => currency === "INR" ? amount / rate2 : amount;
   const integrations = EXTERNAL.map((tool) => {
     const ev = all.filter((e) => within(e, 7) && e.detail.tool === tool);
     const failed = ev.filter((e) => e.action === "tool.failed").sort((a, b) => a.at < b.at ? 1 : -1);
@@ -3938,7 +4449,7 @@ function computeGovernance(input) {
     const modelUsd = r2(usageUsd(o));
     const fixedUsd = shares[o.orgId] ?? 0;
     const costUsd2 = r2(modelUsd + fixedUsd);
-    const revenueUsd = o.plan ? r2(toUsd(o.plan.monthlyFee, o.plan.currency)) : 0;
+    const revenueUsd = o.plan ? r2(toUsd2(o.plan.monthlyFee, o.plan.currency)) : 0;
     return { orgId: o.orgId, name: o.name ?? "Unnamed business", plan: o.plan, modelUsd, fixedUsd, costUsd: costUsd2, revenueUsd, marginUsd: r2(revenueUsd - costUsd2) };
   });
   const modelUsd30d = r2(byBusiness.reduce((s, b) => s + b.modelUsd, 0));
@@ -3976,17 +4487,17 @@ function computeGovernance(input) {
     },
     code: input.build,
     pipeline: input.deploy,
-    cost: { modelUsd30d, fixedMonthlyUsd, totalMonthlyUsd: r2(modelUsd30d + fixedMonthlyUsd), fixedCosts: input.fixedCosts, inrPerUsd: rate, byBusiness }
+    cost: { modelUsd30d, fixedMonthlyUsd, totalMonthlyUsd: r2(modelUsd30d + fixedMonthlyUsd), fixedCosts: input.fixedCosts, inrPerUsd: rate2, byBusiness }
   };
 }
 
 // server/build-info.ts
 var BUILD_INFO = {
-  "builtAt": "2026-11-24T14:46:41.972Z",
-  "files": 104,
-  "lines": 11906,
-  "tests": 144,
-  "e2e": 11,
+  "builtAt": "2026-11-24T18:39:15.691Z",
+  "files": 110,
+  "lines": 13105,
+  "tests": 153,
+  "e2e": 12,
   "rlsTables": 9,
   "cspHeader": true,
   "apiRoutes": 12
@@ -3997,9 +4508,9 @@ var TIMEOUT_MS = 5e3;
 async function probe(url2, headers) {
   try {
     const res = await fetch(url2, { headers, signal: AbortSignal.timeout(TIMEOUT_MS) });
-    const text9 = await res.text();
+    const text10 = await res.text();
     try {
-      return { ok: res.ok, body: JSON.parse(text9) };
+      return { ok: res.ok, body: JSON.parse(text10) };
     } catch {
       return { ok: res.ok, body: null };
     }
@@ -4340,7 +4851,7 @@ var RAISE_EVENTS = ["raise.round", "raise.investor", "raise.investor_stage", "ra
 var COMMITTED = ["committed", "signed", "funded"];
 var EMAIL_RE3 = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 var MAX_MONEY = 1e10;
-var text5 = (v, max) => String(v ?? "").trim().slice(0, max);
+var text6 = (v, max) => String(v ?? "").trim().slice(0, max);
 var money2 = (v, label5, required = false) => {
   if (v === void 0 || v === null || v === "") {
     if (required) throw new Error(`${label5} must be more than zero`);
@@ -4358,7 +4869,7 @@ var fmt = (n) => n.toLocaleString("en-US", { maximumFractionDigits: 0 });
 var record5 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
 async function setRound(store2, orgId, r, by) {
   const round3 = {
-    name: text5(r.name, 60) || "Pre-seed",
+    name: text6(r.name, 60) || "Pre-seed",
     instrument: oneOf(INSTRUMENTS, r.instrument, "instrument"),
     exemption: oneOf(EXEMPTIONS, r.exemption, "exemption"),
     target: money2(r.target, "The target", true),
@@ -4373,20 +4884,20 @@ async function setRound(store2, orgId, r, by) {
   return loadRaise(store2, orgId);
 }
 function cleanInvestor(i) {
-  const name = text5(i.name, 120);
+  const name = text6(i.name, 120);
   if (!name) throw new Error("An investor needs a name");
-  const email = text5(i.email, 200);
+  const email = text6(i.email, 200);
   if (email && !EMAIL_RE3.test(email)) throw new Error("That email address does not look right");
   return {
     id: i.id && /^[\w-]{6,64}$/.test(i.id) ? i.id : newId(),
     name,
     email,
-    firm: text5(i.firm, 120),
+    firm: text6(i.firm, 120),
     type: oneOf(INVESTOR_TYPES, i.type, "type"),
-    relationship: text5(i.relationship, 200),
+    relationship: text6(i.relationship, 200),
     accredited: i.accredited ? oneOf(ACCREDITATION, i.accredited, "accredited") : "unknown",
-    nextStep: text5(i.nextStep, 200),
-    notes: text5(i.notes, 2e3)
+    nextStep: text6(i.nextStep, 200),
+    notes: text6(i.notes, 2e3)
   };
 }
 async function upsertInvestor(store2, orgId, input, by) {
@@ -4415,15 +4926,15 @@ function cleanTiers(tiers) {
   if (!Array.isArray(tiers)) return [];
   if (tiers.length > MAX_TIERS) throw new Error(`A campaign can have at most ${MAX_TIERS} tiers`);
   return tiers.map((t, i) => {
-    const name = text5(t?.name, 60);
-    const reward = text5(t?.reward, 300);
+    const name = text6(t?.name, 60);
+    const reward = text6(t?.reward, 300);
     if (!name || !reward) throw new Error(`Tier ${i + 1} needs a name and what the backer gets`);
     return { name, reward, price: money2(t?.price, `Tier ${i + 1} price`, true), limit: money2(t?.limit, `Tier ${i + 1} limit`) };
   });
 }
 async function setCampaign(store2, orgId, c, by) {
   const channel = oneOf(CHANNELS, c.channel, "The channel");
-  const url2 = text5(c.url, 300);
+  const url2 = text6(c.url, 300);
   if (url2 && !/^https:\/\/[\w.-]+(\/[\w\-./?=&%#]*)?$/i.test(url2)) throw new Error("The campaign url must start with https://");
   const campaign = {
     channel,
@@ -4661,31 +5172,31 @@ function apolloBody(f) {
   if (!titles.length && !locations.length && !industries.length && !kw) throw new Error("Add at least a title, a location, an industry or a keyword");
   return body;
 }
-var str4 = (v) => typeof v === "string" ? v : "";
+var str5 = (v) => typeof v === "string" ? v : "";
 function parsePerson(p) {
-  const id = str4(p.id);
+  const id = str5(p.id);
   if (!/^[a-f0-9]{24}$/.test(id)) return null;
   const org = p.organization ?? {};
-  const last = str4(p.last_name) || str4(p.last_name_obfuscated);
-  const name = (str4(p.name) || [str4(p.first_name), last].filter(Boolean).join(" ")).trim();
-  const location = [str4(p.city), str4(p.state), str4(p.country)].filter(Boolean).join(", ");
+  const last = str5(p.last_name) || str5(p.last_name_obfuscated);
+  const name = (str5(p.name) || [str5(p.first_name), last].filter(Boolean).join(" ")).trim();
+  const location = [str5(p.city), str5(p.state), str5(p.country)].filter(Boolean).join(", ");
   return {
     apolloId: id,
     name: name || "Unknown",
-    title: str4(p.title),
-    company: str4(org.name) || str4(p.organization_name),
-    domain: str4(org.primary_domain) || str4(org.website_url).replace(/^https?:\/\//, "").replace(/\/.*$/, ""),
+    title: str5(p.title),
+    company: str5(org.name) || str5(p.organization_name),
+    domain: str5(org.primary_domain) || str5(org.website_url).replace(/^https?:\/\//, "").replace(/\/.*$/, ""),
     location,
-    linkedin: str4(p.linkedin_url)
+    linkedin: str5(p.linkedin_url)
   };
 }
 async function apolloReason(res) {
   try {
-    const text9 = await res.text();
-    let msg = text9;
+    const text10 = await res.text();
+    let msg = text10;
     try {
-      const j = JSON.parse(text9);
-      msg = str4(j.error) || str4(j.message) || text9;
+      const j = JSON.parse(text10);
+      msg = str5(j.error) || str5(j.message) || text10;
     } catch {
     }
     msg = msg.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().slice(0, 200);
@@ -4721,14 +5232,14 @@ async function apolloEnrich(apiKey, apolloId, fetchImpl = fetch) {
   if (!/^[a-f0-9]{24}$/.test(apolloId)) throw new Error("This contact did not come from Apollo");
   const json2 = await call(apiKey, "/people/match", { id: apolloId, reveal_personal_emails: false, reveal_phone_number: false }, fetchImpl);
   const p = json2.person ?? {};
-  const email = str4(p.email);
-  return { email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && !/email_not_unlocked/.test(email) ? email : "", status: str4(p.email_status) || (email ? "unknown" : "unavailable") };
+  const email = str5(p.email);
+  return { email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && !/email_not_unlocked/.test(email) ? email : "", status: str5(p.email_status) || (email ? "unknown" : "unavailable") };
 }
 
 // core/research-import.ts
 import { createHash } from "node:crypto";
 var MAX_REPORTS = 100;
-var text6 = (v, max) => String(v ?? "").trim().slice(0, max);
+var text7 = (v, max) => String(v ?? "").trim().slice(0, max);
 function fingerprint(v) {
   const canon = (x) => Array.isArray(x) ? x.map(canon) : x && typeof x === "object" ? Object.fromEntries(Object.keys(x).sort().map((k) => [k, canon(x[k])])) : x;
   return createHash("sha256").update(JSON.stringify(canon(v))).digest("hex").slice(0, 32);
@@ -4757,12 +5268,12 @@ async function importResearch(store2, orgId, raw, by, choices = {}) {
   const fills = choices.fill && typeof choices.fill === "object" ? choices.fill : {};
   for (let n = 0; n < reports.length; n++) {
     const r = reports[n];
-    const company = text6(r.company, 200) || text6(r.business, 200);
+    const company = text7(r.company, 200) || text7(r.business, 200);
     const empty = { company, contactId: null, dealName: "", matchedBy: null, filled: [] };
     let deal;
     let matchedBy;
     if (Object.prototype.hasOwnProperty.call(chosen, String(n))) {
-      const id = text6(chosen[String(n)], 64);
+      const id = text7(chosen[String(n)], 64);
       if (!id) {
         results.push({ ...empty, research: "skipped", proposal: "none", reason: "Skipped in the preview" });
         continue;
@@ -4827,7 +5338,7 @@ async function importResearch(store2, orgId, raw, by, choices = {}) {
         notes.push(`proposal not attached: ${e instanceof Error ? e.message : "could not read it"}`);
       }
     }
-    const want = (Array.isArray(fills[String(n)]) ? fills[String(n)] : []).slice(0, 20).map((k) => text6(k, 40));
+    const want = (Array.isArray(fills[String(n)]) ? fills[String(n)] : []).slice(0, 20).map((k) => text7(k, 40));
     const report = c.researchReport;
     if (want.length && report && res.research !== "error") {
       const rows = mapRows(report, c);
@@ -4907,7 +5418,9 @@ async function crmView(store2, orgId) {
 }
 var GET6 = handle(async (request) => {
   const { orgId, label: label5, store: store2 } = await requireUser(request);
-  return json({ crm: await crmView(store2, orgId), apollo: Boolean(apolloFor(label5)), admin: isAdmin(label5, process.env.ADMIN_EMAILS) });
+  const admin = isAdmin(label5, process.env.ADMIN_EMAILS);
+  if (admin) await syncAgencySales(store2, orgId, await store2.listOrgIds(), async (id) => (await loadBusinessProfile(store2, id))?.name ?? null, label5).catch((e) => console.error("agency sync", e));
+  return json({ crm: await crmView(store2, orgId), apollo: Boolean(apolloFor(label5)), admin });
 });
 function importChoices(b) {
   const deals = {};
@@ -5034,13 +5547,13 @@ var PRIORITIES = ["low", "normal", "high", "urgent"];
 var CHANNELS2 = ["email", "whatsapp", "phone", "website", "walk-in"];
 var SUPPORT_EVENTS = ["support.ticket", "support.status", "support.note"];
 var SLA_ORDER = ["urgent", "high", "normal", "low"];
-var text7 = (v, max) => String(v ?? "").trim().slice(0, max);
+var text8 = (v, max) => String(v ?? "").trim().slice(0, max);
 var oneOf2 = (list3, v, fallback) => list3.includes(String(v)) ? String(v) : fallback;
 var record6 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
 async function openTicket(store2, orgId, input, by) {
-  const subject = text7(input.subject, 160);
-  const customer = text7(input.customer, 120);
-  const message = text7(input.message, 4e3);
+  const subject = text8(input.subject, 160);
+  const customer = text8(input.customer, 120);
+  const message = text8(input.message, 4e3);
   if (!subject || !customer || !message) throw new Error("A ticket needs a subject, a customer and their message");
   const number = (await loadSupport(store2, orgId)).tickets.reduce((m, t) => Math.max(m, t.number), 1e3) + 1;
   const ticket = {
@@ -5048,7 +5561,7 @@ async function openTicket(store2, orgId, input, by) {
     number,
     subject,
     customer,
-    contact: text7(input.contact, 200),
+    contact: text8(input.contact, 200),
     channel: oneOf2(CHANNELS2, input.channel, "email"),
     priority: oneOf2(PRIORITIES, input.priority, "normal"),
     message
@@ -5066,7 +5579,7 @@ async function setTicketStatus(store2, orgId, id, status, by) {
 async function addTicketNote(store2, orgId, id, note, by) {
   const t = (await loadSupport(store2, orgId)).tickets.find((x) => x.id === id);
   if (!t) throw new Error("Ticket not found");
-  const body = text7(note, 4e3);
+  const body = text8(note, 4e3);
   if (!body) throw new Error("Write a note first");
   await record6(store2, orgId, by, "support.note", { ticketId: id, text: body, summary: `Note on ticket #${t.number}` });
   return loadSupport(store2, orgId);
@@ -5156,17 +5669,17 @@ var ACCOUNT_EVENTS = ["acct.entry", "acct.removed"];
 var DATE_RE2 = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 var MAX_AMOUNT = 1e11;
 var round2 = (n) => Math.round(n * 100) / 100;
-var text8 = (v, max) => String(v ?? "").trim().slice(0, max);
+var text9 = (v, max) => String(v ?? "").trim().slice(0, max);
 var record7 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
 async function addEntry(store2, orgId, input, by, currency = "USD") {
   if (input.kind !== "income" && input.kind !== "expense") throw new Error("kind must be income or expense");
-  const date = text8(input.date, 10);
+  const date = text9(input.date, 10);
   if (!DATE_RE2.test(date)) throw new Error("date must look like 2026-11-04");
   const amount = Number(String(input.amount).replace(/[,$₹\s]/g, ""));
   if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_AMOUNT) throw new Error("amount must be more than zero");
   const cats = input.kind === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
   const category = cats.includes(input.category) ? input.category : input.kind === "income" ? "other income" : "other";
-  const entry = { id: newId(), kind: input.kind, date, amount: round2(amount), category, party: text8(input.party, 120), note: text8(input.note, 300) };
+  const entry = { id: newId(), kind: input.kind, date, amount: round2(amount), category, party: text9(input.party, 120), note: text9(input.note, 300) };
   await record7(store2, orgId, by, "acct.entry", { entry, summary: `${input.kind === "income" ? "Income" : "Expense"} recorded: ${entry.amount} ${currency} (${category})` });
   return loadAccounts(store2, orgId, currency);
 }
@@ -5289,8 +5802,407 @@ var POST7 = handle(async (request) => {
   }
 });
 
+// server/routes/marketing.ts
+var marketing_exports = {};
+__export(marketing_exports, {
+  GET: () => GET9,
+  POST: () => POST8,
+  agencyCustomers: () => agencyCustomers
+});
+
+// core/payments.ts
+var val = (v) => v && v.trim() ? v.trim() : "";
+var liveOn = (env2) => val(env2.PAYMENTS_LIVE).toLowerCase() === "yes";
+var LIVE_OFF = "Live keys are set, but live charges stay off until you switch them on.";
+function paymentSetup(env2) {
+  const sk = val(env2.STRIPE_SECRET_KEY);
+  const sMode = /^(sk|rk)_test_/.test(sk) ? "test" : /^(sk|rk)_live_/.test(sk) ? "live" : null;
+  const stripe = !sk ? { connected: false, mode: null, note: "Card payments aren't connected yet." } : !sMode ? { connected: false, mode: null, note: "The Stripe key doesn't look like a Stripe secret key." } : sMode === "live" && !liveOn(env2) ? { connected: false, mode: "live", note: LIVE_OFF } : { connected: true, mode: sMode, note: sMode === "test" ? "Test mode: no real money moves." : "Live: real charges." };
+  const hasPaypal = Boolean(val(env2.PAYPAL_CLIENT_ID) && val(env2.PAYPAL_CLIENT_SECRET));
+  const pMode = val(env2.PAYPAL_ENV).toLowerCase() === "live" ? "live" : "test";
+  const paypal = !hasPaypal ? { connected: false, mode: null, note: "PayPal isn't connected yet." } : pMode === "live" && !liveOn(env2) ? { connected: false, mode: "live", note: LIVE_OFF } : { connected: true, mode: pMode, note: pMode === "test" ? "PayPal sandbox: no real money moves." : "Live: real charges." };
+  return { stripe, paypal };
+}
+var checkoutPlan = (planId) => {
+  const plan = getMarketingPlan(planId);
+  if (!plan) throw new Error("Pick a plan");
+  if (!plan.checkout) throw new Error(`${plan.name} is set up with you on a call, not at checkout`);
+  return plan;
+};
+var planName = (p) => `SIXXAB Marketing ${p.name}`;
+var STRIPE = "https://api.stripe.com/v1";
+async function stripeCall(key, path, init, fetchImpl) {
+  const res = await fetchImpl(`${STRIPE}${path}`, {
+    method: init.method ?? (init.form ? "POST" : "GET"),
+    headers: { authorization: `Bearer ${key}`, ...init.form ? { "content-type": "application/x-www-form-urlencoded" } : {} },
+    body: init.form ? new URLSearchParams(init.form).toString() : void 0,
+    signal: AbortSignal.timeout(2e4)
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`Stripe ${res.status}: ${String(body.error?.message ?? "request failed").slice(0, 200)}`);
+  return body;
+}
+async function createStripeCheckout(env2, o, fetchImpl = fetch) {
+  const setup = paymentSetup(env2).stripe;
+  if (!setup.connected) throw new Error(setup.note);
+  const plan = checkoutPlan(o.planId);
+  const form = {
+    mode: "subscription",
+    "line_items[0][quantity]": "1",
+    "line_items[0][price_data][currency]": "usd",
+    "line_items[0][price_data][unit_amount]": String(plan.priceUsd * 100),
+    "line_items[0][price_data][recurring][interval]": "month",
+    "line_items[0][price_data][product_data][name]": planName(plan),
+    client_reference_id: o.orgId,
+    "metadata[orgId]": o.orgId,
+    "metadata[plan]": plan.id,
+    "subscription_data[metadata][orgId]": o.orgId,
+    "subscription_data[metadata][plan]": plan.id,
+    success_url: o.successUrl,
+    cancel_url: o.cancelUrl,
+    allow_promotion_codes: "false"
+  };
+  if (o.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(o.email)) form.customer_email = o.email;
+  const s = await stripeCall(val(env2.STRIPE_SECRET_KEY), "/checkout/sessions", { form }, fetchImpl);
+  if (!s.url) throw new Error("Stripe did not return a checkout page");
+  return { id: s.id, url: s.url };
+}
+async function confirmStripeSession(store2, env2, orgId, sessionId, by, fetchImpl = fetch) {
+  if (!/^cs_(test|live)_[\w]+$/.test(sessionId)) throw new Error("That checkout reference doesn't look right");
+  const setup = paymentSetup(env2).stripe;
+  if (!setup.connected) throw new Error(setup.note);
+  const s = await stripeCall(val(env2.STRIPE_SECRET_KEY), `/checkout/sessions/${sessionId}`, {}, fetchImpl);
+  return recordStripeSession(store2, s, orgId, by);
+}
+async function recordStripeSession(store2, s, orgId, by) {
+  if (s.client_reference_id !== orgId || s.metadata?.orgId !== orgId) throw new Error("This checkout belongs to another workspace");
+  if (s.status !== "complete" || !["paid", "no_payment_required"].includes(String(s.payment_status))) return false;
+  const plan = checkoutPlan(s.metadata?.plan);
+  await recordPayment(store2, orgId, {
+    provider: "stripe",
+    ref: s.id,
+    subscriptionId: s.subscription ?? s.id,
+    planId: plan.id,
+    amount: typeof s.amount_total === "number" ? s.amount_total / 100 : plan.priceUsd,
+    currency: (s.currency ?? "usd").toUpperCase(),
+    mode: s.livemode ? "live" : "test",
+    kind: "first",
+    payer: s.customer_details?.email ?? ""
+  }, by);
+  return true;
+}
+var enc = new TextEncoder();
+var hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+function sameText(a, b) {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+async function verifyStripeSignature(rawBody, header, secret, nowSec = Math.floor(Date.now() / 1e3), toleranceSec = 300) {
+  if (!header || !secret) return false;
+  const parts = header.split(",").map((p) => p.trim().split("="));
+  const t = Number(parts.find(([k]) => k === "t")?.[1]);
+  const sigs = parts.filter(([k]) => k === "v1").map(([, v]) => v ?? "");
+  if (!Number.isFinite(t) || !sigs.length || Math.abs(nowSec - t) > toleranceSec) return false;
+  const key = await globalThis.crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const expected = hex(await globalThis.crypto.subtle.sign("HMAC", key, enc.encode(`${t}.${rawBody}`)));
+  return sigs.some((s) => sameText(s, expected));
+}
+async function handleStripeEvent(store2, event, orgIds) {
+  const o = event.data?.object ?? {};
+  const meta = o.metadata ?? {};
+  if (event.type === "checkout.session.completed") {
+    const orgId = String(o.client_reference_id ?? "");
+    if (!orgIds.includes(orgId)) return "ignored: unknown workspace";
+    return await recordStripeSession(store2, o, orgId, "stripe") ? "recorded" : "not paid yet";
+  }
+  if (event.type === "invoice.paid") {
+    if (o.billing_reason === "subscription_create") return "ignored: first payment comes with checkout";
+    const parent = o.parent ?? {};
+    const subMeta = parent.subscription_details?.metadata ?? o.subscription_details?.metadata ?? {};
+    const orgId = subMeta.orgId ?? "";
+    if (!orgIds.includes(orgId)) return "ignored: unknown workspace";
+    const plan = checkoutPlan(subMeta.plan);
+    await recordPayment(store2, orgId, {
+      provider: "stripe",
+      ref: String(o.id),
+      subscriptionId: String(parent.subscription_details?.subscription ?? o.subscription ?? ""),
+      planId: plan.id,
+      amount: Number(o.amount_paid ?? plan.priceUsd * 100) / 100,
+      currency: String(o.currency ?? "usd").toUpperCase(),
+      mode: event.livemode ? "live" : "test",
+      kind: "renewal",
+      payer: String(o.customer_email ?? "")
+    }, "stripe");
+    return "recorded renewal";
+  }
+  if (event.type === "customer.subscription.deleted") {
+    const orgId = meta.orgId ?? "";
+    if (!orgIds.includes(orgId)) return "ignored: unknown workspace";
+    await recordCancellation(store2, orgId, "stripe", String(o.id), "stripe");
+    return "recorded cancellation";
+  }
+  return `ignored: ${event.type}`;
+}
+var paypalBase = (env2) => val(env2.PAYPAL_ENV).toLowerCase() === "live" ? "https://api-m.paypal.com" : "https://api-m.sandbox.paypal.com";
+var PAYPAL_PRODUCT_ID = "SIXXAB-MARKETING";
+async function paypalToken(env2, fetchImpl) {
+  const basic = btoa(`${val(env2.PAYPAL_CLIENT_ID)}:${val(env2.PAYPAL_CLIENT_SECRET)}`);
+  const res = await fetchImpl(`${paypalBase(env2)}/v1/oauth2/token`, {
+    method: "POST",
+    headers: { authorization: `Basic ${basic}`, "content-type": "application/x-www-form-urlencoded" },
+    body: "grant_type=client_credentials",
+    signal: AbortSignal.timeout(2e4)
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok || !body.access_token) throw new Error(`PayPal sign-in failed (${res.status}); check the PayPal keys`);
+  return body.access_token;
+}
+async function paypalCall(env2, token, path, init, fetchImpl) {
+  const res = await fetchImpl(`${paypalBase(env2)}${path}`, {
+    method: init.method ?? (init.json ? "POST" : "GET"),
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json", ...init.requestId ? { "paypal-request-id": init.requestId } : {} },
+    body: init.json ? JSON.stringify(init.json) : void 0,
+    signal: AbortSignal.timeout(2e4)
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok && res.status !== 404) throw new Error(`PayPal ${res.status}: ${String(body.message ?? "request failed").slice(0, 200)}`);
+  return { status: res.status, body };
+}
+async function ensurePaypalPlan(env2, token, plan, fetchImpl) {
+  const product = await paypalCall(env2, token, `/v1/catalogs/products/${PAYPAL_PRODUCT_ID}`, {}, fetchImpl);
+  if (product.status === 404) {
+    await paypalCall(env2, token, "/v1/catalogs/products", { json: { id: PAYPAL_PRODUCT_ID, name: "SIXXAB AI Marketing Agency", type: "SERVICE", category: "SOFTWARE" }, requestId: `sixxab-product-${PAYPAL_PRODUCT_ID}` }, fetchImpl);
+  }
+  const name = `${planName(plan)} ${plan.priceUsd} USD`;
+  const list3 = await paypalCall(env2, token, `/v1/billing/plans?product_id=${PAYPAL_PRODUCT_ID}&page_size=20`, {}, fetchImpl);
+  const found = (list3.body.plans ?? []).find((p) => p.name === name && p.status === "ACTIVE");
+  if (found) return found.id;
+  const created = await paypalCall(env2, token, "/v1/billing/plans", {
+    requestId: `sixxab-plan-${plan.id}-${plan.priceUsd}`,
+    json: {
+      product_id: PAYPAL_PRODUCT_ID,
+      name,
+      status: "ACTIVE",
+      description: `${plan.name} plan, billed monthly`,
+      billing_cycles: [{ frequency: { interval_unit: "MONTH", interval_count: 1 }, tenure_type: "REGULAR", sequence: 1, total_cycles: 0, pricing_scheme: { fixed_price: { value: String(plan.priceUsd), currency_code: "USD" } } }],
+      payment_preferences: { auto_bill_outstanding: true, setup_fee_failure_action: "CANCEL", payment_failure_threshold: 2 }
+    }
+  }, fetchImpl);
+  if (!created.body.id) throw new Error("PayPal did not create the plan");
+  return created.body.id;
+}
+async function createPaypalSubscription(env2, o, fetchImpl = fetch) {
+  const setup = paymentSetup(env2).paypal;
+  if (!setup.connected) throw new Error(setup.note);
+  const plan = checkoutPlan(o.planId);
+  const token = await paypalToken(env2, fetchImpl);
+  const paypalPlanId = await ensurePaypalPlan(env2, token, plan, fetchImpl);
+  const sub = await paypalCall(env2, token, "/v1/billing/subscriptions", {
+    json: {
+      plan_id: paypalPlanId,
+      custom_id: `${o.orgId}|${plan.id}`,
+      application_context: { brand_name: "SIXXAB AI", user_action: "SUBSCRIBE_NOW", shipping_preference: "NO_SHIPPING", return_url: o.returnUrl, cancel_url: o.cancelUrl }
+    }
+  }, fetchImpl);
+  const url2 = sub.body.links?.find((l) => l.rel === "approve")?.href ?? "";
+  if (!sub.body.id || !/^https:\/\/(www\.)?(sandbox\.)?paypal\.com\//.test(url2)) throw new Error("PayPal did not return an approval page");
+  return { id: sub.body.id, url: url2 };
+}
+var customOrg = (custom) => {
+  const [orgId, planId] = String(custom ?? "").split("|");
+  return { orgId: orgId ?? "", planId: planId ?? "" };
+};
+async function recordPaypalSubscription(store2, env2, s, orgId, ref, kind, by) {
+  const c = customOrg(s.custom_id);
+  if (c.orgId !== orgId) throw new Error("This subscription belongs to another workspace");
+  if (s.status !== "ACTIVE") return false;
+  const plan = checkoutPlan(c.planId);
+  const last = s.billing_info?.last_payment?.amount;
+  await recordPayment(store2, orgId, {
+    provider: "paypal",
+    ref,
+    subscriptionId: s.id,
+    planId: plan.id,
+    amount: last?.value ? Number(last.value) : plan.priceUsd,
+    currency: last?.currency_code ?? "USD",
+    mode: paymentSetup(env2).paypal.mode === "live" ? "live" : "test",
+    kind,
+    payer: s.subscriber?.email_address ?? ""
+  }, by);
+  return true;
+}
+async function confirmPaypalSubscription(store2, env2, orgId, subscriptionId, by, fetchImpl = fetch) {
+  if (!/^I-[A-Z0-9]{6,40}$/.test(subscriptionId)) throw new Error("That PayPal reference doesn't look right");
+  const setup = paymentSetup(env2).paypal;
+  if (!setup.connected) throw new Error(setup.note);
+  const token = await paypalToken(env2, fetchImpl);
+  const s = await paypalCall(env2, token, `/v1/billing/subscriptions/${subscriptionId}`, {}, fetchImpl);
+  if (s.status === 404) throw new Error("PayPal has no such subscription");
+  return recordPaypalSubscription(store2, env2, s.body, orgId, subscriptionId, "first", by);
+}
+async function verifyPaypalWebhook(env2, headers, rawBody, fetchImpl = fetch) {
+  const webhookId = val(env2.PAYPAL_WEBHOOK_ID);
+  if (!webhookId || !paymentSetup(env2).paypal.connected) return false;
+  let event;
+  try {
+    event = JSON.parse(rawBody);
+  } catch {
+    return false;
+  }
+  const h = (k) => headers.get(k) ?? "";
+  const token = await paypalToken(env2, fetchImpl);
+  const r = await paypalCall(env2, token, "/v1/notifications/verify-webhook-signature", {
+    json: { auth_algo: h("paypal-auth-algo"), cert_url: h("paypal-cert-url"), transmission_id: h("paypal-transmission-id"), transmission_sig: h("paypal-transmission-sig"), transmission_time: h("paypal-transmission-time"), webhook_id: webhookId, webhook_event: event }
+  }, fetchImpl);
+  return r.body.verification_status === "SUCCESS";
+}
+async function handlePaypalEvent(store2, env2, event, orgIds, fetchImpl = fetch) {
+  const r = event.resource ?? {};
+  if (event.event_type === "BILLING.SUBSCRIPTION.ACTIVATED") {
+    const { orgId } = customOrg(r.custom_id);
+    if (!orgIds.includes(orgId)) return "ignored: unknown workspace";
+    return await recordPaypalSubscription(store2, env2, r, orgId, String(r.id), "first", "paypal") ? "recorded" : "not active yet";
+  }
+  if (event.event_type === "PAYMENT.SALE.COMPLETED") {
+    const subId = String(r.billing_agreement_id ?? "");
+    if (!subId) return "ignored: not a subscription payment";
+    const token = await paypalToken(env2, fetchImpl);
+    const s = (await paypalCall(env2, token, `/v1/billing/subscriptions/${subId}`, {}, fetchImpl)).body;
+    const { orgId } = customOrg(s.custom_id);
+    if (!orgIds.includes(orgId)) return "ignored: unknown workspace";
+    const firstDone = (await store2.listAuditByActions(orgId, ["marketing.payment"])).some((e) => e.detail.provider === "paypal" && e.detail.subscriptionId === subId);
+    const amount = r.amount ?? {};
+    const sub = { ...s, billing_info: { last_payment: { amount: { value: amount.total, currency_code: amount.currency } } } };
+    await recordPaypalSubscription(store2, env2, sub, orgId, firstDone ? String(r.id) : subId, firstDone ? "renewal" : "first", "paypal");
+    return firstDone ? "recorded renewal" : "recorded";
+  }
+  if (event.event_type === "BILLING.SUBSCRIPTION.CANCELLED" || event.event_type === "BILLING.SUBSCRIPTION.EXPIRED") {
+    const { orgId } = customOrg(r.custom_id);
+    if (!orgIds.includes(orgId)) return "ignored: unknown workspace";
+    await recordCancellation(store2, orgId, "paypal", String(r.id), "paypal");
+    return "recorded cancellation";
+  }
+  return `ignored: ${event.event_type}`;
+}
+
+// server/routes/marketing.ts
+var payEnv = () => process.env;
+var rate = () => journeyOptions().inrPerUsd ?? 85;
+async function agencyCustomers(store2, adminOrgId, by) {
+  const ids = await store2.listOrgIds();
+  const name = async (id) => (await loadBusinessProfile(store2, id))?.name ?? null;
+  const added = await syncAgencySales(store2, adminOrgId, ids, name, by).catch((e) => {
+    console.error("agency sync", e);
+    return 0;
+  });
+  const rows = await Promise.all(ids.filter((id) => id !== adminOrgId).map(async (orgId) => {
+    const profile = await loadBusinessProfile(store2, orgId);
+    const m = await loadMarketing(store2, orgId, profile, rate());
+    if (!m.subscription) return null;
+    return { orgId, name: profile?.name ?? "Unnamed business", ...m.subscription, readiness: m.readiness.score };
+  }));
+  const customers = rows.filter((r) => Boolean(r));
+  const live = customers.filter((c) => c.mode === "live" && c.status === "active");
+  return { customers, added, monthlyLiveUsd: live.filter((c) => c.currency === "USD").reduce((s, c) => s + c.amount, 0) };
+}
+async function view(store2, orgId, label5) {
+  const profile = await loadBusinessProfile(store2, orgId);
+  const marketing = await loadMarketing(store2, orgId, profile, rate());
+  const admin = isAdmin(label5, process.env.ADMIN_EMAILS);
+  return {
+    marketing,
+    plans: MARKETING_PLANS,
+    sections: ASSESSMENT_SECTIONS,
+    payments: paymentSetup(payEnv()),
+    goals: { assessor: assessorGoal(marketing.answers), cmo: cmoPlanGoal(marketing) },
+    admin,
+    agency: admin ? await agencyCustomers(store2, orgId, label5) : null
+  };
+}
+function returnBase(request) {
+  const u = new URL(request.url);
+  const local = u.hostname === "localhost" || u.hostname === "127.0.0.1";
+  if (u.protocol !== "https:" && !local) throw new HttpError(400, "Checkout needs a secure connection");
+  return `${u.protocol}//${u.host}/app`;
+}
+var GET9 = handle(async (request) => {
+  const { orgId, label: label5, store: store2 } = await requireUser(request);
+  return json(await view(store2, orgId, label5));
+});
+var POST8 = handle(async (request) => {
+  const { orgId, label: label5, store: store2 } = await requireUser(request);
+  const b = await readJson(request);
+  try {
+    if (b.action === "save") {
+      await saveAssessment(store2, orgId, b.answers, label5);
+      return json(await view(store2, orgId, label5));
+    }
+    if (b.action === "checkout") {
+      const plan = getMarketingPlan(b.planId);
+      if (!plan) throw new HttpError(400, "Pick a plan");
+      const base = returnBase(request);
+      const cancelUrl = `${base}?marketing=cancelled`;
+      if (b.provider === "stripe") {
+        const s = await createStripeCheckout(payEnv(), { planId: plan.id, orgId, email: label5.includes("@") ? label5 : void 0, successUrl: `${base}?marketing=stripe&ref={CHECKOUT_SESSION_ID}`, cancelUrl });
+        await store2.audit({ id: crypto.randomUUID(), orgId, at: (/* @__PURE__ */ new Date()).toISOString(), actor: label5, action: "marketing.checkout", taskId: null, detail: { provider: "stripe", planId: plan.id, ref: s.id, summary: `Opened card checkout for the Marketing ${plan.name} plan` } });
+        return json({ url: s.url });
+      }
+      if (b.provider === "paypal") {
+        const s = await createPaypalSubscription(payEnv(), { planId: plan.id, orgId, returnUrl: `${base}?marketing=paypal`, cancelUrl });
+        await store2.audit({ id: crypto.randomUUID(), orgId, at: (/* @__PURE__ */ new Date()).toISOString(), actor: label5, action: "marketing.checkout", taskId: null, detail: { provider: "paypal", planId: plan.id, ref: s.id, summary: `Opened PayPal checkout for the Marketing ${plan.name} plan` } });
+        return json({ url: s.url });
+      }
+      throw new HttpError(400, "Pay by card or PayPal");
+    }
+    if (b.action === "confirm") {
+      const ref = String(b.ref ?? "");
+      const paid = b.provider === "stripe" ? await confirmStripeSession(store2, payEnv(), orgId, ref, label5) : b.provider === "paypal" ? await confirmPaypalSubscription(store2, payEnv(), orgId, ref, label5) : (() => {
+        throw new HttpError(400, "Unknown payment provider");
+      })();
+      return json({ paid, ...await view(store2, orgId, label5) });
+    }
+  } catch (e) {
+    if (e instanceof HttpError) throw e;
+    throw new HttpError(400, e instanceof Error ? e.message : "Could not update marketing");
+  }
+  throw new HttpError(400, "action must be save, checkout or confirm");
+});
+
+// server/routes/payments.ts
+var payments_exports = {};
+__export(payments_exports, {
+  GET: () => GET10,
+  POST: () => POST9
+});
+var MAX_BODY = 256e3;
+var GET10 = handle(async () => json({ ok: true, accepts: "POST from Stripe or PayPal" }));
+var POST9 = handle(async (request) => {
+  const env2 = process.env;
+  const provider = new URL(request.url).searchParams.get("provider");
+  const raw = await request.text();
+  if (raw.length > MAX_BODY) throw new HttpError(413, "Request too large");
+  if (provider === "stripe") {
+    const secret = env2.STRIPE_WEBHOOK_SECRET?.trim();
+    if (!secret || !env2.STRIPE_SECRET_KEY?.trim()) throw new HttpError(503, "Card payments are not connected");
+    if (!await verifyStripeSignature(raw, request.headers.get("stripe-signature") ?? "", secret)) throw new HttpError(400, "Signature check failed");
+    const s = store();
+    const result = await handleStripeEvent(s, JSON.parse(raw), await s.listOrgIds());
+    return json({ received: true, result });
+  }
+  if (provider === "paypal") {
+    if (!env2.PAYPAL_WEBHOOK_ID?.trim()) throw new HttpError(503, "PayPal is not connected");
+    if (!await verifyPaypalWebhook(env2, request.headers, raw)) throw new HttpError(400, "Signature check failed");
+    const s = store();
+    const result = await handlePaypalEvent(s, env2, JSON.parse(raw), await s.listOrgIds());
+    return json({ received: true, result });
+  }
+  throw new HttpError(404, "Unknown provider");
+});
+
 // server/api/platform.ts
-var ROUTES = { admin: admin_exports, billing: billing_exports, governance: governance_exports, me: me_exports, raise: raise_exports, crm: crm_exports, support: support_exports, accounts: accounts_exports };
+var ROUTES = { admin: admin_exports, billing: billing_exports, governance: governance_exports, me: me_exports, raise: raise_exports, crm: crm_exports, support: support_exports, accounts: accounts_exports, marketing: marketing_exports, payments: payments_exports };
 function dispatch(method) {
   return async (request) => {
     const url2 = new URL(request.url);
@@ -5302,9 +6214,9 @@ function dispatch(method) {
     return handler(request);
   };
 }
-var GET9 = dispatch("GET");
-var POST8 = dispatch("POST");
+var GET11 = dispatch("GET");
+var POST10 = dispatch("POST");
 export {
-  GET9 as GET,
-  POST8 as POST
+  GET11 as GET,
+  POST10 as POST
 };

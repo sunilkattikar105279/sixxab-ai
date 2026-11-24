@@ -477,6 +477,51 @@ await check('business tabs: add a CRM contact, open a support ticket, record inc
   await ctx.close();
 });
 
+await check('marketing tab: save the assessment, open card checkout, and record the payment on return', async () => {
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const state = { otp: [], decisions: [], pending: [], profile: { name: 'Lone Star Dental' }, admin: [] };
+  await mockServices(ctx, state);
+  const view = JSON.parse(fs.readFileSync(new URL('./fixtures/marketing-view.json', import.meta.url), 'utf8'));
+  const posts = [];
+  await ctx.route(/\/api\/marketing$/, async (route) => {
+    if (route.request().method() === 'POST') {
+      const b = JSON.parse(route.request().postData() || '{}');
+      posts.push(b);
+      if (b.action === 'checkout') return route.fulfill({ json: { url: 'https://checkout.stripe.com/c/pay/cs_test_1' } });
+      if (b.action === 'confirm') {
+        view.marketing.subscription = { planId: 'growth', planName: 'Growth', provider: 'stripe', subscriptionId: 'sub_1', mode: 'test', status: 'active', startedAt: new Date().toISOString(), lastPaidAt: new Date().toISOString(), amount: 249, currency: 'USD' };
+        view.marketing.payments = [{ provider: 'stripe', ref: b.ref, subscriptionId: 'sub_1', planId: 'growth', amount: 249, currency: 'USD', mode: 'test', kind: 'first', payer: '', at: new Date().toISOString() }];
+        return route.fulfill({ json: { paid: true, ...view } });
+      }
+    }
+    return route.fulfill({ json: view });
+  });
+  await ctx.route('https://checkout.stripe.com/**', (r) => r.fulfill({ contentType: 'text/html', body: '<h1>Stripe test checkout</h1>' }));
+  await ctx.addInitScript(() => localStorage.setItem('sixxab.session', JSON.stringify({ accessToken: 'at', refreshToken: 'rt', expiresAt: Math.floor(Date.now() / 1000) + 3600, user: { id: 'u1', email: 'founder@example.com' } })));
+  const page = await ctx.newPage();
+  await page.goto(BASE + '/app');
+  await page.getByRole('button', { name: 'Marketing', exact: true }).click();
+  await page.getByText('Cost per lead to stay under').waitFor();
+  await page.getByText('$41', { exact: true }).waitFor();
+  await page.getByText('Assessment', { exact: true }).first().click().catch(() => {});
+  await page.getByLabel('Industry').fill('Family dentist');
+  await page.getByRole('button', { name: 'Save assessment' }).click();
+  await page.getByText('Assessment saved.').waitFor();
+  assert.equal(posts[0].action, 'save');
+  assert.equal(posts[0].answers.industry, 'Family dentist');
+  await page.screenshot({ path: `${SHOTS}/app-marketing.png`, fullPage: true });
+  const growth = page.locator('.mk-plan', { hasText: 'Growth' });
+  await growth.getByRole('button', { name: 'Card, Apple Pay or Google Pay' }).click();
+  await page.getByText('Stripe test checkout').waitFor();
+  assert.deepEqual({ action: posts[1].action, planId: posts[1].planId, provider: posts[1].provider }, { action: 'checkout', planId: 'growth', provider: 'stripe' });
+  await page.goto(BASE + '/app?marketing=stripe&ref=cs_test_1');
+  await page.getByText('Payment received. Your marketing plan is active and onboarding has started.').waitFor();
+  assert.deepEqual(posts[2], { action: 'confirm', provider: 'stripe', ref: 'cs_test_1' });
+  assert.equal(new URL(page.url()).search, '', 'the checkout reference is cleared from the address bar');
+  await page.getByText('Active since').waitFor();
+  await ctx.close();
+});
+
 await browser.close();
 for (const r of results) console.log(r.join('  '));
 const failed = results.filter((r) => r[0] === 'FAIL').length;

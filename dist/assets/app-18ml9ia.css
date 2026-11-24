@@ -293,3 +293,27 @@ th { color: var(--sub); font-weight: 500; font-size: 12px; text-transform: upper
 .fold > summary:focus-visible { outline: 2px solid var(--gold); outline-offset: 4px; border-radius: 8px; }
 .fold:not([open]) { padding-top: 12px; padding-bottom: 12px; }
 .fold-body { margin-top: 16px; }
+
+/* Marketing tab */
+.mk-section { border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px 16px; margin: 0 0 14px; }
+.mk-section legend { padding: 0 6px; color: var(--gold); font-size: 13px; letter-spacing: 1px; text-transform: uppercase; }
+.mk-wide { grid-column: 1 / -1; }
+.mk-checks { list-style: none; padding: 0; margin: 0 0 12px; display: flex; flex-direction: column; gap: 8px; }
+.mk-checks li { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); border-left-width: 4px; }
+.mk-checks li.ok { border-left-color: var(--good); }
+.mk-checks li.part { border-left-color: var(--gold); }
+.mk-checks li.gap { border-left-color: var(--bad); }
+.mk-weeks { padding-left: 20px; display: flex; flex-direction: column; gap: 10px; }
+.mk-weeks ul { margin: 6px 0 0; padding-left: 18px; color: var(--sub); font-size: 14px; line-height: 1.5; }
+.mk-plans { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 12px 0; }
+@media (max-width: 1000px) { .mk-plans { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .mk-plans { grid-template-columns: minmax(0, 1fr); } }
+.mk-plan { display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: 16px; border: 1px solid var(--line); }
+.mk-plan.rec { border-color: rgba(201,162,39,0.7); }
+.mk-plan.on { border-color: rgba(143,216,168,0.6); }
+.mk-plan h3 { margin: 0; font-size: 20px; font-weight: 500; }
+.mk-plan ul { margin: 0; padding-left: 18px; color: var(--sub); font-size: 13px; line-height: 1.5; flex: 1; }
+.mk-plan .btn-primary, .mk-plan .btn-ghost { width: 100%; font-size: 14px; text-align: center; text-decoration: none; }
+.mk-price { margin: 0; font-size: 24px; }
+.mk-pays { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-direction: column; gap: 6px; }
+.mk-pays li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--line); font-size: 14px; flex-wrap: wrap; }

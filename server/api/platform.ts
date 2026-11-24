@@ -1,5 +1,6 @@
 // One function for the account and admin endpoints, to stay within Vercel Hobby's 12-function limit.
-// vercel.json rewrites /api/me, /api/admin, /api/governance, /api/billing, /api/raise, /api/crm, /api/support and /api/accounts here with ?route=<name>.
+// vercel.json rewrites /api/me, /api/admin, /api/governance, /api/billing, /api/raise, /api/crm, /api/support, /api/accounts,
+// /api/marketing and /api/payments (provider webhooks) here with ?route=<name>.
 // Each route module keeps its own auth checks (requireUser / requireAdmin).
 import * as admin from '../routes/admin.js';
 import * as billing from '../routes/billing.js';
@@ -9,10 +10,12 @@ import * as raise from '../routes/raise.js';
 import * as crm from '../routes/crm.js';
 import * as support from '../routes/support.js';
 import * as accounts from '../routes/accounts.js';
+import * as marketing from '../routes/marketing.js';
+import * as payments from '../routes/payments.js';
 import { json } from '../context.js';
 
 type Handler = (request: Request) => Promise<Response>;
-const ROUTES: Record<string, { GET?: Handler; POST?: Handler }> = { admin, billing, governance, me, raise, crm, support, accounts };
+const ROUTES: Record<string, { GET?: Handler; POST?: Handler }> = { admin, billing, governance, me, raise, crm, support, accounts, marketing, payments };
 
 function dispatch(method: 'GET' | 'POST'): Handler {
   return async (request) => {

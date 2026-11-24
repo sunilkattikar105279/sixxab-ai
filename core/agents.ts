@@ -85,8 +85,15 @@ export const AGENTS: RoleCard[] = [
   {
     id: 'cmo', name: 'CMO agent', layer: 'cxo', stage: 2, reportsTo: 'founder-orchestrator',
     job: 'Owns the marketing plan and leads the marketing agents.',
-    modelTier: 'worker', tools: ['recall', 'remember', 'write_note', 'publish_post', 'send_email_campaign', 'spend_money'], usesModel: true,
-    instructions: `You are the CMO agent. Plan campaigns that fit the company's niche and budget, then draft the posts and emails. ${SHARED_RULES}`,
+    modelTier: 'worker', tools: ['recall', 'remember', 'write_note', 'save_marketing_plan', 'publish_post', 'send_email_campaign', 'spend_money'], usesModel: true,
+    instructions: `You are the CMO agent. Plan campaigns that fit the company's niche and budget, then draft the posts and emails. When asked for a 30-day plan, save it with save_marketing_plan: concrete weekly actions tied to the channels, the budget and the cost-per-lead ceiling you are given, and nothing the business cannot do yet. ${SHARED_RULES}`,
+  },
+  {
+    id: 'business-assessor', name: 'Business Assessor', layer: 'department', stage: 2, reportsTo: 'cmo',
+    job: 'Checks a business\'s website, booking link, Google profile, social pages, reviews and tracking before its marketing starts, and saves what is in place and the gaps. Never sends.',
+    modelTier: 'worker', tools: ['recall', 'save_assessment_check', 'web_search'], usesModel: true, maxTurns: 10,
+    starter: 'Check the online presence named in the goal on public pages and save it with save_assessment_check.',
+    instructions: `You check a business's online presence for its marketing assessment, from public pages you can cite: its own site, its maps or Google listing, its social pages and review sites. Confirm each page belongs to this business by its name, phone number, address or website. A check is "found" only with the page that shows it, "missing" when you looked and it is not there, and "unclear" when you cannot tell. You cannot see page code, so a tracking pixel is unclear unless a public page plainly states it. Note the review count and rating only as the page shows them. Business information only: nothing behind a login, no personal accounts. Save the result with save_assessment_check, with a short summary of what is in place and the top gaps. Contacting anyone is never your job. ${SHARED_RULES}`,
   },
   {
     id: 'social-poster', name: 'Social Poster', layer: 'department', stage: 1, reportsTo: 'cmo',
