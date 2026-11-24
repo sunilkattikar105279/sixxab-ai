@@ -2256,10 +2256,10 @@ function computeGovernance(input) {
 
 // server/build-info.ts
 var BUILD_INFO = {
-  "builtAt": "2026-11-23T15:36:36.848Z",
+  "builtAt": "2026-11-24T01:34:11.391Z",
   "files": 81,
-  "lines": 8055,
-  "tests": 97,
+  "lines": 8256,
+  "tests": 99,
   "e2e": 11,
   "rlsTables": 9,
   "cspHeader": true,
@@ -2941,6 +2941,8 @@ function cleanMeddic(input) {
 // core/crm.ts
 var DEAL_STAGES = ["lead", "contacted", "qualified", "proposal", "won", "lost"];
 var SOURCES = ["website", "referral", "linkedin", "whatsapp", "walk-in", "event", "apollo", "web-search", "other"];
+var DEAL_TIERS = ["High", "Medium", "Low"];
+var EMPTY_PROFILE = { rank: null, niche: "", city: "", website: "", size: "", title: "", dealTier: "", ease: "", whyFit: "", pitch: "", sourceDetail: "", checkFirst: "" };
 var CRM_EVENTS = ["crm.contact", "crm.stage", "crm.touch", "crm.qualify", "crm.removed"];
 var EMAIL_RE2 = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 var PHONE_RE = /^\+?[\d\s()-]{7,20}$/;
@@ -2960,7 +2962,25 @@ function clean(i) {
   if (!Number.isFinite(value) || value < 0) throw new Error("Deal value must be zero or more");
   const source = SOURCES.includes(String(i.source)) ? String(i.source) : "other";
   const apolloId = i.apolloId && /^[a-f0-9]{24}$/.test(i.apolloId) ? i.apolloId : void 0;
-  return { id: i.id && /^[\w-]{6,64}$/.test(i.id) ? i.id : newId(), name, company: text2(i.company, 120), email, phone, source, value, nextStep: text2(i.nextStep, 200), notes: text2(i.notes, 2e3), ...apolloId ? { apolloId } : {} };
+  return { id: i.id && /^[\w-]{6,64}$/.test(i.id) ? i.id : newId(), name, company: text2(i.company, 120), email, phone, source, value, nextStep: text2(i.nextStep, 200), notes: text2(i.notes, 2e3), ...apolloId ? { apolloId } : {}, ...cleanProfile(i) };
+}
+var tier = (v) => DEAL_TIERS.find((t) => t.toLowerCase() === text2(v, 10).toLowerCase()) ?? "";
+function cleanProfile(i) {
+  const r = i.rank === void 0 || i.rank === null || i.rank === "" ? NaN : Number(i.rank);
+  return {
+    rank: Number.isInteger(r) && r > 0 && r < 1e6 ? r : null,
+    niche: text2(i.niche, 80),
+    city: text2(i.city, 120),
+    website: text2(i.website, 200).replace(/^https?:\/\//i, "").replace(/\/$/, ""),
+    size: text2(i.size, 80),
+    title: text2(i.title, 120),
+    dealTier: tier(i.dealTier),
+    ease: tier(i.ease),
+    whyFit: text2(i.whyFit, 1e3),
+    pitch: text2(i.pitch, 300),
+    sourceDetail: text2(i.sourceDetail, 200),
+    checkFirst: text2(i.checkFirst, 300)
+  };
 }
 async function upsertContact(store2, orgId, input, by) {
   const c = clean(input);
@@ -3017,22 +3037,125 @@ async function setContactEmail(store2, orgId, id, email, by) {
   if (!c) throw new Error("Contact not found");
   return upsertContact(store2, orgId, { ...c, email, value: c.value }, by);
 }
+function splitCsvLine(line) {
+  const out = [];
+  let cur = "";
+  let quoted = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (quoted) {
+      if (ch === '"' && line[i + 1] === '"') {
+        cur += '"';
+        i++;
+      } else if (ch === '"') quoted = false;
+      else cur += ch;
+    } else if (ch === '"' && cur.trim() === "") {
+      cur = "";
+      quoted = true;
+    } else if (ch === ",") {
+      out.push(cur.trim());
+      cur = "";
+    } else cur += ch;
+  }
+  out.push(cur.trim());
+  return out;
+}
+var COLUMNS = {
+  name: ["name", "contact", "contactname", "person"],
+  decisionMaker: ["decisionmaker", "owner"],
+  company: ["company", "business", "businessname"],
+  email: ["email", "emailaddress"],
+  phone: ["phone", "mainphone", "mainphonepubliclisting", "phonenumber"],
+  source: ["leadsource"],
+  sourceText: ["source"],
+  value: ["value", "dealvalue"],
+  nextStep: ["nextstep"],
+  notes: ["notes"],
+  rank: ["rank"],
+  niche: ["niche", "industry"],
+  city: ["city", "location"],
+  website: ["website", "domain", "url"],
+  size: ["size", "employees", "companysize"],
+  title: ["title", "role"],
+  dealTier: ["dealsize", "dealtier"],
+  ease: ["easeofwin", "ease"],
+  whyFit: ["whytheyfit", "whyfit", "why"],
+  pitch: ["agenttopitch", "pitch"],
+  sourceDetail: ["sourcedetail", "sourcepage"],
+  checkFirst: ["checkbeforeoutreach", "checkfirst"]
+};
+var POSITIONAL = ["name", "company", "email", "phone", "source", "value", "nextStep", "notes"];
+var norm = (h) => h.toLowerCase().replace(/[^a-z0-9]/g, "");
+function headerMap(cells) {
+  const map = cells.map((h) => Object.keys(COLUMNS).find((k) => COLUMNS[k].includes(norm(h))) ?? null);
+  return map.includes("name") || map.includes("company") || map.includes("decisionMaker") ? map : null;
+}
+function splitPerson(v) {
+  if (!v || /^not stated/i.test(v)) return { name: "", title: "" };
+  const [who, ...rest] = v.split(",");
+  return { name: who.replace(/\s*\(.*?\)/g, "").trim(), title: rest.join(",").trim() };
+}
+function rowToInput(cells, map) {
+  const f = {};
+  map.forEach((k, i) => {
+    if (k && cells[i] !== void 0 && f[k] === void 0) f[k] = cells[i];
+  });
+  const person = splitPerson(f.decisionMaker ?? "");
+  const phone = (f.phone ?? "").match(/^\+?[\d\s()-]{7,20}/)?.[0].trim() ?? "";
+  let source = f.source ?? "";
+  let sourceDetail = f.sourceDetail ?? "";
+  if (f.sourceText) {
+    if (SOURCES.includes(f.sourceText.toLowerCase())) source ||= f.sourceText.toLowerCase();
+    else sourceDetail ||= f.sourceText;
+  }
+  return {
+    name: map.includes("name") ? f.name ?? "" : person.name || f.company || "",
+    company: f.company,
+    email: f.email,
+    phone,
+    source: source.toLowerCase(),
+    value: f.value,
+    nextStep: f.nextStep,
+    notes: f.notes,
+    rank: f.rank,
+    niche: f.niche,
+    city: f.city,
+    website: f.website,
+    size: f.size,
+    title: f.title || person.title,
+    dealTier: f.dealTier,
+    ease: f.ease,
+    whyFit: f.whyFit,
+    pitch: f.pitch,
+    sourceDetail,
+    checkFirst: f.checkFirst
+  };
+}
+var dupKey = (name, company) => `${name.toLowerCase().trim()}|${company.toLowerCase().trim()}`;
 async function importContacts(store2, orgId, csv, by) {
-  const rows = String(csv ?? "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  if (rows[0] && /^name\s*,/i.test(rows[0])) rows.shift();
+  const rows = String(csv ?? "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean).map(splitCsvLine);
+  const map = rows[0] ? headerMap(rows[0]) : null;
+  if (map) rows.shift();
+  const have = new Set((await loadCrm(store2, orgId)).contacts.map((c) => dupKey(c.name, c.company)));
   let added = 0;
   let skipped = 0;
-  for (const row of rows.slice(0, 500)) {
-    const [name, company, email, phone, source, value] = row.split(",").map((x) => x.trim());
+  let duplicates = 0;
+  for (const cells of rows.slice(0, 500)) {
     try {
-      const c = clean({ name, company, email, phone, source, value });
+      const c = clean(rowToInput(cells, map ?? POSITIONAL));
+      const key = dupKey(c.name, c.company);
+      if (have.has(key)) {
+        duplicates++;
+        continue;
+      }
       await record2(store2, orgId, by, "crm.contact", { contact: c, summary: `Contact imported: ${c.name}` });
+      have.add(key);
       added++;
     } catch {
       skipped++;
     }
   }
-  return { added, skipped };
+  return { added, skipped, duplicates };
 }
 async function loadCrm(store2, orgId, now = Date.now()) {
   return computeCrm(await store2.listAuditByActions(orgId, CRM_EVENTS), now);
@@ -3044,7 +3167,7 @@ function computeCrm(events, now = Date.now()) {
     if (e.action === "crm.contact") {
       const c = d.contact;
       const prev = map.get(c.id);
-      map.set(c.id, { ...c, stage: prev?.stage ?? "lead", createdAt: prev?.createdAt ?? e.at, updatedAt: e.at, lastTouch: prev?.lastTouch ?? null, meddic: prev?.meddic ?? null, callNotes: prev?.callNotes ?? "", score: prev?.score ?? null });
+      map.set(c.id, { ...EMPTY_PROFILE, ...c, stage: prev?.stage ?? "lead", createdAt: prev?.createdAt ?? e.at, updatedAt: e.at, lastTouch: prev?.lastTouch ?? null, meddic: prev?.meddic ?? null, callNotes: prev?.callNotes ?? "", score: prev?.score ?? null });
     } else {
       const prev = map.get(String(d.contactId));
       if (!prev) continue;
@@ -3056,7 +3179,8 @@ function computeCrm(events, now = Date.now()) {
       } else if (e.action === "crm.removed") map.delete(prev.id);
     }
   }
-  const contacts = [...map.values()].sort((a, b) => DEAL_STAGES.indexOf(a.stage) - DEAL_STAGES.indexOf(b.stage) || b.updatedAt.localeCompare(a.updatedAt));
+  const byRank = (a, b) => a.rank != null && b.rank != null ? a.rank - b.rank : 0;
+  const contacts = [...map.values()].sort((a, b) => DEAL_STAGES.indexOf(a.stage) - DEAL_STAGES.indexOf(b.stage) || byRank(a, b) || b.updatedAt.localeCompare(a.updatedAt));
   const pipeline = Object.fromEntries(DEAL_STAGES.map((s) => [s, contacts.filter((c) => c.stage === s).length]));
   const open = contacts.filter((c) => OPEN.includes(c.stage));
   const won = contacts.filter((c) => c.stage === "won");

@@ -195,3 +195,62 @@ test('GTM: Proposal Writer and Win-Loss Analyst get grounded goals', async () =>
   assert.match(winLossGoal({ ...d, stage: 'lost' }), /was lost/);
   assert.ok(getAgent('proposal-writer') && getAgent('win-loss'));
 });
+
+test('CRM: CSV import keeps quoted commas and the optional next step and notes columns', async () => {
+  const { importContacts, loadCrm, splitCsvLine } = await import('../core/crm.js');
+  assert.deepEqual(splitCsvLine('a,"b, c",,"say ""hi"""'), ['a', 'b, c', '', 'say "hi"']);
+  const s = new MemoryStore();
+  const csv = [
+    'name,company,email,phone,source,value,nextStep,notes',
+    'Old Style,Shop,,,referral,500',
+    '"Barber, Kris",The Barber Law Firm,,(972) 231-5800,web-search,,Verify office hours,"Niche: injury law; why: hours end 5 PM, Fridays 3 PM"',
+    ',No name,,,,',
+  ].join('\n');
+  assert.deepEqual(await importContacts(s, ORG, csv, 'f'), { added: 2, skipped: 1, duplicates: 0 });
+  const byName = Object.fromEntries((await loadCrm(s, ORG)).contacts.map((c) => [c.name, c]));
+  assert.equal(byName['Old Style'].value, 500, 'six-column rows still work');
+  const k = byName['Barber, Kris'];
+  assert.equal(k.company, 'The Barber Law Firm');
+  assert.equal(k.phone, '(972) 231-5800');
+  assert.equal(k.source, 'web-search');
+  assert.equal(k.stage, 'lead');
+  assert.equal(k.nextStep, 'Verify office hours');
+  assert.match(k.notes, /Fridays 3 PM/);
+});
+
+test('CRM: the lead sheet imports with its own headers, keeps every column, and is not imported twice', async () => {
+  const { importContacts, loadCrm } = await import('../core/crm.js');
+  const { callPrepGoal } = await import('../core/gtm.js');
+  const s = new MemoryStore();
+  const csv = [
+    'Rank,Business,Niche,City,Website,Main phone (public listing),Size,Decision maker,Deal size,Ease of win,Why they fit,Agent to pitch,Source,Check before outreach,Lead source',
+    '2,Total Air & Plumbing,HVAC and plumbing,Plano and Dallas,https://totalair.com/,,"45 employees, 25 vehicles","Steve and Justin Lauten, owners",High,High,"Advertises 24/7, but Book Now is a form.",AI receptionist,totalair.com About page,,web-search',
+    '1,The Barber Law Firm,Personal injury law,Plano,thebarberlawfirm.com,(972) 231-5800,About 20 staff,"Kristopher S. Barber, owner and founder",High,High,Hours end 5 PM.,24/7 AI intake,Justia profile,Office phones differ,web-search',
+    '7,Snellings Law,Personal injury law,Dallas,,(945) 205-0002 Dallas,Not stated,"David Scott Snellings, founder",High,Medium,Three offices.,Unified intake,Cornell LII profile,,web-search',
+    '4,Ellis Air Conditioning & Heating,HVAC,Dallas,ellisac.com,,Not stated,Not stated,Medium,High,Gap after hours.,After-hours answering,ellisac.com home page,Find owner name,web-search',
+  ].join('\n');
+  assert.deepEqual(await importContacts(s, ORG, csv, 'f'), { added: 4, skipped: 0, duplicates: 0 });
+  const crm = await loadCrm(s, ORG);
+  assert.deepEqual(crm.contacts.map((c) => c.rank), [1, 2, 4, 7], 'leads list in rank order');
+  const t = crm.contacts.find((c) => c.company === 'Total Air & Plumbing')!;
+  assert.equal(t.name, 'Steve and Justin Lauten');
+  assert.equal(t.title, 'owners');
+  assert.equal(t.size, '45 employees, 25 vehicles');
+  assert.equal(t.website, 'totalair.com');
+  assert.equal(t.dealTier, 'High');
+  assert.equal(t.ease, 'High');
+  assert.equal(t.niche, 'HVAC and plumbing');
+  assert.equal(t.city, 'Plano and Dallas');
+  assert.equal(t.pitch, 'AI receptionist');
+  assert.equal(t.sourceDetail, 'totalair.com About page');
+  assert.equal(t.source, 'web-search');
+  assert.equal(t.stage, 'lead');
+  assert.equal(crm.contacts.find((c) => c.company === 'Snellings Law')!.phone, '(945) 205-0002', 'trailing words after a phone are dropped');
+  const e = crm.contacts.find((c) => c.company.startsWith('Ellis'))!;
+  assert.equal(e.name, 'Ellis Air Conditioning & Heating', 'no named person: filed under the business');
+  assert.equal(e.checkFirst, 'Find owner name');
+  assert.equal(crm.newLeads, 0, 'no emails, so Speed-to-Lead drafts nothing');
+  assert.match(callPrepGoal(t), /Why they fit \(our research\): Advertises 24\/7[\s\S]*What we plan to pitch: AI receptionist/);
+  assert.deepEqual(await importContacts(s, ORG, csv, 'f'), { added: 0, skipped: 0, duplicates: 4 }, 'pasting the same list again adds nothing');
+  assert.equal((await loadCrm(s, ORG)).contacts.length, 4);
+});

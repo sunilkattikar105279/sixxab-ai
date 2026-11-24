@@ -36,6 +36,8 @@ export function cleanMeddic(input: unknown): Meddic {
 export interface DealContext {
   name: string; company?: string; email?: string; stage: string; value?: number; source?: string;
   nextStep?: string; notes?: string; meddic?: Partial<Meddic> | null; callNotes?: string;
+  niche?: string; city?: string; website?: string; size?: string; title?: string; dealTier?: string; ease?: string;
+  whyFit?: string; pitch?: string; checkFirst?: string;
 }
 
 const RULES = 'Use only what is written here and in the business profile; never invent facts about the person or their company, and mark anything unknown as "unknown". Keep it short enough to read in two minutes.';
@@ -45,6 +47,10 @@ function dealLines(d: DealContext): string {
   const ev = { ...EMPTY_MEDDIC, ...(d.meddic ?? {}) };
   return [
     `Deal: ${d.name}${d.company ? ` at ${d.company}` : ''}; stage ${d.stage}${d.value ? `; value ${d.value}` : ''}${d.source ? `; came from ${d.source}` : ''}.`,
+    [d.title && `Their role: ${d.title}`, d.niche && `Business: ${d.niche}`, d.city && `Where: ${d.city}`, d.website && `Website: ${d.website}`, d.size && `Size: ${d.size}`, d.dealTier && `Deal size: ${d.dealTier}`, d.ease && `Ease of win: ${d.ease}`].filter(Boolean).join('; '),
+    d.whyFit ? `Why they fit (our research): ${d.whyFit.slice(0, 800)}` : '',
+    d.pitch ? `What we plan to pitch: ${d.pitch}` : '',
+    d.checkFirst ? `Check before outreach: ${d.checkFirst}` : '',
     d.nextStep ? `Agreed next step: ${d.nextStep}.` : '',
     d.notes ? `Notes: ${d.notes.slice(0, 1500)}` : '',
     `MEDDIC today (${s.score}%, ${s.verdict}): ${MEDDIC.map((e) => `${e.name} ${ev[e.key]}`).join('; ')}.`,
