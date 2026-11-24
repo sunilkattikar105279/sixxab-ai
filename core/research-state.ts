@@ -33,6 +33,8 @@ export interface BusinessResearch {
   id: string; summary: string; owner: string; presence: string;
   pains: Pain[]; found: Found[]; opportunities: Opportunity[]; unknowns: string; sources: Source[];
   at: string; by: string;
+  /** Set when the report came from a research file, so importing the same file again changes nothing. */
+  importKey?: string;
 }
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i;
@@ -72,6 +74,8 @@ export interface ProposalDraft {
   benefits: BenefitLine[]; costs: CostLine[]; currency: Currency; roi: Roi;
   plan: string; nextStep: string; text: string;
   at: string; by: string; editedAt: string | null; editedBy: string | null; sentAt: string | null;
+  /** Set when the draft came from a research file (see BusinessResearch.importKey). */
+  importKey?: string;
 }
 
 const money = (v: unknown) => { const n = Number(String(v ?? '').replace(/[^0-9.-]/g, '')); return Number.isFinite(n) ? Math.max(0, Math.min(1e9, Math.round(n * 100) / 100)) : 0; };
@@ -134,6 +138,27 @@ export function proposalMessage(p: ProposalDraft): string {
   return `${p.text}\n\n${roiSection(p)}`;
 }
 
+// ---- Research import (see research-import.ts) ----
+
+/** What happened to one report in a research file. */
+export type ResearchOutcome = 'saved' | 'same' | 'error';
+export type ProposalOutcome = 'saved' | 'same' | 'kept_edited' | 'kept_sent' | 'lost' | 'none' | 'error';
+export interface ImportResult {
+  company: string;
+  /** The deal it was attached to, or null when no single deal matched. */
+  contactId: string | null;
+  dealName: string;
+  matchedBy: 'website' | 'name' | 'phone' | null;
+  research: ResearchOutcome | 'unmatched';
+  proposal: ProposalOutcome | 'unmatched';
+  reason: string;
+}
+export interface ResearchImportSummary {
+  reports: number; matched: number; researchSaved: number; proposalsSaved: number; unchanged: number;
+  results: ImportResult[];
+}
+
+
 // ---- Folding events onto a deal ----
 
 export interface DealResearch { researchReport: BusinessResearch | null; proposal: ProposalDraft | null }
@@ -143,7 +168,7 @@ export function applyResearchEvent(dr: DealResearch, e: AuditEvent): { dr: DealR
   const d = e.detail;
   if (e.action === 'crm.research') {
     const r = { ...(d.research as Omit<BusinessResearch, 'at' | 'by'>), at: e.at, by: e.actor };
-    return { dr: { ...dr, researchReport: r }, history: { kind: 'research', text: `Business research: ${r.pains.length} pain point${r.pains.length === 1 ? '' : 's'}, ${r.found.length} detail${r.found.length === 1 ? '' : 's'} found, ${r.opportunities.length} opportunit${r.opportunities.length === 1 ? 'y' : 'ies'}` } };
+    return { dr: { ...dr, researchReport: r }, history: { kind: 'research', text: `${d.imported ? 'Business research imported' : 'Business research'}: ${r.pains.length} pain point${r.pains.length === 1 ? '' : 's'}, ${r.found.length} detail${r.found.length === 1 ? '' : 's'} found, ${r.opportunities.length} opportunit${r.opportunities.length === 1 ? 'y' : 'ies'}` } };
   }
   if (e.action === 'crm.research_used') {
     const r = dr.researchReport;
@@ -154,7 +179,7 @@ export function applyResearchEvent(dr: DealResearch, e: AuditEvent): { dr: DealR
   }
   if (e.action === 'crm.proposal') {
     const p = { ...(d.proposal as Omit<ProposalDraft, 'at' | 'by' | 'editedAt' | 'editedBy' | 'sentAt'>), at: e.at, by: e.actor, editedAt: null, editedBy: null, sentAt: null };
-    return { dr: { ...dr, proposal: p }, history: { kind: 'proposal', text: `Proposal drafted: ${p.title}${p.roi.roiPct !== null ? ` (first-year return ${p.roi.roiPct}%)` : ''}` } };
+    return { dr: { ...dr, proposal: p }, history: { kind: 'proposal', text: `${d.imported ? 'Proposal draft imported' : 'Proposal drafted'}: ${p.title}${p.roi.roiPct !== null ? ` (first-year return ${p.roi.roiPct}%)` : ''}` } };
   }
   if (e.action === 'crm.proposal_edit') {
     const p = dr.proposal;

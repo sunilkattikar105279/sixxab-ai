@@ -1,11 +1,12 @@
 // CRM for the signed-in business. GET /api/crm → contacts, pipeline, totals and the follow-up goal.
-// POST /api/crm { action: contact | stage | touch | note | qualify | remove | import | icp_* | prospects_decide | sequence_sent | sync_*, ... }
+// POST /api/crm { action: contact | stage | touch | note | qualify | remove | import | import_research | icp_* | prospects_decide | sequence_sent | sync_*, ... }
 import { addNote, importApolloPeople, importContacts, loadCrm, logTouch, qualifyDeal, removeContact, setContactEmail, setDealStage, upsertContact, type ContactInput, type DealStage } from '../../core/crm.js';
 import { apolloEnrich, apolloSearch, type ApolloFilters, type ApolloPerson } from '../../core/apollo.js';
 import { isAdmin } from '../../core/automation.js';
 import { decideProspects, dismissSync, markStepSent, removeIcp, saveIcp, saveIcpNotes } from '../../core/leadgen.js';
 import { markCustomerSent, markOnboardingStep, setAutofind, setAutopilot, skipAction } from '../../core/salesflow.js';
 import { editProposal, markProposalSent, useResearchField } from '../../core/research.js';
+import { importResearch } from '../../core/research-import.js';
 import type { NextAction } from '../../core/salesflow-state.js';
 import { newId, nowIso, type Store } from '../../core/store.js';
 import { handle, HttpError, json, readJson, requireUser } from '../context.js';
@@ -32,12 +33,13 @@ export const GET = handle(async (request) => {
 interface Body {
   action?: string; contact?: ContactInput; contactId?: string; stage?: DealStage; note?: string; kind?: string; csv?: string; meddic?: unknown; callNotes?: string; filters?: ApolloFilters; people?: ApolloPerson[];
   icp?: Record<string, unknown>; icpId?: string; notes?: string; batchId?: string; add?: string[]; dismiss?: string[]; index?: number;
-  key?: string; on?: boolean; edit?: Record<string, unknown>;
+  key?: string; on?: boolean; edit?: Record<string, unknown>; json?: string;
 }
 
 export const POST = handle(async (request) => {
   const { orgId, label, store } = await requireUser(request);
-  const b = await readJson<Body>(request, 200_000);
+  // A research file with a proposal per deal runs larger than a contact list, so the limit is higher than other routes.
+  const b = await readJson<Body>(request, 1_000_000);
   const id = String(b.contactId ?? '');
   try {
     switch (b.action) {
@@ -86,6 +88,7 @@ export const POST = handle(async (request) => {
       case 'autopilot': await setAutopilot(store, orgId, Boolean(b.on), label); return json({ crm: await crmView(store, orgId) });
       case 'autofind': await setAutofind(store, orgId, Boolean(b.on), label); return json({ crm: await crmView(store, orgId) });
       // Research and proposals: the owner adds a checked detail, edits the proposal, or marks it sent.
+      case 'import_research': return json({ ...(await importResearch(store, orgId, String(b.json ?? ''), label)), crm: await crmView(store, orgId) });
       case 'research_use': await useResearchField(store, orgId, id, Number(b.index), label); return json({ crm: await crmView(store, orgId) });
       case 'proposal_edit': await editProposal(store, orgId, id, b.edit ?? {}, label); return json({ crm: await crmView(store, orgId) });
       case 'proposal_sent': await markProposalSent(store, orgId, id, label); return json({ crm: await crmView(store, orgId) });

@@ -1031,7 +1031,7 @@ function applyResearchEvent(dr, e) {
   const d = e.detail;
   if (e.action === "crm.research") {
     const r = { ...d.research, at: e.at, by: e.actor };
-    return { dr: { ...dr, researchReport: r }, history: { kind: "research", text: `Business research: ${r.pains.length} pain point${r.pains.length === 1 ? "" : "s"}, ${r.found.length} detail${r.found.length === 1 ? "" : "s"} found, ${r.opportunities.length} opportunit${r.opportunities.length === 1 ? "y" : "ies"}` } };
+    return { dr: { ...dr, researchReport: r }, history: { kind: "research", text: `${d.imported ? "Business research imported" : "Business research"}: ${r.pains.length} pain point${r.pains.length === 1 ? "" : "s"}, ${r.found.length} detail${r.found.length === 1 ? "" : "s"} found, ${r.opportunities.length} opportunit${r.opportunities.length === 1 ? "y" : "ies"}` } };
   }
   if (e.action === "crm.research_used") {
     const r = dr.researchReport;
@@ -1042,7 +1042,7 @@ function applyResearchEvent(dr, e) {
   }
   if (e.action === "crm.proposal") {
     const p = { ...d.proposal, at: e.at, by: e.actor, editedAt: null, editedBy: null, sentAt: null };
-    return { dr: { ...dr, proposal: p }, history: { kind: "proposal", text: `Proposal drafted: ${p.title}${p.roi.roiPct !== null ? ` (first-year return ${p.roi.roiPct}%)` : ""}` } };
+    return { dr: { ...dr, proposal: p }, history: { kind: "proposal", text: `${d.imported ? "Proposal draft imported" : "Proposal drafted"}: ${p.title}${p.roi.roiPct !== null ? ` (first-year return ${p.roi.roiPct}%)` : ""}` } };
   }
   if (e.action === "crm.proposal_edit") {
     const p = dr.proposal;

@@ -14,6 +14,7 @@ import { LeadAgents, type LeadgenState } from './LeadAgents';
 import { SalesFlow } from './SalesFlow';
 import { researchGoal } from '../../core/research';
 import type { FlowOrg, FlowStage, NextAction } from '../../core/salesflow-state';
+import type { ResearchImportSummary } from '../../core/research-state';
 
 interface CrmState extends LeadgenState { contacts: Contact[]; flowOrg: FlowOrg; flowCounts: Record<FlowStage, number>; nextActions: NextAction[]; pipeline: Record<string, number>; totals: { open: number; openValue: number; won: number; wonValue: number; winRate: number | null; followUps: number }; followUpGoal: string; newLeads?: number; speedGoal?: string }
 
@@ -110,6 +111,31 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
   const [importMsg, setImportMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [fileName, setFileName] = useState('');
   const [customerId, setCustomerId] = useState<string | null>(null);
+  const [researchFile, setResearchFile] = useState<{ name: string; json: string; count: number } | null>(null);
+  const [importingResearch, setImportingResearch] = useState(false);
+  const [researchMsg, setResearchMsg] = useState<{ ok: boolean; text: string; lines: string[] } | null>(null);
+  async function importResearchFile(): Promise<void> {
+    if (!researchFile) return;
+    setImportingResearch(true);
+    setResearchMsg(null);
+    try {
+      const r = await api<ResearchImportSummary>('/api/crm', { method: 'POST', body: JSON.stringify({ action: 'import_research', json: researchFile.json }) });
+      const parts = [
+        `Attached research to ${r.researchSaved} deal${r.researchSaved === 1 ? '' : 's'}`,
+        r.proposalsSaved ? `proposal drafts to ${r.proposalsSaved}` : '',
+        r.unchanged ? `${r.unchanged} already had this research` : '',
+        r.reports - r.matched ? `${r.reports - r.matched} not matched to a deal` : '',
+      ].filter(Boolean);
+      const lines = r.results.filter((x) => x.reason).map((x) => `${x.dealName || x.company}: ${x.reason}`);
+      setResearchMsg({ ok: r.matched > 0, text: `${parts.join(', ')}. No contacts were added and nothing was sent. Open a deal to check each found detail and press Add to deal.`, lines });
+      setResearchFile(null);
+      reload();
+    } catch (e) {
+      setResearchMsg({ ok: false, text: e instanceof Error ? e.message : 'Could not import the research.', lines: [] });
+    } finally {
+      setImportingResearch(false);
+    }
+  }
   async function importCsv(text: string): Promise<boolean> {
     setImporting(true);
     setImportMsg(null);
@@ -215,6 +241,29 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
           <textarea aria-label="Contacts CSV" rows={4} value={csv} onChange={(e) => { setCsv(e.target.value); setFileName(''); }} placeholder="Or paste rows here, header row first" />
           <div className="row-end"><button type="button" className={csv.trim() ? 'btn-primary' : 'btn-ghost'} disabled={!!busy || importing || !csv.trim()} onClick={async () => { if (await importCsv(csv)) { setCsv(''); setFileName(''); } }}>{importing ? <Spinner label="Importing…" /> : fileName ? `Import ${fileName}` : 'Import'}</button></div>
           {importMsg && <p className={importMsg.ok ? 'small' : 'error'} role={importMsg.ok ? 'status' : 'alert'}>{importMsg.text}</p>}
+        </details>
+        <details>
+          <summary>Import research <span className="muted small">a research file (.json) from Claude Duet, attached to deals already here</span></summary>
+          <p className="muted small">Each report goes on the deal with the same website, business name or main phone: pain points, opportunities, missing contact details with the page each came from, and a proposal draft with ROI when the file has one. It never adds a contact or changes a deal's details; you check each found detail and press Add to deal. Importing the same file again changes nothing, and a proposal you edited or sent is kept.</p>
+          <label className="field"><span>Choose a research file</span><input type="file" accept=".json,application/json" onChange={async (e) => {
+            const file = e.target.files?.[0];
+            e.target.value = '';
+            if (!file) return;
+            setResearchMsg(null);
+            try {
+              const json = await file.text();
+              const data = JSON.parse(json) as { reports?: unknown[] } | unknown[];
+              const list = Array.isArray(data) ? data : Array.isArray(data?.reports) ? data.reports : null;
+              if (!list?.length) throw new Error('No reports in that file. A research file has a "reports" list.');
+              setResearchFile({ name: file.name, json, count: list.length });
+              setResearchMsg({ ok: true, text: `Loaded ${file.name}: ${list.length} report${list.length === 1 ? '' : 's'}. Press Import research to attach them to your deals.`, lines: [] });
+            } catch (err) {
+              setResearchFile(null);
+              setResearchMsg({ ok: false, text: err instanceof SyntaxError ? 'That file is not valid JSON. Choose the research file (.json) exactly as it was delivered.' : err instanceof Error ? err.message : 'Could not read that file.', lines: [] });
+            }
+          }} /></label>
+          <div className="row-end"><button type="button" className={researchFile ? 'btn-primary' : 'btn-ghost'} disabled={!!busy || importingResearch || !researchFile} onClick={importResearchFile}>{importingResearch ? <Spinner label="Attaching research…" /> : researchFile ? `Import research (${researchFile.count})` : 'Import research'}</button></div>
+          {researchMsg && <div role={researchMsg.ok ? 'status' : 'alert'}><p className={researchMsg.ok ? 'small' : 'error'}>{researchMsg.text}</p>{researchMsg.lines.length > 0 && <ul className="small">{researchMsg.lines.map((l) => <li key={l}>{l}</li>)}</ul>}</div>}
         </details>
         {msg && <p className="error" role="alert">{msg}</p>}
       </section>

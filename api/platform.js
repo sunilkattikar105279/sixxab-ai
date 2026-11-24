@@ -139,9 +139,9 @@ function profileText(p) {
   }).filter(Boolean);
   return [PROFILE_PREFIX, ...lines].join("\n");
 }
-function parseProfile(text7) {
+function parseProfile(text8) {
   const out = {};
-  for (const line of text7.split("\n").slice(1)) {
+  for (const line of text8.split("\n").slice(1)) {
     const i = line.indexOf(": ");
     if (i < 0) continue;
     const label5 = line.slice(0, i);
@@ -291,8 +291,8 @@ var SupabaseStore = class {
       }
     });
     if (!res.ok) throw new Error(`Supabase ${res.status} on ${path.split("?")[0]}: ${(await res.text()).slice(0, 300)}`);
-    const text7 = await res.text();
-    return text7 ? JSON.parse(text7) : [];
+    const text8 = await res.text();
+    return text8 ? JSON.parse(text8) : [];
   }
   one(rows, what) {
     if (!rows[0]) throw new Error(`${what} not found`);
@@ -711,7 +711,7 @@ function applyResearchEvent(dr, e) {
   const d = e.detail;
   if (e.action === "crm.research") {
     const r = { ...d.research, at: e.at, by: e.actor };
-    return { dr: { ...dr, researchReport: r }, history: { kind: "research", text: `Business research: ${r.pains.length} pain point${r.pains.length === 1 ? "" : "s"}, ${r.found.length} detail${r.found.length === 1 ? "" : "s"} found, ${r.opportunities.length} opportunit${r.opportunities.length === 1 ? "y" : "ies"}` } };
+    return { dr: { ...dr, researchReport: r }, history: { kind: "research", text: `${d.imported ? "Business research imported" : "Business research"}: ${r.pains.length} pain point${r.pains.length === 1 ? "" : "s"}, ${r.found.length} detail${r.found.length === 1 ? "" : "s"} found, ${r.opportunities.length} opportunit${r.opportunities.length === 1 ? "y" : "ies"}` } };
   }
   if (e.action === "crm.research_used") {
     const r = dr.researchReport;
@@ -722,7 +722,7 @@ function applyResearchEvent(dr, e) {
   }
   if (e.action === "crm.proposal") {
     const p = { ...d.proposal, at: e.at, by: e.actor, editedAt: null, editedBy: null, sentAt: null };
-    return { dr: { ...dr, proposal: p }, history: { kind: "proposal", text: `Proposal drafted: ${p.title}${p.roi.roiPct !== null ? ` (first-year return ${p.roi.roiPct}%)` : ""}` } };
+    return { dr: { ...dr, proposal: p }, history: { kind: "proposal", text: `${d.imported ? "Proposal draft imported" : "Proposal drafted"}: ${p.title}${p.roi.roiPct !== null ? ` (first-year return ${p.roi.roiPct}%)` : ""}` } };
   }
   if (e.action === "crm.proposal_edit") {
     const p = dr.proposal;
@@ -1933,17 +1933,17 @@ var field = (input, name, max = 4e3) => {
   return t.slice(0, max);
 };
 function parseLinkedInComment(input) {
-  let text7 = input.trim();
+  let text8 = input.trim();
   try {
-    text7 = decodeURIComponent(text7);
+    text8 = decodeURIComponent(text8);
   } catch {
   }
-  const m = text7.match(/urn:li:comment:\((?:urn:li:)?(activity|ugcPost|share):(\d+),(\d+)\)/);
+  const m = text8.match(/urn:li:comment:\((?:urn:li:)?(activity|ugcPost|share):(\d+),(\d+)\)/);
   if (m) {
     const threadUrn2 = `urn:li:${m[1]}:${m[2]}`;
     return { threadUrn: threadUrn2, commentUrn: `urn:li:comment:(${threadUrn2},${m[3]})` };
   }
-  const d = text7.match(/urn:li:fsd_comment:\((\d+),urn:li:(activity|ugcPost|share):(\d+)\)/);
+  const d = text8.match(/urn:li:fsd_comment:\((\d+),urn:li:(activity|ugcPost|share):(\d+)\)/);
   if (!d) return null;
   const threadUrn = `urn:li:${d[2]}:${d[3]}`;
   return { threadUrn, commentUrn: `urn:li:comment:(${threadUrn},${d[1]})` };
@@ -2093,9 +2093,9 @@ function toolsFor(agent) {
 }
 var WEBHOOK_TIMEOUT_MS = 3e4;
 var RECEIPT_MAX = 500;
-function parseReceipt(text7) {
+function parseReceipt(text8) {
   try {
-    const body = JSON.parse(text7);
+    const body = JSON.parse(text8);
     if (!body || typeof body !== "object") return void 0;
     const { ok, message } = body;
     return {
@@ -2194,10 +2194,10 @@ async function requireUser(request) {
   return { userId: user.id, orgId, label: label5, store: s };
 }
 async function readJson(request, maxBytes = 64e3) {
-  const text7 = await request.text();
-  if (text7.length > maxBytes) throw new HttpError(413, "Request too large");
+  const text8 = await request.text();
+  if (text8.length > maxBytes) throw new HttpError(413, "Request too large");
   try {
-    return JSON.parse(text7 || "{}");
+    return JSON.parse(text8 || "{}");
   } catch {
     throw new HttpError(400, "Invalid JSON");
   }
@@ -3834,10 +3834,10 @@ function computeGovernance(input) {
 
 // server/build-info.ts
 var BUILD_INFO = {
-  "builtAt": "2026-11-24T04:02:59.010Z",
-  "files": 99,
-  "lines": 11152,
-  "tests": 128,
+  "builtAt": "2026-11-24T13:55:53.437Z",
+  "files": 100,
+  "lines": 11387,
+  "tests": 135,
   "e2e": 11,
   "rlsTables": 9,
   "cspHeader": true,
@@ -3849,9 +3849,9 @@ var TIMEOUT_MS = 5e3;
 async function probe(url2, headers) {
   try {
     const res = await fetch(url2, { headers, signal: AbortSignal.timeout(TIMEOUT_MS) });
-    const text7 = await res.text();
+    const text8 = await res.text();
     try {
-      return { ok: res.ok, body: JSON.parse(text7) };
+      return { ok: res.ok, body: JSON.parse(text8) };
     } catch {
       return { ok: res.ok, body: null };
     }
@@ -4533,11 +4533,11 @@ function parsePerson(p) {
 }
 async function apolloReason(res) {
   try {
-    const text7 = await res.text();
-    let msg = text7;
+    const text8 = await res.text();
+    let msg = text8;
     try {
-      const j = JSON.parse(text7);
-      msg = str4(j.error) || str4(j.message) || text7;
+      const j = JSON.parse(text8);
+      msg = str4(j.error) || str4(j.message) || text8;
     } catch {
     }
     msg = msg.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().slice(0, 200);
@@ -4577,6 +4577,141 @@ async function apolloEnrich(apiKey, apolloId, fetchImpl = fetch) {
   return { email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && !/email_not_unlocked/.test(email) ? email : "", status: str4(p.email_status) || (email ? "unknown" : "unavailable") };
 }
 
+// core/research-import.ts
+import { createHash } from "node:crypto";
+var MAX_REPORTS = 100;
+var text5 = (v, max) => String(v ?? "").trim().slice(0, max);
+var SUFFIX = /\b(the|llc|l l c|inc|incorporated|pllc|pc|p c|plc|co|company|corp|corporation|ltd|limited|lp|llp)\b/g;
+function companyKey(v) {
+  return text5(v, 200).toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9 ]+/g, " ").replace(SUFFIX, " ").replace(/\s+/g, "");
+}
+function siteKey(v) {
+  const s = text5(v, 300).toLowerCase();
+  if (!s) return "";
+  try {
+    return new URL(/^[a-z]+:\/\//.test(s) ? s : `https://${s}`).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+function phoneKey(v) {
+  const d = text5(v, 40).replace(/\D/g, "");
+  return d.length >= 10 ? d.slice(-10) : "";
+}
+function fingerprint(v) {
+  const canon = (x) => Array.isArray(x) ? x.map(canon) : x && typeof x === "object" ? Object.fromEntries(Object.keys(x).sort().map((k) => [k, canon(x[k])])) : x;
+  return createHash("sha256").update(JSON.stringify(canon(v))).digest("hex").slice(0, 32);
+}
+function parseResearchFile(raw) {
+  let data;
+  try {
+    data = JSON.parse(String(raw ?? "").replace(/^﻿/, ""));
+  } catch {
+    throw new Error("That file is not valid JSON. Choose the research file (.json) exactly as it was delivered.");
+  }
+  const list3 = Array.isArray(data) ? data : data && typeof data === "object" ? data.reports : null;
+  if (!Array.isArray(list3)) throw new Error('No reports in that file. A research file has a "reports" list.');
+  const reports = list3.filter((r) => r && typeof r === "object");
+  if (!reports.length) throw new Error("The research file has no reports in it.");
+  if (reports.length > MAX_REPORTS) throw new Error(`A research file can hold up to ${MAX_REPORTS} reports; this one has ${reports.length}. Split it into smaller files.`);
+  return reports;
+}
+function matchDeal(contacts, r) {
+  const company = text5(r.company, 200);
+  const site = siteKey(r.website);
+  const name = companyKey(company);
+  const phone = phoneKey(r.phone);
+  const pick = (hits, by) => {
+    const open = hits.length > 1 ? hits.filter((c) => c.stage !== "lost") : hits;
+    const ids = new Set(open.map((c) => c.id));
+    if (ids.size === 1) return { deal: open[0], by, reason: "" };
+    return { deal: null, by: null, reason: `${ids.size} deals match ${company || "this report"}; attach it from the deal by hand` };
+  };
+  if (site) {
+    const hits = contacts.filter((c) => siteKey(c.website) === site);
+    if (hits.length) return pick(hits, "website");
+  }
+  if (name) {
+    const hits = contacts.filter((c) => companyKey(c.company) === name || !c.company && companyKey(c.name) === name);
+    if (hits.length) return pick(hits, "name");
+  }
+  if (phone) {
+    const hits = contacts.filter((c) => phoneKey(c.phone) === phone);
+    if (hits.length) return pick(hits, "phone");
+  }
+  return { deal: null, by: null, reason: `No deal in the CRM for ${company || "this report"}. Import the lead list first, then this file again.` };
+}
+async function importResearch(store2, orgId, raw, by) {
+  const reports = parseResearchFile(raw);
+  const crm = await loadCrm(store2, orgId);
+  const contacts = crm.contacts.map((c) => ({ ...c }));
+  const results = [];
+  const record8 = (action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
+  for (const r of reports) {
+    const company = text5(r.company, 200) || text5(r.business, 200);
+    const m = matchDeal(contacts, { ...r, company });
+    if (!m.deal) {
+      results.push({ company, contactId: null, dealName: "", matchedBy: null, research: "unmatched", proposal: "unmatched", reason: m.reason });
+      continue;
+    }
+    const c = m.deal;
+    const label5 = c.company || c.name;
+    const res = { company, contactId: c.id, dealName: label5, matchedBy: m.by, research: "error", proposal: "none", reason: "" };
+    const notes = [];
+    try {
+      const research = cleanResearch(r.research && typeof r.research === "object" ? r.research : r);
+      const key = fingerprint(research);
+      if (c.researchReport?.importKey === key) {
+        res.research = "same";
+      } else {
+        const report = { id: newId(), ...research, importKey: key };
+        await record8("crm.research", { contactId: c.id, research: report, imported: true, summary: `${label5}: business research imported` });
+        c.researchReport = { ...report, at: nowIso(), by };
+        res.research = "saved";
+      }
+    } catch (e) {
+      notes.push(`research not attached: ${e instanceof Error ? e.message : "could not read it"}`);
+    }
+    if (r.proposal && typeof r.proposal === "object") {
+      try {
+        const proposal = cleanProposal(r.proposal);
+        const key = fingerprint({ ...proposal, roi: void 0 });
+        const prev = c.proposal;
+        if (prev?.importKey === key) res.proposal = "same";
+        else if (prev?.sentAt) {
+          res.proposal = "kept_sent";
+          notes.push("kept the proposal you already sent");
+        } else if (prev?.editedAt) {
+          res.proposal = "kept_edited";
+          notes.push("kept the proposal you edited");
+        } else if (c.stage === "lost") {
+          res.proposal = "lost";
+          notes.push("no proposal added because the deal is marked lost");
+        } else {
+          const draft3 = { id: newId(), ...proposal, importKey: key };
+          await record8("crm.proposal", { contactId: c.id, proposal: draft3, imported: true, summary: `${label5}: proposal draft imported` });
+          c.proposal = { ...draft3, at: nowIso(), by, editedAt: null, editedBy: null, sentAt: null };
+          res.proposal = "saved";
+        }
+      } catch (e) {
+        res.proposal = "error";
+        notes.push(`proposal not attached: ${e instanceof Error ? e.message : "could not read it"}`);
+      }
+    }
+    res.reason = notes.join("; ");
+    results.push(res);
+  }
+  const matched = results.filter((x) => x.contactId);
+  return {
+    reports: reports.length,
+    matched: matched.length,
+    researchSaved: matched.filter((x) => x.research === "saved").length,
+    proposalsSaved: matched.filter((x) => x.proposal === "saved").length,
+    unchanged: matched.filter((x) => x.research !== "saved" && x.proposal !== "saved" && x.research !== "error").length,
+    results
+  };
+}
+
 // server/routes/crm.ts
 var apolloFor = (label5) => isAdmin(label5, process.env.ADMIN_EMAILS) && process.env.APOLLO_API_KEY?.trim() || "";
 async function crmView(store2, orgId) {
@@ -4594,7 +4729,7 @@ var GET6 = handle(async (request) => {
 });
 var POST5 = handle(async (request) => {
   const { orgId, label: label5, store: store2 } = await requireUser(request);
-  const b = await readJson(request, 2e5);
+  const b = await readJson(request, 1e6);
   const id = String(b.contactId ?? "");
   try {
     switch (b.action) {
@@ -4671,6 +4806,8 @@ var POST5 = handle(async (request) => {
         await setAutofind(store2, orgId, Boolean(b.on), label5);
         return json({ crm: await crmView(store2, orgId) });
       // Research and proposals: the owner adds a checked detail, edits the proposal, or marks it sent.
+      case "import_research":
+        return json({ ...await importResearch(store2, orgId, String(b.json ?? ""), label5), crm: await crmView(store2, orgId) });
       case "research_use":
         await useResearchField(store2, orgId, id, Number(b.index), label5);
         return json({ crm: await crmView(store2, orgId) });
@@ -4702,13 +4839,13 @@ var PRIORITIES = ["low", "normal", "high", "urgent"];
 var CHANNELS2 = ["email", "whatsapp", "phone", "website", "walk-in"];
 var SUPPORT_EVENTS = ["support.ticket", "support.status", "support.note"];
 var SLA_ORDER = ["urgent", "high", "normal", "low"];
-var text5 = (v, max) => String(v ?? "").trim().slice(0, max);
+var text6 = (v, max) => String(v ?? "").trim().slice(0, max);
 var oneOf2 = (list3, v, fallback) => list3.includes(String(v)) ? String(v) : fallback;
 var record6 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
 async function openTicket(store2, orgId, input, by) {
-  const subject = text5(input.subject, 160);
-  const customer = text5(input.customer, 120);
-  const message = text5(input.message, 4e3);
+  const subject = text6(input.subject, 160);
+  const customer = text6(input.customer, 120);
+  const message = text6(input.message, 4e3);
   if (!subject || !customer || !message) throw new Error("A ticket needs a subject, a customer and their message");
   const number = (await loadSupport(store2, orgId)).tickets.reduce((m, t) => Math.max(m, t.number), 1e3) + 1;
   const ticket = {
@@ -4716,7 +4853,7 @@ async function openTicket(store2, orgId, input, by) {
     number,
     subject,
     customer,
-    contact: text5(input.contact, 200),
+    contact: text6(input.contact, 200),
     channel: oneOf2(CHANNELS2, input.channel, "email"),
     priority: oneOf2(PRIORITIES, input.priority, "normal"),
     message
@@ -4734,7 +4871,7 @@ async function setTicketStatus(store2, orgId, id, status, by) {
 async function addTicketNote(store2, orgId, id, note, by) {
   const t = (await loadSupport(store2, orgId)).tickets.find((x) => x.id === id);
   if (!t) throw new Error("Ticket not found");
-  const body = text5(note, 4e3);
+  const body = text6(note, 4e3);
   if (!body) throw new Error("Write a note first");
   await record6(store2, orgId, by, "support.note", { ticketId: id, text: body, summary: `Note on ticket #${t.number}` });
   return loadSupport(store2, orgId);
@@ -4824,17 +4961,17 @@ var ACCOUNT_EVENTS = ["acct.entry", "acct.removed"];
 var DATE_RE2 = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 var MAX_AMOUNT = 1e11;
 var round2 = (n) => Math.round(n * 100) / 100;
-var text6 = (v, max) => String(v ?? "").trim().slice(0, max);
+var text7 = (v, max) => String(v ?? "").trim().slice(0, max);
 var record7 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
 async function addEntry(store2, orgId, input, by, currency = "USD") {
   if (input.kind !== "income" && input.kind !== "expense") throw new Error("kind must be income or expense");
-  const date = text6(input.date, 10);
+  const date = text7(input.date, 10);
   if (!DATE_RE2.test(date)) throw new Error("date must look like 2026-11-04");
   const amount = Number(String(input.amount).replace(/[,$₹\s]/g, ""));
   if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_AMOUNT) throw new Error("amount must be more than zero");
   const cats = input.kind === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
   const category = cats.includes(input.category) ? input.category : input.kind === "income" ? "other income" : "other";
-  const entry = { id: newId(), kind: input.kind, date, amount: round2(amount), category, party: text6(input.party, 120), note: text6(input.note, 300) };
+  const entry = { id: newId(), kind: input.kind, date, amount: round2(amount), category, party: text7(input.party, 120), note: text7(input.note, 300) };
   await record7(store2, orgId, by, "acct.entry", { entry, summary: `${input.kind === "income" ? "Income" : "Expense"} recorded: ${entry.amount} ${currency} (${category})` });
   return loadAccounts(store2, orgId, currency);
 }
