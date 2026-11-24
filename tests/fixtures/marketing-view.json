@@ -470,7 +470,8 @@
     "assessor": "Check this business's online presence before its marketing starts. Business: Lone Star Dental.\nWebsite: https://example.com\nBooking or buy link: not given\nGoogle Business Profile: not given\nSocial pages: not given\nGoogle reviews the owner reported: not given\nFor each of website, booking, google, social, reviews and pixel, say found, missing or unclear with a note and the public page that shows it.\nYou cannot see page code, so a pixel is unclear unless a public page plainly states it. Never guess.\nSave the result with save_assessment_check, with a short summary of the top gaps.",
     "cmo": "Tailor a 30-day marketing plan for this business on the Growth plan (40 images and 8 short videos a month).\nReadiness 30/100. Top gaps: Claim your Google Business Profile so local searches find you; Add a booking or buy link so a lead can act at once; Open an Instagram or Facebook page for posts and ads.\nOffer: Cleaning $120\nAverage first sale: 450\nBest customer: not given\nWhere customers come from: not given\nMonthly ad budget: 1200\nLeads wanted a month: 30\nClaims to avoid: not given\nBrand voice: not given\nCost-per-lead ceiling: 41 (450 average sale \u00d7 30% who buy \u00d7 30%).\nDraft to improve on: week 1 Set up: Claim your Google Business Profile so local searches find you; Add a booking or buy link so a lead can act at once; Link Instagram and Facebook so posts can go out after your approval; Confirm the offer, the prices to show and the claims to avoid | week 2 First creatives: Make 10 image ads and 2 short videos from your top offer; Post daily on Instagram and Facebook, each post approved by you; Every lead and comment lands in your CRM with a drafted reply | week 3 Launch ads: Start ads at about $300 a week on Instagram and Facebook, created paused until you approve; Pause any ad above $41 a lead; Test 3 hooks and keep the 2 that bring the cheapest leads | week 4 Review and double down: Keep the 2 best creatives and replace the rest; Report: leads against the goal of 30, cost per lead, calls booked and sales; Plan next month's creatives from what worked.\nSave the plan with save_marketing_plan: a summary, the channels, four weeks each with a focus and 3 to 5 actions, and the KPIs.\nIn this task do not draft posts, emails or ads and do not spend; only save the plan.",
     "creatives": "Write 3 image ad briefs and 1 short video brief for Lone Star Dental, and queue each with save_creative_brief.",
-    "publishing": ""
+    "publishing": "",
+    "ads": ""
   },
   "admin": false,
   "agency": null,
@@ -553,5 +554,70 @@
   "linked": [
     "instagram"
   ],
-  "publishAdmin": null
+  "publishAdmin": null,
+  "dashboard": {
+    "currency": "USD",
+    "leads30": 3,
+    "leadsPrev30": 1,
+    "leadsMonth": 3,
+    "target": 20,
+    "funnel": {
+      "made": 2,
+      "approved": 1,
+      "posted": 1,
+      "leads": 3,
+      "qualified": 1,
+      "won": 1,
+      "wonValue": 900
+    },
+    "bySource": [
+      {
+        "source": "instagram",
+        "label": "Instagram",
+        "leads": 2,
+        "won": 1
+      },
+      {
+        "source": "site",
+        "label": "Your website",
+        "leads": 1,
+        "won": 0
+      }
+    ],
+    "spend": {
+      "plan": 249,
+      "ads": 300,
+      "total": 549
+    },
+    "cpl": 183,
+    "ceiling": 41,
+    "recent": [
+      {
+        "at": "2026-11-24T16:00:00Z",
+        "name": "Ann Lee",
+        "label": "Instagram",
+        "stage": "lead",
+        "contactId": "c-1",
+        "repeat": false
+      }
+    ]
+  },
+  "leadForm": {
+    "id": "Pyqcbns0ToqcDxorPE1ebwAbCdEfGhIj",
+    "on": true,
+    "url": "https://sixxab.ai/l/Pyqcbns0ToqcDxorPE1ebwAbCdEfGhIj"
+  },
+  "adsPlan": null,
+  "adPlatforms": {
+    "meta": {
+      "label": "Facebook and Instagram",
+      "source": "meta",
+      "tool": "Meta Ads Manager"
+    },
+    "google": {
+      "label": "Google Search and Maps",
+      "source": "google",
+      "tool": "Google Ads"
+    }
+  }
 }

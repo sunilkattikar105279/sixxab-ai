@@ -99,7 +99,7 @@ export function Board({ contacts, busy, move, open, reload }: { contacts: Contac
     </div>
   );
 }
-const SOURCES = ['website', 'referral', 'linkedin', 'whatsapp', 'walk-in', 'event', 'other'];
+const SOURCES = ['website', 'referral', 'linkedin', 'whatsapp', 'walk-in', 'event', 'social', 'ads', 'other'];
 const EMPTY = { name: '', company: '', email: '', phone: '', source: 'website', value: '', nextStep: '' };
 const since = (iso: string | null) => (iso ? `${Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 864e5))}d ago` : 'never');
 

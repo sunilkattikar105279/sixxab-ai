@@ -139,9 +139,9 @@ function profileText(p) {
   }).filter(Boolean);
   return [PROFILE_PREFIX, ...lines].join("\n");
 }
-function parseProfile(text11) {
+function parseProfile(text13) {
   const out = {};
-  for (const line2 of text11.split("\n").slice(1)) {
+  for (const line2 of text13.split("\n").slice(1)) {
     const i = line2.indexOf(": ");
     if (i < 0) continue;
     const label5 = line2.slice(0, i);
@@ -291,8 +291,8 @@ var SupabaseStore = class {
       }
     });
     if (!res.ok) throw new Error(`Supabase ${res.status} on ${path.split("?")[0]}: ${(await res.text()).slice(0, 300)}`);
-    const text11 = await res.text();
-    return text11 ? JSON.parse(text11) : [];
+    const text13 = await res.text();
+    return text13 ? JSON.parse(text13) : [];
   }
   one(rows, what) {
     if (!rows[0]) throw new Error(`${what} not found`);
@@ -354,9 +354,9 @@ var SupabaseStore = class {
     const PAGE = 1e3;
     const rows = [];
     for (let offset = 0; offset < 20 * PAGE; offset += PAGE) {
-      const page = await this.req(`audit_log?org_id=eq.${orgId}&action=in.(${encodeURIComponent(list3)})&order=at.asc,id.asc&limit=${PAGE}&offset=${offset}`);
-      rows.push(...page);
-      if (page.length < PAGE) break;
+      const page2 = await this.req(`audit_log?org_id=eq.${orgId}&action=in.(${encodeURIComponent(list3)})&order=at.asc,id.asc&limit=${PAGE}&offset=${offset}`);
+      rows.push(...page2);
+      if (page2.length < PAGE) break;
     }
     return rows.map((r) => fromRow(r));
   }
@@ -585,13 +585,13 @@ function crmIssues(deals, now = Date.now()) {
   const add = (c, issue) => out.push({ contactId: c.id, name: c.company || c.name, issue });
   const seen = /* @__PURE__ */ new Map();
   for (const c of deals) {
-    const open = !["won", "lost"].includes(c.stage);
+    const open2 = !["won", "lost"].includes(c.stage);
     if (c.stage !== "lead" && c.stage !== "lost" && !c.lastTouch) add(c, `Marked ${c.stage} but no call, email or meeting is logged.`);
     if ((c.stage === "qualified" || c.stage === "proposal") && !c.meddic) add(c, `At ${c.stage} with no MEDDIC qualification saved.`);
-    if (open && c.stage !== "lead" && !c.nextStep) add(c, "Open deal with no next step.");
+    if (open2 && c.stage !== "lead" && !c.nextStep) add(c, "Open deal with no next step.");
     if (c.stage === "lead" && !c.email && !c.phone) add(c, "No email or phone yet, so nobody can reach them.");
     if (c.stage === "lead" && c.sequence?.steps.some((s) => s.sentAt)) add(c, "An outreach step was sent but the deal is still a new lead.");
-    if (open && c.stage !== "lead" && now - Date.parse(c.lastTouch ?? c.createdAt) >= STALE_DAYS * 864e5) add(c, `No touch in ${STALE_DAYS}+ days.`);
+    if (open2 && c.stage !== "lead" && now - Date.parse(c.lastTouch ?? c.createdAt) >= STALE_DAYS * 864e5) add(c, `No touch in ${STALE_DAYS}+ days.`);
     for (const key of [c.website && `w:${c.website.toLowerCase()}`, c.company && `c:${c.company.toLowerCase().trim()}`].filter(Boolean)) {
       const other = seen.get(key);
       if (other && other.id !== c.id) {
@@ -788,9 +788,9 @@ function matchDeal(contacts, r) {
   const name = companyKey(company);
   const phone = phoneKey(r.phone);
   const pick = (hits, by) => {
-    const open = hits.length > 1 ? hits.filter((c) => c.stage !== "lost") : hits;
-    const ids = new Set(open.map((c) => c.id));
-    if (ids.size === 1) return { deal: open[0], by, reason: "" };
+    const open2 = hits.length > 1 ? hits.filter((c) => c.stage !== "lost") : hits;
+    const ids = new Set(open2.map((c) => c.id));
+    if (ids.size === 1) return { deal: open2[0], by, reason: "" };
     return { deal: null, by: null, reason: `${ids.size} deals match ${company || "this report"}; pick the right one` };
   };
   if (site) {
@@ -1124,7 +1124,7 @@ function flowCounts(q, now = Date.now()) {
 
 // core/crm.ts
 var DEAL_STAGES = ["lead", "contacted", "qualified", "proposal", "won", "lost"];
-var SOURCES = ["website", "referral", "linkedin", "whatsapp", "walk-in", "event", "apollo", "web-search", "other"];
+var SOURCES = ["website", "referral", "linkedin", "whatsapp", "walk-in", "event", "apollo", "web-search", "social", "ads", "other"];
 var DEAL_TIERS = ["High", "Medium", "Low"];
 var EMPTY_PROFILE = { rank: null, niche: "", city: "", website: "", size: "", title: "", dealTier: "", ease: "", whyFit: "", pitch: "", sourceDetail: "", checkFirst: "", painPoints: "", offer: "", angle: "", research: "", address: "" };
 var NOTE_KINDS = ["note", "call", "email", "meeting", "research"];
@@ -1442,11 +1442,11 @@ function computeCrm(events, now = Date.now()) {
   const byRank = (a, b) => a.rank != null && b.rank != null ? a.rank - b.rank : 0;
   const contacts = [...map.values()].sort((a, b) => DEAL_STAGES.indexOf(a.stage) - DEAL_STAGES.indexOf(b.stage) || byRank(a, b) || b.updatedAt.localeCompare(a.updatedAt));
   const pipeline = Object.fromEntries(DEAL_STAGES.map((s) => [s, contacts.filter((c) => c.stage === s).length]));
-  const open = contacts.filter((c) => OPEN.includes(c.stage));
+  const open2 = contacts.filter((c) => OPEN.includes(c.stage));
   const won = contacts.filter((c) => c.stage === "won");
   const closed = won.length + pipeline.lost;
   const fresh = contacts.filter((c) => c.stage === "lead" && c.email && !c.lastTouch && now - Date.parse(c.createdAt) <= NEW_LEAD_HOURS * 36e5);
-  const stale = open.filter((c) => c.email && now - Date.parse(c.lastTouch ?? c.createdAt) >= STALE_DAYS2 * 864e5);
+  const stale = open2.filter((c) => c.email && now - Date.parse(c.lastTouch ?? c.createdAt) >= STALE_DAYS2 * 864e5);
   const leadgen = computeLeadgen(events);
   const flowOrg = computeFlowOrg(events);
   const flow = { contacts, icps: leadgen.icps, prospectBatches: leadgen.prospectBatches, lastProspectSearch: leadgen.lastProspectSearch, flowOrg };
@@ -1454,8 +1454,8 @@ function computeCrm(events, now = Date.now()) {
     contacts,
     pipeline,
     totals: {
-      open: open.length,
-      openValue: open.reduce((s, c) => s + c.value, 0),
+      open: open2.length,
+      openValue: open2.reduce((s, c) => s + c.value, 0),
       won: won.length,
       wonValue: won.reduce((s, c) => s + c.value, 0),
       winRate: closed ? Math.round(won.length / closed * 100) : null,
@@ -2842,23 +2842,28 @@ async function loadPublishing(store2, orgId) {
   return computePublishing(await store2.listAuditByActions(orgId, POST_EVENTS));
 }
 var fits = (network, kind) => kind === "video" ? NETWORKS[network].video : NETWORKS[network].image;
+var LINK_NETWORKS = ["facebook", "linkedin", "x", "threads", "google"];
+var postLeadLink = (formUrl2, network, postId) => `${formUrl2}?s=${network}&p=${postId.replace(/-/g, "").slice(0, 8)}`;
 async function draftPosts(store2, orgId, input, by) {
   const creative = (await loadCreatives(store2, orgId, null)).creatives.find((c) => c.id === input.creativeId);
   if (!creative) throw new Error("Pick an ad from the ad studio");
   if (creative.status !== "approved") throw new Error("Approve the ad in the ad studio before drafting posts");
   const networks = [...new Set((Array.isArray(input.networks) ? input.networks : [input.networks]).filter((n) => NETWORK_IDS.includes(n)))];
   if (!networks.length) throw new Error("Pick at least one network");
-  const text11 = typeof input.text === "string" ? input.text.trim() : "";
-  if (!text11) throw new Error("Write the caption");
-  for (const n of networks) {
+  const text13 = typeof input.text === "string" ? input.text.trim() : "";
+  if (!text13) throw new Error("Write the caption");
+  const withLink = (n, id) => input.leadLink && LINK_NETWORKS.includes(n) && !text13.includes(input.leadLink) ? `${text13}
+
+${postLeadLink(input.leadLink, n, id)}` : text13;
+  const ids = networks.map(() => newId());
+  networks.forEach((n, i) => {
     if (!fits(n, creative.kind)) throw new Error(`${NETWORKS[n].label} doesn't take ${creative.kind === "video" ? "videos" : "images"} here`);
-    if (text11.length > NETWORKS[n].maxChars) throw new Error(`The caption is ${text11.length} characters; ${NETWORKS[n].label} allows ${NETWORKS[n].maxChars}`);
-  }
-  const ids = [];
-  for (const network of networks) {
-    const id = newId();
-    ids.push(id);
-    await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "post.drafted", taskId: null, detail: { id, creativeId: creative.id, network, text: text11, kind: creative.kind, mediaUrl: creative.mediaUrl, headline: creative.headline, summary: `Drafted a ${NETWORKS[network].label} post for the ad "${creative.headline || creative.brief.slice(0, 40)}"; waiting for the owner's yes` } });
+    const full = withLink(n, ids[i]);
+    if (full.length > NETWORKS[n].maxChars) throw new Error(`The caption is ${full.length} characters${full !== text13 ? " with the lead form link" : ""}; ${NETWORKS[n].label} allows ${NETWORKS[n].maxChars}`);
+  });
+  for (const [i, network] of networks.entries()) {
+    const id = ids[i];
+    await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "post.drafted", taskId: null, detail: { id, creativeId: creative.id, network, text: withLink(network, id), kind: creative.kind, mediaUrl: creative.mediaUrl, headline: creative.headline, summary: `Drafted a ${NETWORKS[network].label} post for the ad "${creative.headline || creative.brief.slice(0, 40)}"; waiting for the owner's yes` } });
   }
   return ids;
 }
@@ -2993,6 +2998,285 @@ function publishingGoal(o) {
   ].join("\n");
 }
 
+// core/leads.ts
+var FORM_EVENT = "leads.form";
+var LEAD_EVENT = "lead.captured";
+var LEAD_EVENTS = [FORM_EVENT, LEAD_EVENT];
+var LEAD_ACTOR = "Lead form";
+var LEAD_SOURCES = {
+  ...Object.fromEntries(NETWORK_IDS.map((n) => [n, NETWORKS[n].label])),
+  meta: "Meta ads",
+  site: "Your website",
+  email: "Email",
+  qr: "QR code",
+  direct: "Direct link"
+};
+var sourceLabel = (s) => LEAD_SOURCES[s] ?? "Direct link";
+var LIMITS = { perHour: 30, perDay: 200 };
+var B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+var FORM_ID_RE = /^[A-Za-z0-9_-]{32}$/;
+function b64url(bytes) {
+  let bits = 0, value = 0, out = "";
+  for (const b of bytes) {
+    value = value << 8 | b;
+    bits += 8;
+    while (bits >= 6) {
+      out += B64[value >>> bits - 6 & 63];
+      bits -= 6;
+    }
+    value &= (1 << bits) - 1;
+  }
+  return bits > 0 ? out + B64[value << 6 - bits & 63] : out;
+}
+function newFormId(orgId) {
+  if (!UUID_RE.test(orgId)) throw new Error("Unknown business");
+  const hex2 = orgId.replace(/-/g, "");
+  const bytes = new Uint8Array(16);
+  for (let i = 0; i < 16; i++) bytes[i] = parseInt(hex2.slice(i * 2, i * 2 + 2), 16);
+  const rand = globalThis.crypto.getRandomValues(new Uint8Array(10));
+  return b64url(bytes) + Array.from(rand, (b) => B64[b & 63]).join("");
+}
+function orgFromFormId(formId) {
+  if (!FORM_ID_RE.test(formId)) return null;
+  let bits = 0, value = 0;
+  const bytes = [];
+  for (const ch of formId.slice(0, 22)) {
+    value = value << 6 | B64.indexOf(ch);
+    bits += 6;
+    if (bits >= 8) {
+      bytes.push(value >>> bits - 8 & 255);
+      bits -= 8;
+      value &= (1 << bits) - 1;
+    }
+  }
+  const hex2 = bytes.slice(0, 16).map((b) => b.toString(16).padStart(2, "0")).join("");
+  return `${hex2.slice(0, 8)}-${hex2.slice(8, 12)}-${hex2.slice(12, 16)}-${hex2.slice(16, 20)}-${hex2.slice(20)}`;
+}
+function cleanOrigin(raw) {
+  const u = new URL(raw);
+  const local = u.hostname === "localhost" || u.hostname === "127.0.0.1";
+  if (u.protocol !== "https:" && !local) throw new Error("The lead form needs a secure address");
+  return `${u.protocol}//${u.host}`;
+}
+var formUrl = (f) => `${f.origin}/l/${f.id}`;
+function computeLeads(events) {
+  let form2 = null;
+  const leads = [];
+  for (const e of events) {
+    const d = e.detail;
+    if (e.action === FORM_EVENT) {
+      const prev = form2;
+      const id = String(d.formId ?? "");
+      form2 = { id, on: d.on !== false, origin: String(d.origin ?? ""), since: prev && prev.id === id ? prev.since : e.at };
+    }
+    if (e.action === LEAD_EVENT) leads.push({
+      id: String(d.id ?? ""),
+      at: e.at,
+      formId: String(d.formId ?? ""),
+      source: String(d.source ?? "direct"),
+      paid: d.paid === true,
+      postId: String(d.postId ?? ""),
+      contactId: String(d.contactId ?? ""),
+      repeat: d.repeat === true
+    });
+  }
+  return { form: form2, leads: leads.reverse() };
+}
+async function loadLeads(store2, orgId) {
+  return computeLeads(await store2.listAuditByActions(orgId, LEAD_EVENTS));
+}
+var formEvent = (store2, orgId, by, formId, on, origin, summary) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: FORM_EVENT, taskId: null, detail: { formId, on, origin, summary } });
+async function ensureLeadForm(store2, orgId, origin, by, state) {
+  const now = state ?? await loadLeads(store2, orgId);
+  if (now.form) return now.form;
+  const formId = newFormId(orgId);
+  const o = cleanOrigin(origin);
+  await formEvent(store2, orgId, by, formId, true, o, "Lead form made: enquiries from posts and ads land in the CRM");
+  return { id: formId, on: true, origin: o, since: nowIso() };
+}
+async function changeLeadForm(store2, orgId, change, origin, by) {
+  const { form: form2 } = await loadLeads(store2, orgId);
+  if (!form2) throw new Error("The lead form is not set up yet");
+  if (change === "off") return formEvent(store2, orgId, by, form2.id, false, form2.origin, "Lead form turned off");
+  if (change === "on") return formEvent(store2, orgId, by, form2.id, true, form2.origin, "Lead form turned on");
+  if (change === "new") return formEvent(store2, orgId, by, newFormId(orgId), true, cleanOrigin(origin), "Lead form given a new link; the old link stopped working");
+  throw new Error("change must be off, on or new");
+}
+async function findOpenForm(store2, formId) {
+  const orgId = orgFromFormId(formId);
+  if (!orgId) return null;
+  const state = await loadLeads(store2, orgId);
+  return state.form && state.form.id === formId && state.form.on ? { orgId, state } : null;
+}
+var LeadLimitError = class extends Error {
+};
+var text7 = (v, max) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, max);
+var digits = (s) => s.replace(/\D/g, "");
+var CALL_TIMES = ["Morning", "Afternoon", "Evening", "Any time"];
+function checkLead(i, healthcare) {
+  const name = text7(i.name, 120);
+  const email = text7(i.email, 200).toLowerCase();
+  const phone = text7(i.phone, 20);
+  if (!name) return { ok: false, error: "Please add your name." };
+  if (!email && !phone) return { ok: false, error: "Please add an email address or a phone number so they can reach you." };
+  if (email && !EMAIL_RE2.test(email)) return { ok: false, error: "That email address does not look right." };
+  if (phone && !PHONE_RE.test(phone)) return { ok: false, error: "That phone number does not look right." };
+  if (i.consent !== "yes" && i.consent !== true) return { ok: false, error: "Please tick the box so they may contact you." };
+  const message = healthcare ? CALL_TIMES.includes(String(i.when)) ? `Best time to call: ${i.when}` : "" : String(i.message ?? "").trim().slice(0, 1e3);
+  const s = text7(i.s, 20).toLowerCase();
+  return { ok: true, lead: { name, email, phone, message, source: s in LEAD_SOURCES ? s : "direct", paid: i.m === "paid", postRef: /^[0-9a-f]{8}$/i.test(text7(i.p, 8)) ? text7(i.p, 8).toLowerCase() : "" } };
+}
+async function captureLead(store2, orgId, state, lead, posts, now = /* @__PURE__ */ new Date()) {
+  const t = now.getTime();
+  const lastHour = state.leads.filter((l) => t - Date.parse(l.at) < 36e5).length;
+  const lastDay = state.leads.filter((l) => t - Date.parse(l.at) < 864e5).length;
+  if (lastHour >= LIMITS.perHour || lastDay >= LIMITS.perDay) throw new LeadLimitError("Too many enquiries just now");
+  const post = lead.postRef ? posts.find((p) => p.id.replace(/-/g, "").toLowerCase().startsWith(lead.postRef)) : void 0;
+  const src = sourceLabel(post?.network ?? lead.source);
+  const what = post ? `${src} ${lead.paid ? "ad" : "post"}${post.headline ? `: ${post.headline}` : ""}` : `${src}${lead.paid ? " ad" : ""} lead form`;
+  const crm = await loadCrm(store2, orgId);
+  const match = crm.contacts.find((c) => lead.email && c.email.toLowerCase() === lead.email || lead.phone && digits(c.phone).length >= 7 && digits(c.phone) === digits(lead.phone));
+  let contactId4;
+  if (match) {
+    contactId4 = match.id;
+    await store2.audit({ id: newId(), orgId, at: nowIso(), actor: LEAD_ACTOR, action: "crm.note", taskId: null, detail: {
+      contactId: contactId4,
+      kind: "note",
+      note: `Asked again through the ${what}.${lead.message ? ` They wrote: ${lead.message}` : ""}`,
+      summary: `Note on ${match.name}`
+    } });
+  } else {
+    const network = post?.network ?? lead.source;
+    contactId4 = await addNewContact(store2, orgId, {
+      name: lead.name,
+      email: lead.email,
+      phone: lead.phone,
+      notes: lead.message,
+      source: lead.paid ? "ads" : NETWORK_IDS.includes(network) ? "social" : network === "site" ? "website" : "other",
+      sourceDetail: what.slice(0, 200),
+      nextStep: "Reply within 5 minutes"
+    }, LEAD_ACTOR, `New lead from the ${what.slice(0, 120)}`);
+  }
+  await store2.audit({ id: newId(), orgId, at: nowIso(), actor: LEAD_ACTOR, action: LEAD_EVENT, taskId: null, detail: {
+    id: newId(),
+    formId: state.form?.id ?? "",
+    source: post?.network ?? lead.source,
+    paid: lead.paid,
+    postId: post?.id ?? "",
+    contactId: contactId4,
+    repeat: Boolean(match),
+    summary: `${match ? "Repeat enquiry" : "New lead"} from the ${what.slice(0, 120)}`
+  } });
+  return { contactId: contactId4, repeat: Boolean(match) };
+}
+var REACHED = ["qualified", "proposal", "won"];
+function computeDashboard(o) {
+  const now = o.now ?? /* @__PURE__ */ new Date();
+  const t = now.getTime();
+  const DAY4 = 864e5;
+  const fresh = o.leads.leads.filter((l) => !l.repeat);
+  const in30 = fresh.filter((l) => t - Date.parse(l.at) < 30 * DAY4);
+  const prev30 = fresh.filter((l) => {
+    const a = t - Date.parse(l.at);
+    return a >= 30 * DAY4 && a < 60 * DAY4;
+  });
+  const monthStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
+  const byId = new Map(o.crm.contacts.map((c) => [c.id, c]));
+  const deals = [...new Set(fresh.map((l) => l.contactId))].map((id) => byId.get(id)).filter((c) => Boolean(c));
+  const won = deals.filter((c) => c.stage === "won");
+  const counts = /* @__PURE__ */ new Map();
+  for (const l of fresh) {
+    const row = counts.get(l.source) ?? { leads: 0, won: 0 };
+    row.leads++;
+    if (byId.get(l.contactId)?.stage === "won") row.won++;
+    counts.set(l.source, row);
+  }
+  const total = Math.max(0, o.spend.plan) + Math.max(0, o.spend.ads);
+  return {
+    currency: o.currency,
+    leads30: in30.length,
+    leadsPrev30: prev30.length,
+    leadsMonth: fresh.filter((l) => Date.parse(l.at) >= monthStart).length,
+    target: o.target,
+    funnel: {
+      made: o.creatives.filter((c) => c.mediaUrl).length,
+      approved: o.creatives.filter((c) => c.status === "approved").length,
+      posted: o.posts.filter((p) => p.status === "sent").length,
+      leads: deals.length,
+      qualified: deals.filter((c) => REACHED.includes(c.stage)).length,
+      won: won.length,
+      wonValue: won.reduce((s, c) => s + c.value, 0)
+    },
+    bySource: [...counts.entries()].map(([source, r]) => ({ source, label: sourceLabel(source), ...r })).sort((a, b) => b.leads - a.leads),
+    spend: { plan: o.spend.plan, ads: o.spend.ads, total },
+    cpl: in30.length && total > 0 ? Math.round(total / in30.length) : null,
+    ceiling: o.ceiling,
+    recent: o.leads.leads.slice(0, 8).map((l) => {
+      const c = byId.get(l.contactId);
+      return { at: l.at, name: c?.name ?? "Removed contact", label: `${sourceLabel(l.source)}${l.paid ? " ad" : ""}`, stage: c?.stage ?? null, contactId: l.contactId, repeat: l.repeat };
+    })
+  };
+}
+
+// core/ads.ts
+var ADS_EVENT = "ads.plan";
+var AD_PLATFORMS = {
+  meta: { label: "Facebook and Instagram", source: "meta", tool: "Meta Ads Manager" },
+  google: { label: "Google Search and Maps", source: "google", tool: "Google Ads" },
+  tiktok: { label: "TikTok", source: "tiktok", tool: "TikTok Ads Manager" },
+  youtube: { label: "YouTube", source: "youtube", tool: "Google Ads" },
+  linkedin: { label: "LinkedIn", source: "linkedin", tool: "LinkedIn Campaign Manager" }
+};
+var AD_PLATFORM_IDS = Object.keys(AD_PLATFORMS);
+var AD_OBJECTIVES = ["leads", "calls", "messages", "traffic"];
+var text8 = (v, max) => String(v ?? "").trim().slice(0, max);
+function cleanAdsPlan(raw, approved, budget) {
+  if (!(budget > 0)) throw new Error("Add a monthly ad budget to the marketing assessment before planning paid ads");
+  const i = raw ?? {};
+  const list3 = Array.isArray(i.campaigns) ? i.campaigns.slice(0, 4) : [];
+  if (!list3.length) throw new Error("A plan needs at least one campaign");
+  const ok = new Set(approved.map((c) => c.id));
+  const campaigns = list3.map((c) => {
+    const platform = text8(c.platform, 20).toLowerCase();
+    if (!AD_PLATFORMS[platform]) throw new Error(`platform must be one of: ${AD_PLATFORM_IDS.join(", ")}`);
+    const objective = AD_OBJECTIVES.includes(String(c.objective)) ? String(c.objective) : "leads";
+    const dailyBudget = Math.round(Number(c.dailyBudget) * 100) / 100;
+    const days = Math.round(Number(c.days));
+    if (!(dailyBudget > 0)) throw new Error("Each campaign needs a daily budget above zero");
+    if (!(days >= 3 && days <= 31)) throw new Error("Each campaign runs 3 to 31 days");
+    const creativeIds = (Array.isArray(c.creativeIds) ? c.creativeIds : []).map(String).filter((id) => ok.has(id)).slice(0, 4);
+    if (platform !== "google" && !creativeIds.length) throw new Error(`The ${AD_PLATFORMS[platform].label} campaign needs at least one approved ad`);
+    return { platform, objective, audience: text8(c.audience, 300), dailyBudget, days, creativeIds, why: text8(c.why, 300), total: Math.round(dailyBudget * days * 100) / 100 };
+  });
+  const total = Math.round(campaigns.reduce((s, c) => s + c.total, 0) * 100) / 100;
+  if (total > budget) throw new Error(`The campaigns add up to ${total}; the monthly ad budget is ${budget}. Trim the daily budgets or the days.`);
+  return { summary: text8(i.summary, 600), campaigns, total, budget };
+}
+async function saveAdsPlan(store2, orgId, raw, approved, budget, by) {
+  const plan = cleanAdsPlan(raw, approved, budget);
+  await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: ADS_EVENT, taskId: null, detail: { plan, summary: `Paid ads plan saved: ${plan.campaigns.length} campaign${plan.campaigns.length === 1 ? "" : "s"}, ${plan.total} of ${plan.budget} a month. Nothing launched or paid` } });
+  return `Saved the paid ads plan: ${plan.campaigns.length} campaign(s), ${plan.total} of the ${plan.budget} monthly budget. Nothing is launched; the owner sets each campaign up.`;
+}
+async function loadAdsPlan(store2, orgId) {
+  const last = (await store2.listAuditByActions(orgId, [ADS_EVENT])).at(-1);
+  return last ? { ...last.detail.plan, at: last.at, by: last.actor } : null;
+}
+function adsGoal(o) {
+  if (!(o.budget > 0)) return "";
+  if (!o.approved.length) return "";
+  const ads = o.approved.slice(0, 12).map((c) => `- ${c.id}: ${c.kind} ${c.format}, "${c.headline || c.brief.slice(0, 60)}"`).join("\n");
+  return [
+    `Plan this month's paid ads for ${o.business || "this business"} and save the plan with save_ads_plan.`,
+    `What they sell: ${o.offer || "not given"}. Best customer: ${o.bestCustomer || "not given"}. Where: ${o.area || "not given"}.`,
+    `Monthly ad budget: ${o.budget} ${o.currency}. The plan's total must not go over it. Most a lead can cost and still pay: ${o.ceiling ?? "unknown"} ${o.currency}.${o.leadsTarget ? ` Leads wanted a month: ${o.leadsTarget}.` : ""}`,
+    `Channels in their marketing plan: ${o.channels.join(", ") || "none yet"}.`,
+    `Approved ads you may use (by id):
+${ads}`,
+    "Use one to three campaigns: put most of the budget where their customers already look, give each campaign enough per day to learn (at least a few leads a week at the ceiling), and say in one line why. Prefer the leads objective; use calls for businesses people phone. Name the audience by place, age range and interests in plain words. Never promise results. You only plan: nothing is launched or paid."
+  ].join("\n");
+}
+
 // core/marketing-tools.ts
 var str4 = { type: "string" };
 var MARKETING_TOOLS = {
@@ -3064,7 +3348,7 @@ var MARKETING_TOOLS = {
   draft_social_post: {
     spec: {
       name: "draft_social_post",
-      description: "Save a draft social post for one network from an approved ad: the ad's image or video with a caption written for that network. Nothing is posted; the owner publishes each draft from the Marketing tab, now or at a time they pick.",
+      description: "Save a draft social post for one network from an approved ad: the ad's image or video with a caption written for that network. On Facebook, LinkedIn, X, Threads and Google the business's lead form link is added at the end, so leave room for about 75 characters there and write no link yourself. Nothing is posted; the owner publishes each draft from the Marketing tab, now or at a time they pick.",
       input_schema: {
         type: "object",
         properties: {
@@ -3077,8 +3361,46 @@ var MARKETING_TOOLS = {
     },
     summarize: (i) => `Draft a ${NETWORKS[i.network]?.label ?? "social"} post`,
     execute: async (i, ctx) => {
-      await draftPosts(ctx.store, ctx.orgId, { creativeId: i.creativeId, networks: [i.network], text: i.text }, ctx.agent.name);
+      const { form: form2 } = await loadLeads(ctx.store, ctx.orgId);
+      const leadLink = form2?.on && LINK_NETWORKS.includes(i.network) ? formUrl(form2) : void 0;
+      await draftPosts(ctx.store, ctx.orgId, { creativeId: i.creativeId, networks: [i.network], text: i.text, leadLink }, ctx.agent.name);
       return `Drafted the ${NETWORKS[i.network].label} post. The owner publishes it from the Marketing tab.`;
+    }
+  },
+  save_ads_plan: {
+    spec: {
+      name: "save_ads_plan",
+      description: "Save this month's paid ads plan on the business's Marketing tab: one to four campaigns, each with the platform, objective, audience in plain words, daily budget, days, the approved ads it uses and why. The total must fit the monthly ad budget. Nothing is launched or paid; the owner sets each campaign up in the platform's own ads tool.",
+      input_schema: {
+        type: "object",
+        properties: {
+          summary: { type: "string", description: "Two or three sentences: where the money goes and why" },
+          campaigns: {
+            type: "array",
+            minItems: 1,
+            maxItems: 4,
+            items: {
+              type: "object",
+              properties: {
+                platform: { type: "string", enum: AD_PLATFORM_IDS },
+                objective: { type: "string", enum: [...AD_OBJECTIVES] },
+                audience: { type: "string", description: "Place, age range and interests, in plain words" },
+                dailyBudget: { type: "number", description: "In the business's currency" },
+                days: { type: "number", description: "3 to 31" },
+                creativeIds: { type: "array", items: str4, maxItems: 4, description: "Approved ad ids (Google Search can have none)" },
+                why: str4
+              },
+              required: ["platform", "objective", "audience", "dailyBudget", "days", "why"]
+            }
+          }
+        },
+        required: ["summary", "campaigns"]
+      }
+    },
+    summarize: () => "Save the paid ads plan",
+    execute: async (i, ctx) => {
+      const [m, creatives] = await Promise.all([loadMarketing(ctx.store, ctx.orgId, null), loadCreatives(ctx.store, ctx.orgId, null)]);
+      return saveAdsPlan(ctx.store, ctx.orgId, i, creatives.creatives.filter((c) => c.status === "approved"), num3(m.answers, "adBudget") ?? 0, ctx.agent.name);
     }
   }
 };
@@ -3101,17 +3423,17 @@ var field = (input, name, max = 4e3) => {
   return t.slice(0, max);
 };
 function parseLinkedInComment(input) {
-  let text11 = input.trim();
+  let text13 = input.trim();
   try {
-    text11 = decodeURIComponent(text11);
+    text13 = decodeURIComponent(text13);
   } catch {
   }
-  const m = text11.match(/urn:li:comment:\((?:urn:li:)?(activity|ugcPost|share):(\d+),(\d+)\)/);
+  const m = text13.match(/urn:li:comment:\((?:urn:li:)?(activity|ugcPost|share):(\d+),(\d+)\)/);
   if (m) {
     const threadUrn2 = `urn:li:${m[1]}:${m[2]}`;
     return { threadUrn: threadUrn2, commentUrn: `urn:li:comment:(${threadUrn2},${m[3]})` };
   }
-  const d = text11.match(/urn:li:fsd_comment:\((\d+),urn:li:(activity|ugcPost|share):(\d+)\)/);
+  const d = text13.match(/urn:li:fsd_comment:\((\d+),urn:li:(activity|ugcPost|share):(\d+)\)/);
   if (!d) return null;
   const threadUrn = `urn:li:${d[2]}:${d[3]}`;
   return { threadUrn, commentUrn: `urn:li:comment:(${threadUrn},${d[1]})` };
@@ -3262,9 +3584,9 @@ function toolsFor(agent) {
 }
 var WEBHOOK_TIMEOUT_MS = 3e4;
 var RECEIPT_MAX = 500;
-function parseReceipt(text11) {
+function parseReceipt(text13) {
   try {
-    const body = JSON.parse(text11);
+    const body = JSON.parse(text13);
     if (!body || typeof body !== "object") return void 0;
     const { ok, message } = body;
     return {
@@ -3363,10 +3685,10 @@ async function requireUser(request) {
   return { userId: user.id, orgId, label: label5, store: s };
 }
 async function readJson(request, maxBytes = 64e3) {
-  const text11 = await request.text();
-  if (text11.length > maxBytes) throw new HttpError(413, "Request too large");
+  const text13 = await request.text();
+  if (text13.length > maxBytes) throw new HttpError(413, "Request too large");
   try {
-    return JSON.parse(text11 || "{}");
+    return JSON.parse(text13 || "{}");
   } catch {
     throw new HttpError(400, "Invalid JSON");
   }
@@ -3656,6 +3978,19 @@ var AGENTS = [
     usesModel: true,
     maxTurns: 10,
     instructions: `You turn a small business's approved ads into social posts and save each one with draft_social_post. Write one caption per network the ad's media fits: a hook in the first line, the offer from the ad text, and the call to action. Keep within each network's length limit (X allows 280 characters, Threads 500). Add two to four relevant hashtags on Instagram, TikTok and Threads only. Match the brand voice and respect the claims to avoid. Never invent prices, discounts, guarantees, results or reviews. You only draft: the owner publishes each post, and posting is never your job. ${SHARED_RULES}`
+  },
+  {
+    id: "ads-manager",
+    name: "Ads Manager",
+    layer: "department",
+    stage: 2,
+    reportsTo: "cmo",
+    job: "Plans paid ad campaigns inside the monthly ad budget and what a lead can cost. It never launches or pays for ads; the owner sets each one up.",
+    modelTier: "worker",
+    tools: ["recall", "save_ads_plan"],
+    usesModel: true,
+    maxTurns: 8,
+    instructions: `You plan a small business's paid ads for the month and save the plan with save_ads_plan. Spend where its customers already look, keep the total inside the monthly ad budget, give each campaign enough per day to bring a few leads a week at the most a lead can cost, and use only approved ads. Describe audiences in plain words. Never promise results, and never invent prices, discounts or guarantees. You only plan: you never launch, change or pay for a campaign, and you never ask for ad account access. ${SHARED_RULES}`
   },
   {
     id: "social-poster",
@@ -4978,10 +5313,10 @@ function computeGovernance(input) {
 
 // server/build-info.ts
 var BUILD_INFO = {
-  "builtAt": "2026-11-24T20:00:54.244Z",
-  "files": 114,
-  "lines": 14116,
-  "tests": 165,
+  "builtAt": "2026-11-24T20:24:45.443Z",
+  "files": 118,
+  "lines": 14806,
+  "tests": 171,
   "e2e": 12,
   "rlsTables": 9,
   "cspHeader": true,
@@ -4993,9 +5328,9 @@ var TIMEOUT_MS = 5e3;
 async function probe(url2, headers) {
   try {
     const res = await fetch(url2, { headers, signal: AbortSignal.timeout(TIMEOUT_MS) });
-    const text11 = await res.text();
+    const text13 = await res.text();
     try {
-      return { ok: res.ok, body: JSON.parse(text11) };
+      return { ok: res.ok, body: JSON.parse(text13) };
     } catch {
       return { ok: res.ok, body: null };
     }
@@ -5336,7 +5671,7 @@ var RAISE_EVENTS = ["raise.round", "raise.investor", "raise.investor_stage", "ra
 var COMMITTED = ["committed", "signed", "funded"];
 var EMAIL_RE3 = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 var MAX_MONEY = 1e10;
-var text7 = (v, max) => String(v ?? "").trim().slice(0, max);
+var text9 = (v, max) => String(v ?? "").trim().slice(0, max);
 var money2 = (v, label5, required = false) => {
   if (v === void 0 || v === null || v === "") {
     if (required) throw new Error(`${label5} must be more than zero`);
@@ -5354,7 +5689,7 @@ var fmt = (n) => n.toLocaleString("en-US", { maximumFractionDigits: 0 });
 var record5 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
 async function setRound(store2, orgId, r, by) {
   const round3 = {
-    name: text7(r.name, 60) || "Pre-seed",
+    name: text9(r.name, 60) || "Pre-seed",
     instrument: oneOf(INSTRUMENTS, r.instrument, "instrument"),
     exemption: oneOf(EXEMPTIONS, r.exemption, "exemption"),
     target: money2(r.target, "The target", true),
@@ -5369,20 +5704,20 @@ async function setRound(store2, orgId, r, by) {
   return loadRaise(store2, orgId);
 }
 function cleanInvestor(i) {
-  const name = text7(i.name, 120);
+  const name = text9(i.name, 120);
   if (!name) throw new Error("An investor needs a name");
-  const email = text7(i.email, 200);
+  const email = text9(i.email, 200);
   if (email && !EMAIL_RE3.test(email)) throw new Error("That email address does not look right");
   return {
     id: i.id && /^[\w-]{6,64}$/.test(i.id) ? i.id : newId(),
     name,
     email,
-    firm: text7(i.firm, 120),
+    firm: text9(i.firm, 120),
     type: oneOf(INVESTOR_TYPES, i.type, "type"),
-    relationship: text7(i.relationship, 200),
+    relationship: text9(i.relationship, 200),
     accredited: i.accredited ? oneOf(ACCREDITATION, i.accredited, "accredited") : "unknown",
-    nextStep: text7(i.nextStep, 200),
-    notes: text7(i.notes, 2e3)
+    nextStep: text9(i.nextStep, 200),
+    notes: text9(i.notes, 2e3)
   };
 }
 async function upsertInvestor(store2, orgId, input, by) {
@@ -5411,15 +5746,15 @@ function cleanTiers(tiers) {
   if (!Array.isArray(tiers)) return [];
   if (tiers.length > MAX_TIERS) throw new Error(`A campaign can have at most ${MAX_TIERS} tiers`);
   return tiers.map((t, i) => {
-    const name = text7(t?.name, 60);
-    const reward = text7(t?.reward, 300);
+    const name = text9(t?.name, 60);
+    const reward = text9(t?.reward, 300);
     if (!name || !reward) throw new Error(`Tier ${i + 1} needs a name and what the backer gets`);
     return { name, reward, price: money2(t?.price, `Tier ${i + 1} price`, true), limit: money2(t?.limit, `Tier ${i + 1} limit`) };
   });
 }
 async function setCampaign(store2, orgId, c, by) {
   const channel = oneOf(CHANNELS, c.channel, "The channel");
-  const url2 = text7(c.url, 300);
+  const url2 = text9(c.url, 300);
   if (url2 && !/^https:\/\/[\w.-]+(\/[\w\-./?=&%#]*)?$/i.test(url2)) throw new Error("The campaign url must start with https://");
   const campaign = {
     channel,
@@ -5677,11 +6012,11 @@ function parsePerson(p) {
 }
 async function apolloReason(res) {
   try {
-    const text11 = await res.text();
-    let msg = text11;
+    const text13 = await res.text();
+    let msg = text13;
     try {
-      const j = JSON.parse(text11);
-      msg = str5(j.error) || str5(j.message) || text11;
+      const j = JSON.parse(text13);
+      msg = str5(j.error) || str5(j.message) || text13;
     } catch {
     }
     msg = msg.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().slice(0, 200);
@@ -5724,7 +6059,7 @@ async function apolloEnrich(apiKey, apolloId, fetchImpl = fetch) {
 // core/research-import.ts
 import { createHash } from "node:crypto";
 var MAX_REPORTS = 100;
-var text8 = (v, max) => String(v ?? "").trim().slice(0, max);
+var text10 = (v, max) => String(v ?? "").trim().slice(0, max);
 function fingerprint(v) {
   const canon = (x) => Array.isArray(x) ? x.map(canon) : x && typeof x === "object" ? Object.fromEntries(Object.keys(x).sort().map((k) => [k, canon(x[k])])) : x;
   return createHash("sha256").update(JSON.stringify(canon(v))).digest("hex").slice(0, 32);
@@ -5753,12 +6088,12 @@ async function importResearch(store2, orgId, raw, by, choices = {}) {
   const fills = choices.fill && typeof choices.fill === "object" ? choices.fill : {};
   for (let n = 0; n < reports.length; n++) {
     const r = reports[n];
-    const company = text8(r.company, 200) || text8(r.business, 200);
+    const company = text10(r.company, 200) || text10(r.business, 200);
     const empty = { company, contactId: null, dealName: "", matchedBy: null, filled: [] };
     let deal;
     let matchedBy;
     if (Object.prototype.hasOwnProperty.call(chosen, String(n))) {
-      const id = text8(chosen[String(n)], 64);
+      const id = text10(chosen[String(n)], 64);
       if (!id) {
         results.push({ ...empty, research: "skipped", proposal: "none", reason: "Skipped in the preview" });
         continue;
@@ -5823,7 +6158,7 @@ async function importResearch(store2, orgId, raw, by, choices = {}) {
         notes.push(`proposal not attached: ${e instanceof Error ? e.message : "could not read it"}`);
       }
     }
-    const want = (Array.isArray(fills[String(n)]) ? fills[String(n)] : []).slice(0, 20).map((k) => text8(k, 40));
+    const want = (Array.isArray(fills[String(n)]) ? fills[String(n)] : []).slice(0, 20).map((k) => text10(k, 40));
     const report = c.researchReport;
     if (want.length && report && res.research !== "error") {
       const rows = mapRows(report, c);
@@ -6032,13 +6367,13 @@ var PRIORITIES = ["low", "normal", "high", "urgent"];
 var CHANNELS2 = ["email", "whatsapp", "phone", "website", "walk-in"];
 var SUPPORT_EVENTS = ["support.ticket", "support.status", "support.note"];
 var SLA_ORDER = ["urgent", "high", "normal", "low"];
-var text9 = (v, max) => String(v ?? "").trim().slice(0, max);
+var text11 = (v, max) => String(v ?? "").trim().slice(0, max);
 var oneOf2 = (list3, v, fallback) => list3.includes(String(v)) ? String(v) : fallback;
 var record6 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
 async function openTicket(store2, orgId, input, by) {
-  const subject = text9(input.subject, 160);
-  const customer = text9(input.customer, 120);
-  const message = text9(input.message, 4e3);
+  const subject = text11(input.subject, 160);
+  const customer = text11(input.customer, 120);
+  const message = text11(input.message, 4e3);
   if (!subject || !customer || !message) throw new Error("A ticket needs a subject, a customer and their message");
   const number = (await loadSupport(store2, orgId)).tickets.reduce((m, t) => Math.max(m, t.number), 1e3) + 1;
   const ticket = {
@@ -6046,7 +6381,7 @@ async function openTicket(store2, orgId, input, by) {
     number,
     subject,
     customer,
-    contact: text9(input.contact, 200),
+    contact: text11(input.contact, 200),
     channel: oneOf2(CHANNELS2, input.channel, "email"),
     priority: oneOf2(PRIORITIES, input.priority, "normal"),
     message
@@ -6064,7 +6399,7 @@ async function setTicketStatus(store2, orgId, id, status, by) {
 async function addTicketNote(store2, orgId, id, note, by) {
   const t = (await loadSupport(store2, orgId)).tickets.find((x) => x.id === id);
   if (!t) throw new Error("Ticket not found");
-  const body = text9(note, 4e3);
+  const body = text11(note, 4e3);
   if (!body) throw new Error("Write a note first");
   await record6(store2, orgId, by, "support.note", { ticketId: id, text: body, summary: `Note on ticket #${t.number}` });
   return loadSupport(store2, orgId);
@@ -6093,23 +6428,23 @@ function computeSupport(events) {
   }
   const tickets = [...map.values()].sort((a, b) => (a.status === "resolved" ? 1 : 0) - (b.status === "resolved" ? 1 : 0) || SLA_ORDER.indexOf(a.priority) - SLA_ORDER.indexOf(b.priority) || a.createdAt.localeCompare(b.createdAt));
   const hours = tickets.filter((t) => t.resolvedAt).map((t) => (Date.parse(t.resolvedAt) - Date.parse(t.createdAt)) / 36e5).sort((a, b) => a - b);
-  const open = tickets.filter((t) => t.status === "open");
+  const open2 = tickets.filter((t) => t.status === "open");
   return {
     tickets,
     totals: {
-      open: open.length,
+      open: open2.length,
       waiting: tickets.filter((t) => t.status === "waiting").length,
       resolved: tickets.filter((t) => t.status === "resolved").length,
-      urgent: open.filter((t) => t.priority === "urgent" || t.priority === "high").length,
+      urgent: open2.filter((t) => t.priority === "urgent" || t.priority === "high").length,
       medianHoursToResolve: hours.length ? Math.round(hours[Math.floor(hours.length / 2)] * 10) / 10 : null
     },
-    replyGoal: replyGoal(open.slice(0, 8))
+    replyGoal: replyGoal(open2.slice(0, 8))
   };
 }
-function replyGoal(open) {
-  const emailable = open.filter((t) => t.channel === "email" && /@/.test(t.contact));
-  if (!open.length) return "";
-  const lines = open.map((t) => `- #${t.number} [${t.priority}] ${t.subject}, from ${t.customer}${t.contact ? ` <${t.contact}>` : ""} via ${t.channel}: "${t.notes.at(-1)?.text.slice(0, 400) ?? ""}"`);
+function replyGoal(open2) {
+  const emailable = open2.filter((t) => t.channel === "email" && /@/.test(t.contact));
+  if (!open2.length) return "";
+  const lines = open2.map((t) => `- #${t.number} [${t.priority}] ${t.subject}, from ${t.customer}${t.contact ? ` <${t.contact}>` : ""} via ${t.channel}: "${t.notes.at(-1)?.text.slice(0, 400) ?? ""}"`);
   return `Draft a reply for each open ticket below: answer the question accurately and kindly, say what happens next, and never guess. For tickets that arrived by email with an address, queue the reply with send_message (channel "email"); each waits for the owner's approval. For the rest, save the drafts as one note titled "Support: reply drafts". Never give medical, legal or financial advice, and never ask for or repeat medical details: hand those to staff.${emailable.length ? "" : " None of these can be emailed directly."}
 ${lines.join("\n")}`;
 }
@@ -6154,17 +6489,17 @@ var ACCOUNT_EVENTS = ["acct.entry", "acct.removed"];
 var DATE_RE2 = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 var MAX_AMOUNT = 1e11;
 var round2 = (n) => Math.round(n * 100) / 100;
-var text10 = (v, max) => String(v ?? "").trim().slice(0, max);
+var text12 = (v, max) => String(v ?? "").trim().slice(0, max);
 var record7 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
 async function addEntry(store2, orgId, input, by, currency = "USD") {
   if (input.kind !== "income" && input.kind !== "expense") throw new Error("kind must be income or expense");
-  const date = text10(input.date, 10);
+  const date = text12(input.date, 10);
   if (!DATE_RE2.test(date)) throw new Error("date must look like 2026-11-04");
   const amount = Number(String(input.amount).replace(/[,$₹\s]/g, ""));
   if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_AMOUNT) throw new Error("amount must be more than zero");
   const cats = input.kind === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
   const category = cats.includes(input.category) ? input.category : input.kind === "income" ? "other income" : "other";
-  const entry = { id: newId(), kind: input.kind, date, amount: round2(amount), category, party: text10(input.party, 120), note: text10(input.note, 300) };
+  const entry = { id: newId(), kind: input.kind, date, amount: round2(amount), category, party: text12(input.party, 120), note: text12(input.note, 300) };
   await record7(store2, orgId, by, "acct.entry", { entry, summary: `${input.kind === "income" ? "Income" : "Expense"} recorded: ${entry.amount} ${currency} (${category})` });
   return loadAccounts(store2, orgId, currency);
 }
@@ -6331,7 +6666,7 @@ async function createStripeCheckout(env2, o, fetchImpl = fetch) {
   const setup = paymentSetup(env2).stripe;
   if (!setup.connected) throw new Error(setup.note);
   const plan = checkoutPlan(o.planId);
-  const form = {
+  const form2 = {
     mode: "subscription",
     "line_items[0][quantity]": "1",
     "line_items[0][price_data][currency]": "usd",
@@ -6347,8 +6682,8 @@ async function createStripeCheckout(env2, o, fetchImpl = fetch) {
     cancel_url: o.cancelUrl,
     allow_promotion_codes: "false"
   };
-  if (o.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(o.email)) form.customer_email = o.email;
-  const s = await stripeCall(val(env2.STRIPE_SECRET_KEY), "/checkout/sessions", { form }, fetchImpl);
+  if (o.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(o.email)) form2.customer_email = o.email;
+  const s = await stripeCall(val(env2.STRIPE_SECRET_KEY), "/checkout/sessions", { form: form2 }, fetchImpl);
   if (!s.url) throw new Error("Stripe did not return a checkout page");
   return { id: s.id, url: s.url };
 }
@@ -6576,6 +6911,11 @@ async function handlePaypalEvent(store2, env2, event, orgIds, fetchImpl = fetch)
 var payEnv = () => process.env;
 var pubEnv = () => process.env;
 var rate = () => journeyOptions().inrPerUsd ?? 85;
+function monthlySpend(m) {
+  const sub = m.subscription?.status === "active" ? m.subscription : null;
+  const plan = !sub ? 0 : sub.currency === m.currency ? sub.amount : m.currency === "INR" ? Math.round(sub.amount * rate()) : Math.round(sub.amount / rate());
+  return { plan, ads: num3(m.answers, "adBudget") ?? 0 };
+}
 async function agencyCustomers(store2, adminOrgId, by) {
   const ids = await store2.listOrgIds();
   const name = async (id) => (await loadBusinessProfile(store2, id))?.name ?? null;
@@ -6587,7 +6927,16 @@ async function agencyCustomers(store2, adminOrgId, by) {
     const profile = await loadBusinessProfile(store2, orgId);
     const m = await loadMarketing(store2, orgId, profile, rate());
     if (!m.subscription) return null;
-    return { orgId, name: profile?.name ?? "Unnamed business", ...m.subscription, readiness: m.readiness.score };
+    const [leads, publishing] = await Promise.all([loadLeads(store2, orgId), loadPublishing(store2, orgId)]);
+    const since = Date.now() - 30 * 864e5;
+    return {
+      orgId,
+      name: profile?.name ?? "Unnamed business",
+      ...m.subscription,
+      readiness: m.readiness.score,
+      leads30: leads.leads.filter((l) => !l.repeat && Date.parse(l.at) >= since).length,
+      posted: publishing.posts.filter((p) => p.status === "sent").length
+    };
   }));
   const customers = rows.filter((r) => Boolean(r));
   const live = customers.filter((c) => c.mode === "live" && c.status === "active");
@@ -6615,6 +6964,19 @@ async function view(store2, orgId, label5) {
   const linked = linkedNetworks(link, setup);
   const publishing = await loadPublishing(store2, orgId);
   const agency = admin ? await agencyCustomers(store2, orgId, label5) : null;
+  const [leads, crm, adsPlan] = await Promise.all([loadLeads(store2, orgId), loadCrm(store2, orgId), loadAdsPlan(store2, orgId)]);
+  const approved = creatives.creatives.filter((c) => c.status === "approved");
+  const spend = monthlySpend(marketing);
+  const dashboard = computeDashboard({
+    leads,
+    crm,
+    creatives: creatives.creatives,
+    posts: publishing.posts,
+    currency: marketing.currency,
+    ceiling: marketing.cpl.ceiling,
+    target: marketing.cpl.leadsTarget,
+    spend
+  });
   return {
     marketing,
     plans: MARKETING_PLANS,
@@ -6625,11 +6987,16 @@ async function view(store2, orgId, label5) {
     publishSetup: setup,
     publishLink: publicLink(link),
     linked,
+    dashboard,
+    leadForm: leads.form ? { id: leads.form.id, on: leads.form.on, url: formUrl(leads.form) } : null,
+    adsPlan,
+    adPlatforms: AD_PLATFORMS,
     goals: {
       assessor: assessorGoal(marketing.answers),
       cmo: cmoPlanGoal(marketing),
       creatives: creativesGoal({ business: profile?.name ?? "", offer: a.services ?? "", bestCustomer: a.bestCustomer ?? "", voice: a.voice ?? "", avoid: a.avoid ?? "", channels: plan.channels, weekFocus: plan.weeks[0]?.focus ?? "", allowance: creatives.allowance }),
-      publishing: publishingGoal({ business: profile?.name ?? "", voice: a.voice ?? "", avoid: a.avoid ?? "", creatives: creatives.creatives, posts: publishing.posts, networks: linked.length ? linked : channelNetworks(plan.channels) })
+      publishing: publishingGoal({ business: profile?.name ?? "", voice: a.voice ?? "", avoid: a.avoid ?? "", creatives: creatives.creatives, posts: publishing.posts, networks: linked.length ? linked : channelNetworks(plan.channels) }),
+      ads: adsGoal({ business: profile?.name ?? "", offer: a.services ?? "", bestCustomer: a.bestCustomer ?? "", area: a.location ?? "", currency: marketing.currency, budget: spend.ads, ceiling: marketing.cpl.ceiling, leadsTarget: marketing.cpl.leadsTarget, channels: plan.channels, approved })
     },
     admin,
     agency,
@@ -6667,8 +7034,16 @@ var GET9 = handle(async (request) => {
     return json({ queue: await studioQueue(s, await s.listOrgIds(), (id) => aboutBusiness(s, id)) });
   }
   const { orgId, label: label5, store: store2 } = await requireUser(request);
+  await ensureLeadForm(store2, orgId, siteOrigin(request), label5).catch((e) => console.error("lead form", e));
   return json(await view(store2, orgId, label5));
 });
+function siteOrigin(request) {
+  try {
+    return cleanOrigin(request.url);
+  } catch {
+    throw new HttpError(400, "The lead form needs a secure connection");
+  }
+}
 var POST8 = handle(async (request) => {
   if (request.headers.has("x-studio-key")) {
     if (!await studioKeyOk(request)) throw new HttpError(401, "Wrong studio key");
@@ -6701,7 +7076,12 @@ var POST8 = handle(async (request) => {
       return json(await view(store2, orgId, label5));
     }
     if (b.action === "draft_posts") {
-      await draftPosts(store2, orgId, { creativeId: b.creativeId, networks: b.networks, text: b.text }, label5);
+      const { form: form2 } = await loadLeads(store2, orgId);
+      await draftPosts(store2, orgId, { creativeId: b.creativeId, networks: b.networks, text: b.text, leadLink: b.leadLink && form2?.on ? formUrl(form2) : void 0 }, label5);
+      return json(await view(store2, orgId, label5));
+    }
+    if (b.action === "lead_form") {
+      await changeLeadForm(store2, orgId, b.change, siteOrigin(request), label5);
       return json(await view(store2, orgId, label5));
     }
     if (b.action === "discard_post") {
@@ -6786,8 +7166,103 @@ var POST9 = handle(async (request) => {
   throw new HttpError(404, "Unknown provider");
 });
 
+// server/routes/leads.ts
+var leads_exports = {};
+__export(leads_exports, {
+  GET: () => GET11,
+  POST: () => POST10,
+  showForm: () => showForm,
+  submitForm: () => submitForm
+});
+var MAX_BODY2 = 16e3;
+var MIN_FILL_MS = 2500;
+var MAX_AGE_MS = 24 * 36e5;
+var esc = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+var STYLE = `
+*{box-sizing:border-box}body{margin:0;font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#f4f5f7;color:#16181d}
+main{max-width:30rem;margin:0 auto;padding:2rem 1rem 3rem}h1{font-size:1.5rem;line-height:1.25;margin:0 0 .25rem}p{margin:.25rem 0 1rem}
+.card{background:#fff;border-radius:16px;padding:1.25rem;box-shadow:0 1px 3px rgba(0,0,0,.08)}label{display:block;margin:0 0 .9rem;font-weight:600;font-size:.95rem}
+input,textarea,select{display:block;width:100%;margin-top:.3rem;padding:.7rem .8rem;border:1px solid #cdd1d8;border-radius:10px;font:inherit;background:#fff;color:inherit}
+textarea{min-height:6rem;resize:vertical}.check{display:flex;gap:.6rem;align-items:flex-start;font-weight:400}.check input{width:auto;margin-top:.3rem}
+button{width:100%;padding:.85rem;border:0;border-radius:10px;background:#3b5bdb;color:#fff;font:inherit;font-weight:700;cursor:pointer}
+.muted{color:#5c6370;font-size:.85rem}.err{background:#fff0f0;color:#a61e1e;border-radius:10px;padding:.6rem .8rem}.hp{position:absolute;left:-9999px;height:0;overflow:hidden}
+@media (prefers-color-scheme:dark){body{background:#101215;color:#eceef1}.card{background:#1a1d22;box-shadow:none}input,textarea,select{background:#101215;border-color:#3a3f47}.muted{color:#9aa1ab}.err{background:#3a1717;color:#ffb3b3}}`;
+function page(title, body, status = 200) {
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${esc(title)}</title><style>${STYLE}</style></head><body><main>${body}</main></body></html>`;
+  return new Response(html, { status, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-robots-tag": "noindex" } });
+}
+var gone = () => page("Form not available", `<div class="card"><h1>This form isn't available</h1><p>The link may have changed. Please contact the business directly.</p></div>`, 404);
+function form(formId, business, healthcare, q, values = {}, error = "") {
+  const v = (k) => esc(values[k] ?? "");
+  const action = `/l/${formId}?${new URLSearchParams(Object.entries(q).filter(([, x]) => x)).toString()}`;
+  const hidden = Object.entries(q).map(([k, x]) => `<input type="hidden" name="${k}" value="${esc(x)}">`).join("");
+  const extra = healthcare ? `<label>Best time to call<select name="when">${CALL_TIMES.map((t) => `<option${values.when === t ? " selected" : ""}>${t}</option>`).join("")}</select></label><p class="muted">Please don't share medical details here; the team will talk with you directly.</p>` : `<label>How can they help? <span class="muted">(optional)</span><textarea name="message" maxlength="1000">${v("message")}</textarea></label>`;
+  const name = esc(business);
+  return page(`Contact ${business}`, `
+<h1>Contact ${name}</h1><p class="muted">Leave your details and ${name} will get back to you.</p>
+<form class="card" method="post" action="${esc(action)}">
+${error ? `<p class="err" role="alert">${esc(error)}</p>` : ""}
+<label>Your name<input name="name" autocomplete="name" maxlength="120" required value="${v("name")}"></label>
+<label>Email<input name="email" type="email" autocomplete="email" maxlength="200" value="${v("email")}"></label>
+<label>Phone<input name="phone" type="tel" autocomplete="tel" maxlength="20" value="${v("phone")}"></label>
+${extra}
+<div class="hp" aria-hidden="true"><label>Website<input name="website" tabindex="-1" autocomplete="off"></label></div>
+<input type="hidden" name="t" value="${Date.now()}">${hidden}
+<label class="check"><input type="checkbox" name="consent" value="yes" required> <span>I agree that ${name} may contact me about my request.</span></label>
+<button type="submit">Send</button>
+<p class="muted">Your details go only to ${name}.</p>
+</form>`, error ? 400 : 200);
+}
+var thanks = (business, name) => page("Thank you", `<div class="card"><h1>Thank you${name ? `, ${esc(name.split(" ")[0])}` : ""}</h1><p>${esc(business)} has your details and will be in touch soon.</p></div>`);
+function attribution(params) {
+  const s = (params.get("s") ?? "").toLowerCase().replace(/[^a-z]/g, "").slice(0, 20);
+  const p = (params.get("p") ?? "").toLowerCase().replace(/[^0-9a-f]/g, "").slice(0, 8);
+  return { s, p, m: params.get("m") === "paid" ? "paid" : "" };
+}
+async function open(s, formId) {
+  const found = await findOpenForm(s, formId);
+  if (!found) return null;
+  const profile = await loadBusinessProfile(s, found.orgId);
+  return { s, ...found, business: profile?.name?.trim() || "this business", healthcare: isHealthcare(profile) };
+}
+async function showForm(request, s) {
+  const url2 = new URL(request.url);
+  const formId = url2.searchParams.get("form") ?? "";
+  const f = await open(s, formId);
+  if (!f) return gone();
+  return form(formId, f.business, f.healthcare, attribution(url2.searchParams));
+}
+async function submitForm(request, s, now = Date.now()) {
+  const url2 = new URL(request.url);
+  const formId = url2.searchParams.get("form") ?? "";
+  const raw = await request.text();
+  if (raw.length > MAX_BODY2) return page("Too long", '<div class="card"><h1>That was too long</h1><p>Please shorten your message and try again.</p></div>', 413);
+  const f = await open(s, formId);
+  if (!f) return gone();
+  const body = new URLSearchParams(raw);
+  const q = attribution(body.has("s") || body.has("p") || body.has("m") ? body : url2.searchParams);
+  const values = { name: body.get("name") ?? "", email: body.get("email") ?? "", phone: body.get("phone") ?? "", message: body.get("message") ?? "", when: body.get("when") ?? "" };
+  if (body.get("website")) return thanks(f.business, "");
+  const age = now - Number(body.get("t"));
+  if (!Number.isFinite(age) || age > MAX_AGE_MS) return form(formId, f.business, f.healthcare, q, values, "This page was open a long time. Please press Send again.");
+  if (age < MIN_FILL_MS) return form(formId, f.business, f.healthcare, q, values, "That was quick. Please check your details and press Send again.");
+  const input = { ...values, consent: body.get("consent") ?? "", ...q };
+  const checked = checkLead(input, f.healthcare);
+  if (!checked.ok) return form(formId, f.business, f.healthcare, q, values, checked.error);
+  try {
+    const posts = checked.lead.postRef ? (await loadPublishing(f.s, f.orgId)).posts : [];
+    await captureLead(f.s, f.orgId, f.state, checked.lead, posts, new Date(now));
+  } catch (e) {
+    if (e instanceof LeadLimitError) return page("Please try later", `<div class="card"><h1>Please try again later</h1><p>${esc(f.business)} has had a lot of enquiries in a short time. Please try again in a while or contact them directly.</p></div>`, 429);
+    throw e;
+  }
+  return thanks(f.business, checked.lead.name);
+}
+var GET11 = handle((request) => showForm(request, store()));
+var POST10 = handle((request) => submitForm(request, store()));
+
 // server/api/platform.ts
-var ROUTES = { admin: admin_exports, billing: billing_exports, governance: governance_exports, me: me_exports, raise: raise_exports, crm: crm_exports, support: support_exports, accounts: accounts_exports, marketing: marketing_exports, payments: payments_exports };
+var ROUTES = { admin: admin_exports, billing: billing_exports, governance: governance_exports, me: me_exports, raise: raise_exports, crm: crm_exports, support: support_exports, accounts: accounts_exports, marketing: marketing_exports, payments: payments_exports, leads: leads_exports };
 function dispatch(method) {
   return async (request) => {
     const url2 = new URL(request.url);
@@ -6799,9 +7274,9 @@ function dispatch(method) {
     return handler(request);
   };
 }
-var GET11 = dispatch("GET");
-var POST10 = dispatch("POST");
+var GET12 = dispatch("GET");
+var POST11 = dispatch("POST");
 export {
-  GET11 as GET,
-  POST10 as POST
+  GET12 as GET,
+  POST11 as POST
 };

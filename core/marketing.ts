@@ -154,7 +154,7 @@ export function validateAnswers(body: unknown): Answers {
   return out;
 }
 
-const num = (a: Answers, k: string): number | null => {
+export const num = (a: Answers, k: string): number | null => {
   const n = Number(a[k]);
   return a[k] !== undefined && a[k] !== '' && Number.isFinite(n) ? n : null;
 };

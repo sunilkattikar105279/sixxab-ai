@@ -1,6 +1,7 @@
-// Marketing tab: the AI marketing agency under the CMO agent. The owner answers the assessment, sees readiness and gaps,
-// gets a 30-day plan (tailored by the CMO agent), and picks a plan at a Stripe or PayPal checkout. Ads wait for the
-// owner's yes in the ad studio, and each social post goes out only when the owner presses Publish on it.
+// Marketing tab: the AI marketing agency under the CMO agent. Results come first (posts, leads, cost per lead, wins, the
+// lead form and the paid ads plan). The owner answers the assessment, sees readiness and gaps, gets a 30-day plan
+// (tailored by the CMO agent), and picks a plan at a Stripe or PayPal checkout. Ads wait for the owner's yes in the
+// ad studio, and each social post goes out only when the owner presses Publish on it.
 import React, { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/auth';
 import type { Answers, MarketingPlan, MarketingState, Question } from '../../core/marketing';
@@ -11,16 +12,20 @@ import { useLoad } from './useLoad';
 import { AgentRun, money } from './AgentRun';
 import { AdStudio } from './AdStudio';
 import { Publishing } from './Publishing';
+import { Results, type LeadFormView } from './Results';
+import type { Dashboard } from '../../core/leads';
+import type { AdsPlan } from '../../core/ads';
 import type { CreativesState, StudioJob } from '../../core/creatives';
 import type { Network, PublicLink, PublishingState, PublishSetup } from '../../core/publishing';
 
-interface Customer { orgId: string; name: string; planName: string; provider: string; mode: string; status: string; amount: number; currency: string; lastPaidAt: string; readiness: number }
+interface Customer { orgId: string; name: string; planName: string; provider: string; mode: string; status: string; amount: number; currency: string; lastPaidAt: string; readiness: number; leads30?: number; posted?: number }
 interface View {
   marketing: MarketingState; plans: MarketingPlan[]; sections: { title: string; questions: Question[] }[]; payments: PaySetup;
-  goals: { assessor: string; cmo: string; creatives: string; publishing: string }; admin: boolean; agency: { customers: Customer[]; added: number; monthlyLiveUsd: number } | null;
+  goals: { assessor: string; cmo: string; creatives: string; publishing: string; ads: string }; admin: boolean; agency: { customers: Customer[]; added: number; monthlyLiveUsd: number } | null;
   creatives: CreativesState; studio: StudioJob[] | null;
   publishing: PublishingState; publishSetup: PublishSetup; publishLink: PublicLink | null; linked: Network[];
   publishAdmin: { orgId: string; name: string; link: PublicLink | null }[] | null;
+  dashboard: Dashboard; leadForm: LeadFormView | null; adsPlan: AdsPlan | null; adPlatforms: Record<string, { label: string; source: string; tool: string }>;
 }
 
 const CHECKOUT_HOSTS = /^https:\/\/(checkout\.stripe\.com|(www\.)?(sandbox\.)?paypal\.com)\//;
@@ -98,8 +103,11 @@ export function Marketing({ goApprovals }: { goApprovals: () => void }) {
         {busy === 'confirm' && <Spinner label="Checking your payment…" />}
         {notice && <p className="notice" role="status">{notice}</p>}
         {msg && <p className="error" role="alert">{msg}</p>}
-        <p className="muted small">Nothing is posted, published or spent from this tab. Anything the agents draft waits for your yes in Approvals.</p>
+        <p className="muted small">Nothing is posted or spent from this tab without your yes: each post goes out only when you press Publish, and agents only draft and plan.</p>
       </section>
+
+      <Results dashboard={data.dashboard} leadForm={data.leadForm} adsPlan={data.adsPlan} platforms={data.adPlatforms} creatives={data.creatives.creatives}
+        adsGoal={data.goals.ads} adBudget={data.dashboard.spend.ads} reload={reload} goApprovals={goApprovals} />
 
       <Fold id="mk-assess" title="Assessment" hint={`${m.answered} of ${m.total} answered`} open={m.answered < 6}>
         <p className="muted small">A few minutes now lets the agents plan around your real numbers. Fields from your company profile are filled in already.</p>
@@ -167,14 +175,14 @@ export function Marketing({ goApprovals }: { goApprovals: () => void }) {
       </Fold>
 
       <AdStudio creatives={data.creatives} goal={data.goals.creatives} admin={data.admin} studio={data.studio} reload={reload} goApprovals={goApprovals} />
-      <Publishing publishing={data.publishing} setup={data.publishSetup} linked={data.linked} creatives={data.creatives.creatives} goal={data.goals.publishing} admin={data.publishAdmin} reload={reload} goApprovals={goApprovals} />
+      <Publishing publishing={data.publishing} setup={data.publishSetup} linked={data.linked} creatives={data.creatives.creatives} goal={data.goals.publishing} admin={data.publishAdmin} reload={reload} goApprovals={goApprovals} leadFormUrl={data.leadForm?.on ? data.leadForm.url : null} />
 
       {data.admin && data.agency && (
         <Fold id="mk-agency" title="Agency customers" hint={`${data.agency.customers.length} paying · ${money(data.agency.monthlyLiveUsd)} a month live`}>
           {data.agency.added > 0 && <p className="notice">{data.agency.added} new customer{data.agency.added === 1 ? '' : 's'} added to your CRM as won deals.</p>}
           {data.agency.customers.length === 0 ? <p className="muted small">No business has paid for a marketing plan yet. Paying businesses show here and join your CRM as won deals.</p> : (
             <ul className="mk-pays">
-              {data.agency.customers.map((c) => <li key={c.orgId}><span><strong>{c.name}</strong> <span className="muted small">· {c.planName} · {c.provider === 'stripe' ? 'card' : 'PayPal'}{c.mode === 'test' ? ' · test' : ''} · {c.status} · readiness {c.readiness}</span></span><strong>{money(c.amount, c.currency)}</strong></li>)}
+              {data.agency.customers.map((c) => <li key={c.orgId}><span><strong>{c.name}</strong> <span className="muted small">· {c.planName} · {c.provider === 'stripe' ? 'card' : 'PayPal'}{c.mode === 'test' ? ' · test' : ''} · {c.status} · readiness {c.readiness}{c.leads30 !== undefined ? ` · ${c.leads30} leads in 30 days · ${c.posted ?? 0} posts out` : ''}</span></span><strong>{money(c.amount, c.currency)}</strong></li>)}
             </ul>
           )}
         </Fold>

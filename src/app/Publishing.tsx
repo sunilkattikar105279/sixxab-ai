@@ -22,6 +22,8 @@ const NET: Record<Network, { label: string; max: number; image: boolean; video: 
   google: { label: 'Google Business Profile', max: 1500, image: true, video: false, ayrshare: true, postiz: ['gmb'] },
 };
 const IDS = Object.keys(NET) as Network[];
+// Mirrors LINK_NETWORKS in core/publishing.ts: where a link in the caption can be clicked.
+const LINKABLE: Network[] = ['facebook', 'linkedin', 'x', 'threads', 'google'];
 const fits = (n: Network, kind: Creative['kind']) => (kind === 'video' ? NET[n].video : NET[n].image);
 const when = (iso: string) => new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 const caption = (c: Creative) => [c.headline, c.primaryText, c.cta].filter(Boolean).join('\n\n');
@@ -31,9 +33,11 @@ interface Channel { id: string; name: string; identifier: string; profile: strin
 interface Props {
   publishing: PublishingState; setup: PublishSetup; linked: Network[]; creatives: Creative[]; goal: string;
   admin: BusinessLink[] | null; reload: () => void; goApprovals: () => void;
+  /** The business's lead form address while the form is on; posts on LINKABLE networks can end with a tracked link to it. */
+  leadFormUrl?: string | null;
 }
 
-export function Publishing({ publishing, setup, linked, creatives, goal, admin, reload, goApprovals }: Props) {
+export function Publishing({ publishing, setup, linked, creatives, goal, admin, reload, goApprovals, leadFormUrl = null }: Props) {
   const approved = creatives.filter((c) => c.status === 'approved');
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -43,7 +47,11 @@ export function Publishing({ publishing, setup, linked, creatives, goal, admin, 
   const [text, setText] = useState('');
   const [times, setTimes] = useState<Record<string, string>>({});
   const ad = approved.find((c) => c.id === adId) ?? null;
-  const limit = nets.length ? Math.min(...nets.map((n) => NET[n].max)) : 0;
+  const [withLink, setWithLink] = useState(true);
+  const linkOn = Boolean(leadFormUrl) && withLink;
+  // The tracked link adds two line breaks, the form address and ?s=<network>&p=<8 characters>.
+  const linkLen = leadFormUrl ? leadFormUrl.length + 25 : 0;
+  const limit = nets.length ? Math.min(...nets.map((n) => NET[n].max - (linkOn && LINKABLE.includes(n) ? linkLen : 0))) : 0;
 
   async function post(key: string, body: Record<string, unknown>, after?: () => void) {
     setBusy(key); setMsg(null); setNotice(null);
@@ -103,9 +111,12 @@ export function Publishing({ publishing, setup, linked, creatives, goal, admin, 
                   <label className="field"><span>Caption{limit ? <span className="muted small"> · {text.length}/{limit}</span> : null}</span>
                     <textarea rows={5} value={text} onChange={(e) => setText(e.target.value)} />
                   </label>
+                  {leadFormUrl && nets.some((n) => LINKABLE.includes(n)) && (
+                    <label className="small"><input type="checkbox" checked={withLink} onChange={(e) => setWithLink(e.target.checked)} /> End {nets.filter((n) => LINKABLE.includes(n)).map((n) => NET[n].label).join(', ')} with your lead form link, so enquiries land in the CRM</label>
+                  )}
                   <div className="row-end">
                     <button type="button" className="btn-primary" disabled={!!busy || !nets.length || !text.trim() || (limit > 0 && text.length > limit)}
-                      onClick={() => post('draft', { action: 'draft_posts', creativeId: ad.id, networks: nets, text }, () => { setAdId(''); setNets([]); setText(''); })}>
+                      onClick={() => post('draft', { action: 'draft_posts', creativeId: ad.id, networks: nets, text, leadLink: linkOn }, () => { setAdId(''); setNets([]); setText(''); })}>
                       {busy === 'draft' ? <Spinner label="Drafting…" /> : `Save ${nets.length > 1 ? `${nets.length} drafts` : 'draft'}`}
                     </button>
                   </div>

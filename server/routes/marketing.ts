@@ -9,14 +9,19 @@
 // POST /api/marketing { action: 'draft_posts', creativeId, networks, text } → draft one social post per network from an approved ad
 // POST /api/marketing { action: 'discard_post', id }                → drop a draft
 // POST /api/marketing { action: 'publish_draft', id, when? }        → the owner's yes for one post: send it now or scheduled
+// POST /api/marketing { action: 'lead_form', change: 'off'|'on'|'new' } → turn the public lead form off or on, or give it a new link
+// The view also carries the results dashboard (posts, leads, cost per lead, wins), the lead form and the Ads Manager's plan.
 // Admin only: { action: 'studio_save', orgId, id, mediaUrl, ... } and { action: 'studio_fail', orgId, id, reason } save a studio
 // result for any business; { action: 'publishing_link', orgId, link } links a business to its social accounts in the
 // publishing service, and { action: 'publishing_channels' } lists the Postiz channels to pick from. A studio run can do the same with the x-studio-key header (env STUDIO_KEY) and no sign-in:
 // GET ?studio=queue lists queued ads across businesses; POST { action: 'studio_result' | 'studio_failed', orgId, ... }.
 import { isAdmin } from '../../core/automation.js';
 import {
-  ASSESSMENT_SECTIONS, MARKETING_PLANS, assessorGoal, cmoPlanGoal, getMarketingPlan, loadMarketing, saveAssessment, syncAgencySales, type PlanId,
+  ASSESSMENT_SECTIONS, MARKETING_PLANS, assessorGoal, cmoPlanGoal, getMarketingPlan, loadMarketing, num, saveAssessment, syncAgencySales, type MarketingState, type PlanId,
 } from '../../core/marketing.js';
+import { changeLeadForm, cleanOrigin, computeDashboard, ensureLeadForm, formUrl, loadLeads } from '../../core/leads.js';
+import { adsGoal, AD_PLATFORMS, loadAdsPlan } from '../../core/ads.js';
+import { loadCrm } from '../../core/crm.js';
 import { creativesGoal, decideCreative, failCreative, loadCreatives, markAdminStudio, requestCreative, saveCreativeResult, studioQueue } from '../../core/creatives.js';
 import {
   channelNetworks, discardPost, draftPosts, linkedNetworks, listPostizChannels, loadPublishing, loadPublishLink, publicLink, publishDraft, publishingGoal,
@@ -31,6 +36,13 @@ const payEnv = () => process.env as PayEnv;
 const pubEnv = () => process.env as PublishEnv;
 const rate = () => journeyOptions().inrPerUsd ?? 85;
 
+/** What the business pays a month for marketing, in its own currency: the plan (while active) and the ad budget it set. */
+function monthlySpend(m: MarketingState) {
+  const sub = m.subscription?.status === 'active' ? m.subscription : null;
+  const plan = !sub ? 0 : sub.currency === m.currency ? sub.amount : m.currency === 'INR' ? Math.round(sub.amount * rate()) : Math.round(sub.amount / rate());
+  return { plan, ads: num(m.answers, 'adBudget') ?? 0 };
+}
+
 /** Paying businesses across the platform, for the admin's agency view. Syncs new ones into the admin's CRM first. */
 export async function agencyCustomers(store: SupabaseStore, adminOrgId: string, by: string) {
   const ids = await store.listOrgIds();
@@ -40,7 +52,12 @@ export async function agencyCustomers(store: SupabaseStore, adminOrgId: string, 
     const profile = await loadBusinessProfile(store, orgId);
     const m = await loadMarketing(store, orgId, profile, rate());
     if (!m.subscription) return null;
-    return { orgId, name: profile?.name ?? 'Unnamed business', ...m.subscription, readiness: m.readiness.score };
+    const [leads, publishing] = await Promise.all([loadLeads(store, orgId), loadPublishing(store, orgId)]);
+    const since = Date.now() - 30 * 86_400_000;
+    return {
+      orgId, name: profile?.name ?? 'Unnamed business', ...m.subscription, readiness: m.readiness.score,
+      leads30: leads.leads.filter((l) => !l.repeat && Date.parse(l.at) >= since).length, posted: publishing.posts.filter((p) => p.status === 'sent').length,
+    };
   }));
   const customers = rows.filter((r): r is NonNullable<typeof r> => Boolean(r));
   const live = customers.filter((c) => c.mode === 'live' && c.status === 'active');
@@ -71,13 +88,23 @@ async function view(store: SupabaseStore, orgId: string, label: string) {
   const linked = linkedNetworks(link, setup);
   const publishing = await loadPublishing(store, orgId);
   const agency = admin ? await agencyCustomers(store, orgId, label) : null;
+  const [leads, crm, adsPlan] = await Promise.all([loadLeads(store, orgId), loadCrm(store, orgId), loadAdsPlan(store, orgId)]);
+  const approved = creatives.creatives.filter((c) => c.status === 'approved');
+  const spend = monthlySpend(marketing);
+  const dashboard = computeDashboard({
+    leads, crm, creatives: creatives.creatives, posts: publishing.posts, currency: marketing.currency,
+    ceiling: marketing.cpl.ceiling, target: marketing.cpl.leadsTarget, spend,
+  });
   return {
     marketing, plans: MARKETING_PLANS, sections: ASSESSMENT_SECTIONS, payments: paymentSetup(payEnv()), creatives,
     publishing, publishSetup: setup, publishLink: publicLink(link), linked,
+    dashboard, leadForm: leads.form ? { id: leads.form.id, on: leads.form.on, url: formUrl(leads.form) } : null,
+    adsPlan, adPlatforms: AD_PLATFORMS,
     goals: {
       assessor: assessorGoal(marketing.answers), cmo: cmoPlanGoal(marketing),
       creatives: creativesGoal({ business: profile?.name ?? '', offer: a.services ?? '', bestCustomer: a.bestCustomer ?? '', voice: a.voice ?? '', avoid: a.avoid ?? '', channels: plan.channels, weekFocus: plan.weeks[0]?.focus ?? '', allowance: creatives.allowance }),
       publishing: publishingGoal({ business: profile?.name ?? '', voice: a.voice ?? '', avoid: a.avoid ?? '', creatives: creatives.creatives, posts: publishing.posts, networks: linked.length ? linked : channelNetworks(plan.channels) }),
+      ads: adsGoal({ business: profile?.name ?? '', offer: a.services ?? '', bestCustomer: a.bestCustomer ?? '', area: a.location ?? '', currency: marketing.currency, budget: spend.ads, ceiling: marketing.cpl.ceiling, leadsTarget: marketing.cpl.leadsTarget, channels: plan.channels, approved }),
     },
     admin, agency,
     studio: admin ? await studioQueue(store, await store.listOrgIds(), (id) => aboutBusiness(store, id)) : null,
@@ -121,14 +148,21 @@ export const GET = handle(async (request) => {
     return json({ queue: await studioQueue(s, await s.listOrgIds(), (id) => aboutBusiness(s, id)) });
   }
   const { orgId, label, store } = await requireUser(request);
+  // The lead form is made the first time the Marketing tab opens, at this site's address.
+  await ensureLeadForm(store, orgId, siteOrigin(request), label).catch((e) => console.error('lead form', e));
   return json(await view(store, orgId, label));
 });
+
+/** This site's address (https), for lead form links. */
+function siteOrigin(request: Request): string {
+  try { return cleanOrigin(request.url); } catch { throw new HttpError(400, 'The lead form needs a secure connection'); }
+}
 
 interface Body {
   action?: string; answers?: unknown; planId?: string; provider?: string; ref?: string;
   creative?: Record<string, unknown>; id?: string; decision?: string; note?: string;
   orgId?: string; mediaUrl?: string; model?: string; credits?: number; generationId?: string; reason?: string;
-  creativeId?: string; networks?: unknown; text?: string; when?: string; link?: unknown;
+  creativeId?: string; networks?: unknown; text?: string; when?: string; link?: unknown; leadLink?: boolean; change?: string;
 }
 
 export const POST = handle(async (request) => {
@@ -161,7 +195,12 @@ export const POST = handle(async (request) => {
       return json(await view(store, orgId, label));
     }
     if (b.action === 'draft_posts') {
-      await draftPosts(store, orgId, { creativeId: b.creativeId, networks: b.networks, text: b.text }, label);
+      const { form } = await loadLeads(store, orgId);
+      await draftPosts(store, orgId, { creativeId: b.creativeId, networks: b.networks, text: b.text, leadLink: b.leadLink && form?.on ? formUrl(form) : undefined }, label);
+      return json(await view(store, orgId, label));
+    }
+    if (b.action === 'lead_form') {
+      await changeLeadForm(store, orgId, b.change, siteOrigin(request), label);
       return json(await view(store, orgId, label));
     }
     if (b.action === 'discard_post') {

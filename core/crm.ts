@@ -9,7 +9,7 @@ import { EMAIL_RE, PHONE_RE } from './research-map.js';
 import { applyFlowEvent, computeFlowOrg, EMPTY_CUSTOMER, FLOW_DEAL_EVENTS, FLOW_ORG_EVENTS, flowCounts, nextActions, type CustomerFlow, type FlowOrg, type FlowStage, type NextAction } from './salesflow-state.js';
 
 export const DEAL_STAGES = ['lead', 'contacted', 'qualified', 'proposal', 'won', 'lost'] as const;
-export const SOURCES = ['website', 'referral', 'linkedin', 'whatsapp', 'walk-in', 'event', 'apollo', 'web-search', 'other'] as const;
+export const SOURCES = ['website', 'referral', 'linkedin', 'whatsapp', 'walk-in', 'event', 'apollo', 'web-search', 'social', 'ads', 'other'] as const;
 export type DealStage = (typeof DEAL_STAGES)[number];
 
 export const DEAL_TIERS = ['High', 'Medium', 'Low'] as const;

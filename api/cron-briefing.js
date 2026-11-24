@@ -82,8 +82,8 @@ async function buildBriefing(store2, orgId, now = /* @__PURE__ */ new Date(), mo
         messages: [{ role: "user", content: JSON.stringify({ shipped, needsYou, learned }) }],
         maxTokens: 300
       });
-      const text6 = resp.content.filter((b) => b.type === "text").map((b) => b.text).join(" ").trim();
-      if (text6) summary = text6;
+      const text7 = resp.content.filter((b) => b.type === "text").map((b) => b.text).join(" ").trim();
+      if (text7) summary = text7;
     } catch {
     }
   }
@@ -668,7 +668,7 @@ function flowCounts(q, now = Date.now()) {
 
 // core/crm.ts
 var DEAL_STAGES = ["lead", "contacted", "qualified", "proposal", "won", "lost"];
-var SOURCES = ["website", "referral", "linkedin", "whatsapp", "walk-in", "event", "apollo", "web-search", "other"];
+var SOURCES = ["website", "referral", "linkedin", "whatsapp", "walk-in", "event", "apollo", "web-search", "social", "ads", "other"];
 var DEAL_TIERS = ["High", "Medium", "Low"];
 var EMPTY_PROFILE = { rank: null, niche: "", city: "", website: "", size: "", title: "", dealTier: "", ease: "", whyFit: "", pitch: "", sourceDetail: "", checkFirst: "", painPoints: "", offer: "", angle: "", research: "", address: "" };
 var HISTORY_MAX = 100;
@@ -1268,6 +1268,19 @@ var AGENTS = [
     usesModel: true,
     maxTurns: 10,
     instructions: `You turn a small business's approved ads into social posts and save each one with draft_social_post. Write one caption per network the ad's media fits: a hook in the first line, the offer from the ad text, and the call to action. Keep within each network's length limit (X allows 280 characters, Threads 500). Add two to four relevant hashtags on Instagram, TikTok and Threads only. Match the brand voice and respect the claims to avoid. Never invent prices, discounts, guarantees, results or reviews. You only draft: the owner publishes each post, and posting is never your job. ${SHARED_RULES}`
+  },
+  {
+    id: "ads-manager",
+    name: "Ads Manager",
+    layer: "department",
+    stage: 2,
+    reportsTo: "cmo",
+    job: "Plans paid ad campaigns inside the monthly ad budget and what a lead can cost. It never launches or pays for ads; the owner sets each one up.",
+    modelTier: "worker",
+    tools: ["recall", "save_ads_plan"],
+    usesModel: true,
+    maxTurns: 8,
+    instructions: `You plan a small business's paid ads for the month and save the plan with save_ads_plan. Spend where its customers already look, keep the total inside the monthly ad budget, give each campaign enough per day to bring a few leads a week at the most a lead can cost, and use only approved ads. Describe audiences in plain words. Never promise results, and never invent prices, discounts or guarantees. You only plan: you never launch, change or pay for a campaign, and you never ask for ad account access. ${SHARED_RULES}`
   },
   {
     id: "social-poster",
@@ -2495,25 +2508,110 @@ var NETWORKS = {
 };
 var NETWORK_IDS = Object.keys(NETWORKS);
 var fits = (network, kind) => kind === "video" ? NETWORKS[network].video : NETWORKS[network].image;
+var LINK_NETWORKS = ["facebook", "linkedin", "x", "threads", "google"];
+var postLeadLink = (formUrl2, network, postId) => `${formUrl2}?s=${network}&p=${postId.replace(/-/g, "").slice(0, 8)}`;
 async function draftPosts(store2, orgId, input, by) {
   const creative = (await loadCreatives(store2, orgId, null)).creatives.find((c) => c.id === input.creativeId);
   if (!creative) throw new Error("Pick an ad from the ad studio");
   if (creative.status !== "approved") throw new Error("Approve the ad in the ad studio before drafting posts");
   const networks = [...new Set((Array.isArray(input.networks) ? input.networks : [input.networks]).filter((n) => NETWORK_IDS.includes(n)))];
   if (!networks.length) throw new Error("Pick at least one network");
-  const text6 = typeof input.text === "string" ? input.text.trim() : "";
-  if (!text6) throw new Error("Write the caption");
-  for (const n of networks) {
+  const text7 = typeof input.text === "string" ? input.text.trim() : "";
+  if (!text7) throw new Error("Write the caption");
+  const withLink = (n, id) => input.leadLink && LINK_NETWORKS.includes(n) && !text7.includes(input.leadLink) ? `${text7}
+
+${postLeadLink(input.leadLink, n, id)}` : text7;
+  const ids = networks.map(() => newId());
+  networks.forEach((n, i) => {
     if (!fits(n, creative.kind)) throw new Error(`${NETWORKS[n].label} doesn't take ${creative.kind === "video" ? "videos" : "images"} here`);
-    if (text6.length > NETWORKS[n].maxChars) throw new Error(`The caption is ${text6.length} characters; ${NETWORKS[n].label} allows ${NETWORKS[n].maxChars}`);
-  }
-  const ids = [];
-  for (const network of networks) {
-    const id = newId();
-    ids.push(id);
-    await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "post.drafted", taskId: null, detail: { id, creativeId: creative.id, network, text: text6, kind: creative.kind, mediaUrl: creative.mediaUrl, headline: creative.headline, summary: `Drafted a ${NETWORKS[network].label} post for the ad "${creative.headline || creative.brief.slice(0, 40)}"; waiting for the owner's yes` } });
+    const full = withLink(n, ids[i]);
+    if (full.length > NETWORKS[n].maxChars) throw new Error(`The caption is ${full.length} characters${full !== text7 ? " with the lead form link" : ""}; ${NETWORKS[n].label} allows ${NETWORKS[n].maxChars}`);
+  });
+  for (const [i, network] of networks.entries()) {
+    const id = ids[i];
+    await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "post.drafted", taskId: null, detail: { id, creativeId: creative.id, network, text: withLink(network, id), kind: creative.kind, mediaUrl: creative.mediaUrl, headline: creative.headline, summary: `Drafted a ${NETWORKS[network].label} post for the ad "${creative.headline || creative.brief.slice(0, 40)}"; waiting for the owner's yes` } });
   }
   return ids;
+}
+
+// core/leads.ts
+var FORM_EVENT = "leads.form";
+var LEAD_EVENT = "lead.captured";
+var LEAD_EVENTS = [FORM_EVENT, LEAD_EVENT];
+var LEAD_SOURCES = {
+  ...Object.fromEntries(NETWORK_IDS.map((n) => [n, NETWORKS[n].label])),
+  meta: "Meta ads",
+  site: "Your website",
+  email: "Email",
+  qr: "QR code",
+  direct: "Direct link"
+};
+var formUrl = (f) => `${f.origin}/l/${f.id}`;
+function computeLeads(events) {
+  let form = null;
+  const leads = [];
+  for (const e of events) {
+    const d = e.detail;
+    if (e.action === FORM_EVENT) {
+      const prev = form;
+      const id = String(d.formId ?? "");
+      form = { id, on: d.on !== false, origin: String(d.origin ?? ""), since: prev && prev.id === id ? prev.since : e.at };
+    }
+    if (e.action === LEAD_EVENT) leads.push({
+      id: String(d.id ?? ""),
+      at: e.at,
+      formId: String(d.formId ?? ""),
+      source: String(d.source ?? "direct"),
+      paid: d.paid === true,
+      postId: String(d.postId ?? ""),
+      contactId: String(d.contactId ?? ""),
+      repeat: d.repeat === true
+    });
+  }
+  return { form, leads: leads.reverse() };
+}
+async function loadLeads(store2, orgId) {
+  return computeLeads(await store2.listAuditByActions(orgId, LEAD_EVENTS));
+}
+
+// core/ads.ts
+var ADS_EVENT = "ads.plan";
+var AD_PLATFORMS = {
+  meta: { label: "Facebook and Instagram", source: "meta", tool: "Meta Ads Manager" },
+  google: { label: "Google Search and Maps", source: "google", tool: "Google Ads" },
+  tiktok: { label: "TikTok", source: "tiktok", tool: "TikTok Ads Manager" },
+  youtube: { label: "YouTube", source: "youtube", tool: "Google Ads" },
+  linkedin: { label: "LinkedIn", source: "linkedin", tool: "LinkedIn Campaign Manager" }
+};
+var AD_PLATFORM_IDS = Object.keys(AD_PLATFORMS);
+var AD_OBJECTIVES = ["leads", "calls", "messages", "traffic"];
+var text6 = (v, max) => String(v ?? "").trim().slice(0, max);
+function cleanAdsPlan(raw, approved, budget) {
+  if (!(budget > 0)) throw new Error("Add a monthly ad budget to the marketing assessment before planning paid ads");
+  const i = raw ?? {};
+  const list2 = Array.isArray(i.campaigns) ? i.campaigns.slice(0, 4) : [];
+  if (!list2.length) throw new Error("A plan needs at least one campaign");
+  const ok = new Set(approved.map((c) => c.id));
+  const campaigns = list2.map((c) => {
+    const platform = text6(c.platform, 20).toLowerCase();
+    if (!AD_PLATFORMS[platform]) throw new Error(`platform must be one of: ${AD_PLATFORM_IDS.join(", ")}`);
+    const objective = AD_OBJECTIVES.includes(String(c.objective)) ? String(c.objective) : "leads";
+    const dailyBudget = Math.round(Number(c.dailyBudget) * 100) / 100;
+    const days = Math.round(Number(c.days));
+    if (!(dailyBudget > 0)) throw new Error("Each campaign needs a daily budget above zero");
+    if (!(days >= 3 && days <= 31)) throw new Error("Each campaign runs 3 to 31 days");
+    const creativeIds = (Array.isArray(c.creativeIds) ? c.creativeIds : []).map(String).filter((id) => ok.has(id)).slice(0, 4);
+    if (platform !== "google" && !creativeIds.length) throw new Error(`The ${AD_PLATFORMS[platform].label} campaign needs at least one approved ad`);
+    return { platform, objective, audience: text6(c.audience, 300), dailyBudget, days, creativeIds, why: text6(c.why, 300), total: Math.round(dailyBudget * days * 100) / 100 };
+  });
+  const total = Math.round(campaigns.reduce((s, c) => s + c.total, 0) * 100) / 100;
+  if (total > budget) throw new Error(`The campaigns add up to ${total}; the monthly ad budget is ${budget}. Trim the daily budgets or the days.`);
+  return { summary: text6(i.summary, 600), campaigns, total, budget };
+}
+async function saveAdsPlan(store2, orgId, raw, approved, budget, by) {
+  const plan = cleanAdsPlan(raw, approved, budget);
+  await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: ADS_EVENT, taskId: null, detail: { plan, summary: `Paid ads plan saved: ${plan.campaigns.length} campaign${plan.campaigns.length === 1 ? "" : "s"}, ${plan.total} of ${plan.budget} a month. Nothing launched or paid` } });
+  return `Saved the paid ads plan: ${plan.campaigns.length} campaign(s), ${plan.total} of the ${plan.budget} monthly budget. Nothing is launched; the owner sets each campaign up.`;
 }
 
 // core/marketing-tools.ts
@@ -2587,7 +2685,7 @@ var MARKETING_TOOLS = {
   draft_social_post: {
     spec: {
       name: "draft_social_post",
-      description: "Save a draft social post for one network from an approved ad: the ad's image or video with a caption written for that network. Nothing is posted; the owner publishes each draft from the Marketing tab, now or at a time they pick.",
+      description: "Save a draft social post for one network from an approved ad: the ad's image or video with a caption written for that network. On Facebook, LinkedIn, X, Threads and Google the business's lead form link is added at the end, so leave room for about 75 characters there and write no link yourself. Nothing is posted; the owner publishes each draft from the Marketing tab, now or at a time they pick.",
       input_schema: {
         type: "object",
         properties: {
@@ -2600,8 +2698,46 @@ var MARKETING_TOOLS = {
     },
     summarize: (i) => `Draft a ${NETWORKS[i.network]?.label ?? "social"} post`,
     execute: async (i, ctx) => {
-      await draftPosts(ctx.store, ctx.orgId, { creativeId: i.creativeId, networks: [i.network], text: i.text }, ctx.agent.name);
+      const { form } = await loadLeads(ctx.store, ctx.orgId);
+      const leadLink = form?.on && LINK_NETWORKS.includes(i.network) ? formUrl(form) : void 0;
+      await draftPosts(ctx.store, ctx.orgId, { creativeId: i.creativeId, networks: [i.network], text: i.text, leadLink }, ctx.agent.name);
       return `Drafted the ${NETWORKS[i.network].label} post. The owner publishes it from the Marketing tab.`;
+    }
+  },
+  save_ads_plan: {
+    spec: {
+      name: "save_ads_plan",
+      description: "Save this month's paid ads plan on the business's Marketing tab: one to four campaigns, each with the platform, objective, audience in plain words, daily budget, days, the approved ads it uses and why. The total must fit the monthly ad budget. Nothing is launched or paid; the owner sets each campaign up in the platform's own ads tool.",
+      input_schema: {
+        type: "object",
+        properties: {
+          summary: { type: "string", description: "Two or three sentences: where the money goes and why" },
+          campaigns: {
+            type: "array",
+            minItems: 1,
+            maxItems: 4,
+            items: {
+              type: "object",
+              properties: {
+                platform: { type: "string", enum: AD_PLATFORM_IDS },
+                objective: { type: "string", enum: [...AD_OBJECTIVES] },
+                audience: { type: "string", description: "Place, age range and interests, in plain words" },
+                dailyBudget: { type: "number", description: "In the business's currency" },
+                days: { type: "number", description: "3 to 31" },
+                creativeIds: { type: "array", items: str4, maxItems: 4, description: "Approved ad ids (Google Search can have none)" },
+                why: str4
+              },
+              required: ["platform", "objective", "audience", "dailyBudget", "days", "why"]
+            }
+          }
+        },
+        required: ["summary", "campaigns"]
+      }
+    },
+    summarize: () => "Save the paid ads plan",
+    execute: async (i, ctx) => {
+      const [m, creatives] = await Promise.all([loadMarketing(ctx.store, ctx.orgId, null), loadCreatives(ctx.store, ctx.orgId, null)]);
+      return saveAdsPlan(ctx.store, ctx.orgId, i, creatives.creatives.filter((c) => c.status === "approved"), num3(m.answers, "adBudget") ?? 0, ctx.agent.name);
     }
   }
 };
@@ -2624,17 +2760,17 @@ var field = (input, name, max = 4e3) => {
   return t.slice(0, max);
 };
 function parseLinkedInComment(input) {
-  let text6 = input.trim();
+  let text7 = input.trim();
   try {
-    text6 = decodeURIComponent(text6);
+    text7 = decodeURIComponent(text7);
   } catch {
   }
-  const m = text6.match(/urn:li:comment:\((?:urn:li:)?(activity|ugcPost|share):(\d+),(\d+)\)/);
+  const m = text7.match(/urn:li:comment:\((?:urn:li:)?(activity|ugcPost|share):(\d+),(\d+)\)/);
   if (m) {
     const threadUrn2 = `urn:li:${m[1]}:${m[2]}`;
     return { threadUrn: threadUrn2, commentUrn: `urn:li:comment:(${threadUrn2},${m[3]})` };
   }
-  const d = text6.match(/urn:li:fsd_comment:\((\d+),urn:li:(activity|ugcPost|share):(\d+)\)/);
+  const d = text7.match(/urn:li:fsd_comment:\((\d+),urn:li:(activity|ugcPost|share):(\d+)\)/);
   if (!d) return null;
   const threadUrn = `urn:li:${d[2]}:${d[3]}`;
   return { threadUrn, commentUrn: `urn:li:comment:(${threadUrn},${d[1]})` };
@@ -2785,9 +2921,9 @@ function toolsFor(agent) {
 }
 var WEBHOOK_TIMEOUT_MS = 3e4;
 var RECEIPT_MAX = 500;
-function parseReceipt(text6) {
+function parseReceipt(text7) {
   try {
-    const body = JSON.parse(text6);
+    const body = JSON.parse(text7);
     if (!body || typeof body !== "object") return void 0;
     const { ok, message } = body;
     return {
@@ -2902,9 +3038,9 @@ function profileText(p) {
   }).filter(Boolean);
   return [PROFILE_PREFIX, ...lines].join("\n");
 }
-function parseProfile(text6) {
+function parseProfile(text7) {
   const out = {};
-  for (const line of text6.split("\n").slice(1)) {
+  for (const line of text7.split("\n").slice(1)) {
     const i = line.indexOf(": ");
     if (i < 0) continue;
     const label5 = line.slice(0, i);
@@ -3703,8 +3839,8 @@ var SupabaseStore = class {
       }
     });
     if (!res.ok) throw new Error(`Supabase ${res.status} on ${path.split("?")[0]}: ${(await res.text()).slice(0, 300)}`);
-    const text6 = await res.text();
-    return text6 ? JSON.parse(text6) : [];
+    const text7 = await res.text();
+    return text7 ? JSON.parse(text7) : [];
   }
   one(rows, what) {
     if (!rows[0]) throw new Error(`${what} not found`);

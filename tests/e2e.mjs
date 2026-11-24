@@ -477,7 +477,7 @@ await check('business tabs: add a CRM contact, open a support ticket, record inc
   await ctx.close();
 });
 
-await check('marketing tab: save the assessment, open card checkout, record the payment on return, approve an ad and publish a post', async () => {
+await check('marketing tab: save the assessment, open card checkout, record the payment on return, approve an ad, publish a post and share the lead form', async () => {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   const state = { otp: [], decisions: [], pending: [], profile: { name: 'Lone Star Dental' }, admin: [] };
   await mockServices(ctx, state);
@@ -534,6 +534,16 @@ await check('marketing tab: save the assessment, open card checkout, record the 
   await published;
   assert.deepEqual(posts.at(-1), { action: 'publish_draft', id: 'post-1' });
   await page.getByText('Published the Instagram post.').waitFor();
+  // Results: enquiries from posts land in the CRM, and the lead form link says where it was shared.
+  await page.getByText('Latest enquiries').waitFor();
+  await page.locator('.mk-pays', { hasText: 'Ann Lee' }).waitFor();
+  await page.locator('#mk-leadform summary').click();
+  await page.locator('#mk-leadform').getByLabel("Where you'll share it").selectOption('site');
+  await page.locator('#mk-leadform code', { hasText: '/l/Pyqcbns0ToqcDxorPE1ebwAbCdEfGhIj?s=site' }).waitFor();
+  const turned = page.waitForRequest((r) => r.url().endsWith('/api/marketing') && r.method() === 'POST');
+  await page.locator('#mk-leadform').getByRole('button', { name: 'Turn off' }).click();
+  await turned;
+  assert.deepEqual(posts.at(-1), { action: 'lead_form', change: 'off' });
   await ctx.close();
 });
 

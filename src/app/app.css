@@ -340,3 +340,14 @@ th { color: var(--sub); font-weight: 500; font-size: 12px; text-transform: upper
 .mk-post p { margin: 0; }
 .mk-post-text { white-space: pre-wrap; overflow-wrap: anywhere; }
 .mk-when { display: inline-flex; align-items: center; gap: 0.4rem; }
+
+/* Marketing results: funnel, lead links */
+.mk-funnel { list-style: none; padding: 0; margin: 8px 0 12px; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.mk-funnel li { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 4px; border-radius: 12px; border: 1px solid var(--line); text-align: center; }
+.mk-funnel strong { font-size: 18px; font-weight: 500; }
+@media (max-width: 640px) { .mk-funnel { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.mk-over { color: var(--danger, #c92a2a); }
+.mk-sub { font-size: 15px; margin: 14px 0 4px; }
+.mk-link { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; margin: 8px 0; }
+.mk-link .field { flex: 0 1 220px; margin: 0; }
+.mk-link code { flex: 1 1 260px; min-width: 0; overflow-wrap: anywhere; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); font-size: 13px; }

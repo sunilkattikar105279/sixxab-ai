@@ -148,7 +148,17 @@ export async function loadPublishing(store: Store, orgId: string): Promise<Publi
 export const fits = (network: Network, kind: Creative['kind']): boolean => (kind === 'video' ? NETWORKS[network].video : NETWORKS[network].image);
 
 /** Drafts one post per network from an approved ad. Sends nothing. */
-export async function draftPosts(store: Store, orgId: string, input: { creativeId?: unknown; networks?: unknown; text?: unknown }, by: string): Promise<string[]> {
+/** Networks where a link in the caption can be clicked. Instagram, TikTok and YouTube Shorts take the link in the bio instead. */
+export const LINK_NETWORKS: Network[] = ['facebook', 'linkedin', 'x', 'threads', 'google'];
+
+/** The tracked lead form link for one post: which network it was on and a short reference to the post. */
+export const postLeadLink = (formUrl: string, network: Network, postId: string) => `${formUrl}?s=${network}&p=${postId.replace(/-/g, '').slice(0, 8)}`;
+
+/**
+ * Saves one draft per network. With leadLink (the business's lead form address), posts on networks with clickable links end
+ * with a tracked link, so enquiries from that post land in the CRM marked with where they came from.
+ */
+export async function draftPosts(store: Store, orgId: string, input: { creativeId?: unknown; networks?: unknown; text?: unknown; leadLink?: string }, by: string): Promise<string[]> {
   const creative = (await loadCreatives(store, orgId, null)).creatives.find((c) => c.id === input.creativeId);
   if (!creative) throw new Error('Pick an ad from the ad studio');
   if (creative.status !== 'approved') throw new Error('Approve the ad in the ad studio before drafting posts');
@@ -156,15 +166,16 @@ export async function draftPosts(store: Store, orgId: string, input: { creativeI
   if (!networks.length) throw new Error('Pick at least one network');
   const text = typeof input.text === 'string' ? input.text.trim() : '';
   if (!text) throw new Error('Write the caption');
-  for (const n of networks) {
+  const withLink = (n: Network, id: string) => (input.leadLink && LINK_NETWORKS.includes(n) && !text.includes(input.leadLink) ? `${text}\n\n${postLeadLink(input.leadLink, n, id)}` : text);
+  const ids = networks.map(() => newId());
+  networks.forEach((n, i) => {
     if (!fits(n, creative.kind)) throw new Error(`${NETWORKS[n].label} doesn't take ${creative.kind === 'video' ? 'videos' : 'images'} here`);
-    if (text.length > NETWORKS[n].maxChars) throw new Error(`The caption is ${text.length} characters; ${NETWORKS[n].label} allows ${NETWORKS[n].maxChars}`);
-  }
-  const ids: string[] = [];
-  for (const network of networks) {
-    const id = newId();
-    ids.push(id);
-    await store.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: 'post.drafted', taskId: null, detail: { id, creativeId: creative.id, network, text, kind: creative.kind, mediaUrl: creative.mediaUrl, headline: creative.headline, summary: `Drafted a ${NETWORKS[network].label} post for the ad "${creative.headline || creative.brief.slice(0, 40)}"; waiting for the owner's yes` } });
+    const full = withLink(n, ids[i]);
+    if (full.length > NETWORKS[n].maxChars) throw new Error(`The caption is ${full.length} characters${full !== text ? ' with the lead form link' : ''}; ${NETWORKS[n].label} allows ${NETWORKS[n].maxChars}`);
+  });
+  for (const [i, network] of networks.entries()) {
+    const id = ids[i];
+    await store.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: 'post.drafted', taskId: null, detail: { id, creativeId: creative.id, network, text: withLink(network, id), kind: creative.kind, mediaUrl: creative.mediaUrl, headline: creative.headline, summary: `Drafted a ${NETWORKS[network].label} post for the ad "${creative.headline || creative.brief.slice(0, 40)}"; waiting for the owner's yes` } });
   }
   return ids;
 }

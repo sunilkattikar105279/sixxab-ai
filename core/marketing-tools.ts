@@ -1,9 +1,11 @@
 // Tools for the AI Marketing Agency. They send nothing: they save the online check, the 30-day plan, ad briefs and
 // draft social posts onto the business's Marketing tab for the owner, so they have no task type (still audited).
 import type { Tool } from './tools.js';
-import { CHECK_ITEMS, loadMarketing, saveTailoredPlan, saveValidation } from './marketing.js';
+import { CHECK_ITEMS, loadMarketing, num, saveTailoredPlan, saveValidation } from './marketing.js';
 import { CREATIVE_CTAS, CREATIVE_FORMATS, loadCreatives, requestCreative } from './creatives.js';
-import { NETWORKS, NETWORK_IDS, draftPosts } from './publishing.js';
+import { NETWORKS, NETWORK_IDS, draftPosts, LINK_NETWORKS } from './publishing.js';
+import { formUrl, loadLeads } from './leads.js';
+import { AD_OBJECTIVES, AD_PLATFORM_IDS, saveAdsPlan } from './ads.js';
 
 const str = { type: 'string' } as const;
 
@@ -74,7 +76,7 @@ export const MARKETING_TOOLS: Record<string, Tool> = {
   draft_social_post: {
     spec: {
       name: 'draft_social_post',
-      description: 'Save a draft social post for one network from an approved ad: the ad\'s image or video with a caption written for that network. Nothing is posted; the owner publishes each draft from the Marketing tab, now or at a time they pick.',
+      description: 'Save a draft social post for one network from an approved ad: the ad\'s image or video with a caption written for that network. On Facebook, LinkedIn, X, Threads and Google the business\'s lead form link is added at the end, so leave room for about 75 characters there and write no link yourself. Nothing is posted; the owner publishes each draft from the Marketing tab, now or at a time they pick.',
       input_schema: {
         type: 'object',
         properties: {
@@ -87,8 +89,44 @@ export const MARKETING_TOOLS: Record<string, Tool> = {
     },
     summarize: (i) => `Draft a ${NETWORKS[i.network as keyof typeof NETWORKS]?.label ?? 'social'} post`,
     execute: async (i, ctx) => {
-      await draftPosts(ctx.store, ctx.orgId, { creativeId: i.creativeId, networks: [i.network], text: i.text }, ctx.agent.name);
+      const { form } = await loadLeads(ctx.store, ctx.orgId);
+      const leadLink = form?.on && LINK_NETWORKS.includes(i.network as never) ? formUrl(form) : undefined;
+      await draftPosts(ctx.store, ctx.orgId, { creativeId: i.creativeId, networks: [i.network], text: i.text, leadLink }, ctx.agent.name);
       return `Drafted the ${NETWORKS[i.network as keyof typeof NETWORKS].label} post. The owner publishes it from the Marketing tab.`;
+    },
+  },
+  save_ads_plan: {
+    spec: {
+      name: 'save_ads_plan',
+      description: 'Save this month\'s paid ads plan on the business\'s Marketing tab: one to four campaigns, each with the platform, objective, audience in plain words, daily budget, days, the approved ads it uses and why. The total must fit the monthly ad budget. Nothing is launched or paid; the owner sets each campaign up in the platform\'s own ads tool.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          summary: { type: 'string', description: 'Two or three sentences: where the money goes and why' },
+          campaigns: {
+            type: 'array', minItems: 1, maxItems: 4,
+            items: {
+              type: 'object',
+              properties: {
+                platform: { type: 'string', enum: AD_PLATFORM_IDS },
+                objective: { type: 'string', enum: [...AD_OBJECTIVES] },
+                audience: { type: 'string', description: 'Place, age range and interests, in plain words' },
+                dailyBudget: { type: 'number', description: 'In the business\'s currency' },
+                days: { type: 'number', description: '3 to 31' },
+                creativeIds: { type: 'array', items: str, maxItems: 4, description: 'Approved ad ids (Google Search can have none)' },
+                why: str,
+              },
+              required: ['platform', 'objective', 'audience', 'dailyBudget', 'days', 'why'],
+            },
+          },
+        },
+        required: ['summary', 'campaigns'],
+      },
+    },
+    summarize: () => 'Save the paid ads plan',
+    execute: async (i, ctx) => {
+      const [m, creatives] = await Promise.all([loadMarketing(ctx.store, ctx.orgId, null), loadCreatives(ctx.store, ctx.orgId, null)]);
+      return saveAdsPlan(ctx.store, ctx.orgId, i, creatives.creatives.filter((c) => c.status === 'approved'), num(m.answers, 'adBudget') ?? 0, ctx.agent.name);
     },
   },
 };
