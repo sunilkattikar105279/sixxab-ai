@@ -12,7 +12,8 @@ import { fileToCsv } from '../lib/sheet';
 import { CustomerPage, STAGES, stageName, webHref, type Contact } from './Customer';
 import { LeadAgents, type LeadgenState } from './LeadAgents';
 import { SalesFlow } from './SalesFlow';
-import { Fold } from './Fold';
+import { Fold, reveal } from './Fold';
+import { ResearchMapper } from './ResearchMapper';
 import { researchGoal } from '../../core/research';
 import type { FlowOrg, FlowStage, NextAction } from '../../core/salesflow-state';
 import type { ResearchImportSummary } from '../../core/research-state';
@@ -112,23 +113,26 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
   const [importMsg, setImportMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [fileName, setFileName] = useState('');
   const [customerId, setCustomerId] = useState<string | null>(null);
-  const [researchFile, setResearchFile] = useState<{ name: string; json: string; count: number } | null>(null);
+  const [researchFile, setResearchFile] = useState<{ name: string; json: string; count: number; reports: Record<string, unknown>[] } | null>(null);
   const [importingResearch, setImportingResearch] = useState(false);
   const [researchMsg, setResearchMsg] = useState<{ ok: boolean; text: string; lines: string[] } | null>(null);
-  async function importResearchFile(): Promise<void> {
+  async function importResearchFile(deals: Record<string, string>, fill: Record<string, string[]>): Promise<void> {
     if (!researchFile) return;
     setImportingResearch(true);
     setResearchMsg(null);
     try {
-      const r = await api<ResearchImportSummary>('/api/crm', { method: 'POST', body: JSON.stringify({ action: 'import_research', json: researchFile.json }) });
+      const r = await api<ResearchImportSummary>('/api/crm', { method: 'POST', body: JSON.stringify({ action: 'import_research', json: researchFile.json, deals, fill }) });
+      const notPlaced = r.reports - r.matched - r.skipped;
       const parts = [
-        `Attached research to ${r.researchSaved} deal${r.researchSaved === 1 ? '' : 's'}`,
+        `Attached research to ${r.researchSaved} customer${r.researchSaved === 1 ? '' : 's'}`,
         r.proposalsSaved ? `proposal drafts to ${r.proposalsSaved}` : '',
+        r.detailsFilled ? `copied ${r.detailsFilled} detail${r.detailsFilled === 1 ? '' : 's'} onto their records` : '',
         r.unchanged ? `${r.unchanged} already had this research` : '',
-        r.reports - r.matched ? `${r.reports - r.matched} not matched to a deal` : '',
+        r.skipped ? `${r.skipped} skipped` : '',
+        notPlaced ? `${notPlaced} not placed` : '',
       ].filter(Boolean);
-      const lines = r.results.filter((x) => x.reason).map((x) => `${x.dealName || x.company}: ${x.reason}`);
-      setResearchMsg({ ok: r.matched > 0, text: `${parts.join(', ')}. No contacts were added and nothing was sent. Open a deal to check each found detail and press Add to deal.`, lines });
+      const lines = r.results.filter((x) => x.filled.length || x.reason).map((x) => `${x.dealName || x.company}: ${[x.filled.length ? `copied ${x.filled.join(', ').toLowerCase()}` : '', x.reason].filter(Boolean).join('; ')}`);
+      setResearchMsg({ ok: r.matched > 0 || r.skipped > 0, text: `${parts.join(', ')}. No contacts were added and nothing was sent.`, lines });
       setResearchFile(null);
       reload();
     } catch (e) {
@@ -198,8 +202,8 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
           </div>
           <div className="import-box" id="import-research">
             <h3>2. Import research</h3>
-            <p className="muted small">A research file (.json), for example from Claude Duet. Each report goes on its deal, so import the list first.</p>
-            <details><summary className="small">How reports are matched</summary><p className="muted small">Each report goes on the deal with the same website, business name or main phone: pain points, opportunities, missing contact details with the page each came from, and a proposal draft with ROI when the file has one. It never adds a contact or changes a deal's details; you check each found detail and press Add to deal. Importing the same file again changes nothing, and a proposal you edited or sent is kept.</p></details>
+            <p className="muted small">A research file (.json), for example from Claude Duet. Each report goes on a customer already in the CRM, so import the list first.</p>
+            <details><summary className="small">How reports are matched</summary><p className="muted small">Each report is matched to the customer with the same website, business name or main phone, and you can pick a different customer or skip it before anything is saved. The report brings pain points, opportunities, missing contact details with the page each came from, and a proposal draft with ROI when the file has one. Tick the details to copy onto the customer, such as an email, phone or address; nothing else on the customer changes. It never adds a contact. Importing the same file again changes nothing, and a proposal you edited or sent is kept.</p></details>
             <label className="field"><span>Choose a research file</span><input type="file" accept=".json,application/json" onChange={async (e) => {
               const file = e.target.files?.[0];
               e.target.value = '';
@@ -210,17 +214,19 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
                 const data = JSON.parse(json) as { reports?: unknown[] } | unknown[];
                 const list = Array.isArray(data) ? data : Array.isArray(data?.reports) ? data.reports : null;
                 if (!list?.length) throw new Error('No reports in that file. A research file has a "reports" list.');
-                setResearchFile({ name: file.name, json, count: list.length });
-                setResearchMsg({ ok: true, text: `Loaded ${file.name}: ${list.length} report${list.length === 1 ? '' : 's'}. Press Import research to attach them to your deals.`, lines: [] });
+                setResearchFile({ name: file.name, json, count: list.length, reports: list.filter((r): r is Record<string, unknown> => !!r && typeof r === 'object') });
+                setResearchMsg({ ok: true, text: `Loaded ${file.name}: ${list.length} report${list.length === 1 ? '' : 's'}. Check where each one goes below, then import.`, lines: [] });
+                setTimeout(() => reveal('research-map'), 80);
               } catch (err) {
                 setResearchFile(null);
                 setResearchMsg({ ok: false, text: err instanceof SyntaxError ? 'That file is not valid JSON. Choose the research file (.json) exactly as it was delivered.' : err instanceof Error ? err.message : 'Could not read that file.', lines: [] });
               }
             }} /></label>
-            <div className="row-end"><button type="button" className={researchFile ? 'btn-primary' : 'btn-ghost'} disabled={!!busy || importingResearch || !researchFile} onClick={importResearchFile}>{importingResearch ? <Spinner label="Attaching research…" /> : researchFile ? `Import research (${researchFile.count})` : 'Import research'}</button></div>
+            {researchFile && <div className="row-end"><button type="button" className="btn-ghost" onClick={() => reveal('research-map')}>Check the {researchFile.count} report{researchFile.count === 1 ? '' : 's'} below</button></div>}
             {researchMsg && <div role={researchMsg.ok ? 'status' : 'alert'}><p className={researchMsg.ok ? 'small' : 'error'}>{researchMsg.text}</p>{researchMsg.lines.length > 0 && <ul className="small">{researchMsg.lines.map((l) => <li key={l}>{l}</li>)}</ul>}</div>}
           </div>
         </div>
+        {researchFile && <ResearchMapper key={researchFile.json.length + researchFile.name} fileName={researchFile.name} reports={researchFile.reports} contacts={crm.contacts} importing={importingResearch} onImport={importResearchFile} onCancel={() => { setResearchFile(null); setResearchMsg(null); }} />}
       </Fold>
 
       <Fold id="pipeline" title="Pipeline" eyebrow="CRM · Sales CRM agent" hint={`${t.open} open · ${money(t.openValue)}${t.followUps ? ` · ${t.followUps} need a follow-up` : ''}`}>

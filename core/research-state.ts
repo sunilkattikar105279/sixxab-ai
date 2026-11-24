@@ -141,20 +141,23 @@ export function proposalMessage(p: ProposalDraft): string {
 // ---- Research import (see research-import.ts) ----
 
 /** What happened to one report in a research file. */
-export type ResearchOutcome = 'saved' | 'same' | 'error';
+export type ResearchOutcome = 'saved' | 'same' | 'skipped' | 'error';
 export type ProposalOutcome = 'saved' | 'same' | 'kept_edited' | 'kept_sent' | 'lost' | 'none' | 'error';
 export interface ImportResult {
   company: string;
   /** The deal it was attached to, or null when no single deal matched. */
   contactId: string | null;
   dealName: string;
-  matchedBy: 'website' | 'name' | 'phone' | null;
+  /** How the deal was found: by the report's website, name or phone, or picked by the owner in the preview. */
+  matchedBy: 'website' | 'name' | 'phone' | 'chosen' | null;
   research: ResearchOutcome | 'unmatched';
   proposal: ProposalOutcome | 'unmatched';
+  /** The customer details copied from the report (the owner ticked each one). */
+  filled: string[];
   reason: string;
 }
 export interface ResearchImportSummary {
-  reports: number; matched: number; researchSaved: number; proposalsSaved: number; unchanged: number;
+  reports: number; matched: number; researchSaved: number; proposalsSaved: number; unchanged: number; detailsFilled: number; skipped: number;
   results: ImportResult[];
 }
 

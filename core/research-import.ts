@@ -1,35 +1,19 @@
 // Research import: business research done outside the app (for example by Claude Duet) arrives as one JSON file
-// and is attached to the deals already in the CRM. It never creates a contact, never overwrites the deal's own
-// fields (a found detail still goes on the deal only when the owner presses Add to deal), never replaces a
+// and is attached to the deals already in the CRM. It never creates a contact. It copies a detail onto the
+// customer only when the owner ticked it in the import preview (or presses Add to deal later), never replaces a
 // proposal the owner edited or sent, and importing the same file again changes nothing. Nothing is sent.
 import { createHash } from 'node:crypto';
 import { newId, nowIso, type Store } from './store.js';
-import { loadCrm, type Contact } from './crm.js';
-import { cleanProposal, cleanResearch, type ImportResult, type ResearchImportSummary } from './research-state.js';
+import { loadCrm, updateContactFields, type Contact, type ContactInput } from './crm.js';
+import { cleanProposal, cleanResearch, FIELD_LABEL, type ImportResult, type ResearchImportSummary } from './research-state.js';
+import { mapRows, matchDeal, type MapTarget } from './research-map.js';
 export type { ImportResult, ResearchImportSummary } from './research-state.js';
+export { companyKey, matchDeal, phoneKey, siteKey } from './research-map.js';
 
 export const RESEARCH_IMPORT_FORMAT = 'sixxab-research/1';
 const MAX_REPORTS = 100;
 
 const text = (v: unknown, max: number) => String(v ?? '').trim().slice(0, max);
-const SUFFIX = /\b(the|llc|l l c|inc|incorporated|pllc|pc|p c|plc|co|company|corp|corporation|ltd|limited|lp|llp)\b/g;
-/** "The Barber Law Firm, PLLC" and "barber law firm" give the same key. */
-export function companyKey(v: unknown): string {
-  return text(v, 200).toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9 ]+/g, ' ').replace(SUFFIX, ' ').replace(/\s+/g, '');
-}
-/** "https://www.TotalAir.com/about" and "totalair.com" give "totalair.com". */
-export function siteKey(v: unknown): string {
-  const s = text(v, 300).toLowerCase();
-  if (!s) return '';
-  try {
-    return new URL(/^[a-z]+:\/\//.test(s) ? s : `https://${s}`).hostname.replace(/^www\./, '');
-  } catch { return ''; }
-}
-/** The last ten digits of a phone number, or '' when it has fewer than ten. */
-export function phoneKey(v: unknown): string {
-  const d = text(v, 40).replace(/\D/g, '');
-  return d.length >= 10 ? d.slice(-10) : '';
-}
 
 /** A stable fingerprint of what was imported, so the same report is never attached twice. */
 function fingerprint(v: unknown): string {
@@ -53,55 +37,60 @@ export function parseResearchFile(raw: string): Record<string, unknown>[] {
   return reports;
 }
 
-/** The one deal a report belongs to: the website first, then the business name, then the main phone. */
-export function matchDeal(contacts: Contact[], r: Record<string, unknown>): { deal: Contact | null; by: ImportResult['matchedBy']; reason: string } {
-  const company = text(r.company, 200);
-  const site = siteKey(r.website);
-  const name = companyKey(company);
-  const phone = phoneKey(r.phone);
-  const pick = (hits: Contact[], by: ImportResult['matchedBy']) => {
-    const open = hits.length > 1 ? hits.filter((c) => c.stage !== 'lost') : hits;
-    const ids = new Set(open.map((c) => c.id));
-    if (ids.size === 1) return { deal: open[0], by, reason: '' };
-    return { deal: null, by: null, reason: `${ids.size} deals match ${company || 'this report'}; attach it from the deal by hand` };
-  };
-  if (site) {
-    const hits = contacts.filter((c) => siteKey(c.website) === site);
-    if (hits.length) return pick(hits, 'website');
-  }
-  if (name) {
-    const hits = contacts.filter((c) => companyKey(c.company) === name || (!c.company && companyKey(c.name) === name));
-    if (hits.length) return pick(hits, 'name');
-  }
-  if (phone) {
-    const hits = contacts.filter((c) => phoneKey(c.phone) === phone);
-    if (hits.length) return pick(hits, 'phone');
-  }
-  return { deal: null, by: null, reason: `No deal in the CRM for ${company || 'this report'}. Import the lead list first, then this file again.` };
+/** The owner's choices from the import preview, by report number (0 for the first report in the file). */
+export interface ImportChoices {
+  /** The customer each report goes on; '' skips the report. A report not listed is matched automatically. */
+  deals?: Record<string, string>;
+  /** Which mapping rows (see research-map.ts) to copy onto the customer, for example ["found:0", "profile:painPoints"]. */
+  fill?: Record<string, string[]>;
 }
 
 /**
- * Attaches each report in the file to its deal: the research report and, when there is one, the proposal draft.
- * Never adds a contact. Same file again: nothing changes. A newer report for the same deal replaces the older one,
- * except a proposal the owner edited or sent, which is kept.
+ * Attaches each report in the file to its deal: the research report and, when there is one, the proposal draft,
+ * then copies the customer details the owner ticked in the preview. Never adds a contact. Same file again:
+ * nothing changes. A newer report for the same deal replaces the older one, except a proposal the owner edited
+ * or sent, which is kept.
  */
-export async function importResearch(store: Store, orgId: string, raw: string, by: string): Promise<ResearchImportSummary> {
+export async function importResearch(store: Store, orgId: string, raw: string, by: string, choices: ImportChoices = {}): Promise<ResearchImportSummary> {
   const reports = parseResearchFile(raw);
   const crm = await loadCrm(store, orgId);
   const contacts = crm.contacts.map((c) => ({ ...c }));
   const results: ImportResult[] = [];
   const record = (action: string, detail: Record<string, unknown>) => store.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
+  const chosen = choices.deals && typeof choices.deals === 'object' ? choices.deals : {};
+  const fills = choices.fill && typeof choices.fill === 'object' ? choices.fill : {};
 
-  for (const r of reports) {
+  for (let n = 0; n < reports.length; n++) {
+    const r = reports[n];
     const company = text(r.company, 200) || text(r.business, 200);
-    const m = matchDeal(contacts, { ...r, company });
-    if (!m.deal) {
-      results.push({ company, contactId: null, dealName: '', matchedBy: null, research: 'unmatched', proposal: 'unmatched', reason: m.reason });
-      continue;
+    const empty = { company, contactId: null, dealName: '', matchedBy: null, filled: [] as string[] };
+    let deal: Contact | null;
+    let matchedBy: ImportResult['matchedBy'];
+    if (Object.prototype.hasOwnProperty.call(chosen, String(n))) {
+      const id = text(chosen[String(n)], 64);
+      if (!id) {
+        results.push({ ...empty, research: 'skipped', proposal: 'none', reason: 'Skipped in the preview' });
+        continue;
+      }
+      deal = contacts.find((c) => c.id === id) ?? null;
+      if (!deal) {
+        results.push({ ...empty, research: 'unmatched', proposal: 'unmatched', reason: 'That customer is no longer in the CRM; reload and pick again' });
+        continue;
+      }
+      const auto = matchDeal(contacts, { ...r, company });
+      matchedBy = auto.deal?.id === deal.id ? auto.by : 'chosen';
+    } else {
+      const m = matchDeal(contacts, { ...r, company });
+      if (!m.deal) {
+        results.push({ ...empty, research: 'unmatched', proposal: 'unmatched', reason: m.reason });
+        continue;
+      }
+      deal = m.deal;
+      matchedBy = m.by;
     }
-    const c = m.deal;
+    const c = deal;
     const label = c.company || c.name;
-    const res: ImportResult = { company, contactId: c.id, dealName: label, matchedBy: m.by, research: 'error', proposal: 'none', reason: '' };
+    const res: ImportResult = { company, contactId: c.id, dealName: label, matchedBy, research: 'error', proposal: 'none', filled: [], reason: '' };
     const notes: string[] = [];
 
     // Research report
@@ -141,6 +130,36 @@ export async function importResearch(store: Store, orgId: string, raw: string, b
         notes.push(`proposal not attached: ${e instanceof Error ? e.message : 'could not read it'}`);
       }
     }
+
+    // Customer details the owner ticked in the preview
+    const want = (Array.isArray(fills[String(n)]) ? fills[String(n)] : []).slice(0, 20).map((k) => text(k, 40));
+    const report = c.researchReport;
+    if (want.length && report && res.research !== 'error') {
+      const rows = mapRows(report, c);
+      const fields: Partial<Record<MapTarget, string>> = {};
+      const used: number[] = [];
+      const labels: string[] = [];
+      for (const k of want) {
+        const row = rows.find((x) => x.key === k);
+        if (!row || row.status === 'same' || fields[row.target] !== undefined) continue;
+        fields[row.target] = row.value;
+        labels.push(row.label);
+        if (row.foundIndex !== null) used.push(row.foundIndex);
+      }
+      if (labels.length) {
+        try {
+          await updateContactFields(store, orgId, c, fields as Partial<ContactInput>, by, `${label}: ${labels.join(', ').toLowerCase()} filled from the research`);
+          Object.assign(c, fields);
+          for (const i of used) {
+            await record('crm.research_used', { contactId: c.id, researchId: report.id, index: i, summary: `${label}: ${FIELD_LABEL[report.found[i].field].toLowerCase()} added from the research` });
+            report.found[i] = { ...report.found[i], usedAt: nowIso() };
+          }
+          res.filled = labels;
+        } catch (e) {
+          notes.push(`details not filled: ${e instanceof Error ? e.message : 'could not save them'}`);
+        }
+      }
+    }
     res.reason = notes.join('; ');
     results.push(res);
   }
@@ -151,7 +170,9 @@ export async function importResearch(store: Store, orgId: string, raw: string, b
     matched: matched.length,
     researchSaved: matched.filter((x) => x.research === 'saved').length,
     proposalsSaved: matched.filter((x) => x.proposal === 'saved').length,
-    unchanged: matched.filter((x) => x.research !== 'saved' && x.proposal !== 'saved' && x.research !== 'error').length,
+    unchanged: matched.filter((x) => x.research !== 'saved' && x.proposal !== 'saved' && x.research !== 'error' && !x.filled.length).length,
+    detailsFilled: matched.reduce((t, x) => t + x.filled.length, 0),
+    skipped: results.filter((x) => x.research === 'skipped').length,
     results,
   };
 }

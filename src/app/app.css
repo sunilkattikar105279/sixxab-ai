@@ -248,6 +248,19 @@ th { color: var(--sub); font-weight: 500; font-size: 12px; text-transform: upper
 .import-box { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 12px 14px; border: 1px dashed var(--line); border-radius: 14px; }
 .import-box h3 { margin: 0; }
 .import-box:focus-within { border-style: solid; border-color: var(--gold); }
+.map-preview { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+.map-preview h3 { margin: 0; }
+.map-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.map-row { padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; min-width: 0; }
+.map-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.map-head strong { flex: 1 1 180px; min-width: 0; overflow-wrap: anywhere; }
+.map-head select { flex: 1 1 220px; min-width: 0; max-width: 100%; }
+.map-head .warn { color: var(--gold); }
+.map-details { margin-top: 6px; }
+.map-fields { list-style: none; padding: 0; margin: 6px 0 0; display: flex; flex-direction: column; gap: 6px; }
+.map-fields label { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; }
+.map-fields input { margin-top: 3px; flex: none; }
+.map-value { min-width: 0; overflow-wrap: anywhere; font-size: 14px; }
 .flow-how { padding-left: 18px; margin: 8px 0 0; display: flex; flex-direction: column; gap: 6px; }
 .update-banner { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; padding: 8px 16px; background: rgba(231,199,102,0.14); border-bottom: 1px solid var(--line); color: var(--ink); font-size: 14px; }
 

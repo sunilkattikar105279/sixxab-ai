@@ -5,6 +5,7 @@ import type { AuditEvent } from './types.js';
 import { cleanMeddic, scoreMeddic, type Meddic } from './gtm.js';
 import { applyDealEvent, computeLeadgen, crmIssues, EMPTY_DEAL_LEADGEN, LEADGEN_DEAL_EVENTS, LEADGEN_ORG_EVENTS, type CrmIssue, type DealLeadgen, type Icp, type IcpNotes, type ProspectBatch } from './leadgen-state.js';
 import { applyResearchEvent, EMPTY_DEAL_RESEARCH, RESEARCH_DEAL_EVENTS, type DealResearch } from './research-state.js';
+import { EMAIL_RE, PHONE_RE } from './research-map.js';
 import { applyFlowEvent, computeFlowOrg, EMPTY_CUSTOMER, FLOW_DEAL_EVENTS, FLOW_ORG_EVENTS, flowCounts, nextActions, type CustomerFlow, type FlowOrg, type FlowStage, type NextAction } from './salesflow-state.js';
 
 export const DEAL_STAGES = ['lead', 'contacted', 'qualified', 'proposal', 'won', 'lost'] as const;
@@ -66,8 +67,6 @@ export interface CrmState {
 }
 
 export const CRM_EVENTS = ['crm.contact', 'crm.stage', 'crm.touch', 'crm.note', 'crm.qualify', 'crm.removed', ...LEADGEN_ORG_EVENTS, ...LEADGEN_DEAL_EVENTS, ...FLOW_ORG_EVENTS, ...FLOW_DEAL_EVENTS, ...RESEARCH_DEAL_EVENTS];
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_RE = /^\+?[\d\s()-]{7,20}$/;
 const STALE_DAYS = 7;
 const NEW_LEAD_HOURS = 48;
 const OPEN: DealStage[] = ['lead', 'contacted', 'qualified', 'proposal'];
@@ -110,6 +109,12 @@ export async function upsertContact(store: Store, orgId: string, input: ContactI
   const c = clean(prev ? ({ ...prev, ...input } as ContactInput) : input);
   await record(store, orgId, by, 'crm.contact', { contact: c, summary: summary ?? (prev ? `Contact updated: ${c.name}` : `Contact saved: ${c.name}`) });
   return loadCrm(store, orgId);
+}
+
+/** Saves new values for some fields of a contact the caller has just read (no second read of the CRM). */
+export async function updateContactFields(store: Store, orgId: string, prev: Contact, fields: Partial<ContactInput>, by: string, summary: string): Promise<void> {
+  const c = clean({ ...prev, ...fields, id: prev.id } as ContactInput);
+  await record(store, orgId, by, 'crm.contact', { contact: c, summary });
 }
 
 /** Records a brand-new contact without reading the CRM first (the caller has already checked it is new). */
@@ -339,6 +344,7 @@ export function computeCrm(events: AuditEvent[], now = Date.now()): CrmState {
       const prev = map.get(c.id);
       const summary = String(d.summary ?? '');
       const what = !prev ? (summary.startsWith('Contact imported') ? 'Imported from a list' : summary.startsWith('Lead from') ? summary.split(':')[0] : 'Added to the CRM')
+        : summary.endsWith(' filled from the research') ? `${summary.slice(summary.lastIndexOf(': ') + 2, summary.lastIndexOf(': ') + 3).toUpperCase()}${summary.slice(summary.lastIndexOf(': ') + 3)}`
         : summary.startsWith('Contact updated from a list') ? 'Details filled in from a list' : summary.startsWith('Contact updated by CRM Sync') ? 'Details filled in by CRM Sync' : 'Details updated';
       const history = addHistory(prev?.history ?? [], { at: e.at, by: e.actor, kind: 'update', text: what });
       const lg: DealLeadgen = prev ? { leadScore: prev.leadScore, sequence: prev.sequence, objections: prev.objections, syncSuggestion: prev.syncSuggestion } : EMPTY_DEAL_LEADGEN;

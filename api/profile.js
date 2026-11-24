@@ -653,6 +653,10 @@ function researchLines(dr) {
   return out;
 }
 
+// core/research-map.ts
+var EMAIL_RE2 = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+var PHONE_RE = /^\+?[\d\s()-]{7,20}$/;
+
 // core/salesflow-state.ts
 var FLOW_ORG_EVENTS = ["crm.action_skip", "crm.autopilot", "crm.autofind"];
 var FLOW_DEAL_EVENTS = ["crm.onboarding", "crm.onboarding_step", "crm.account", "crm.customer_sent"];
@@ -889,8 +893,6 @@ var DEAL_TIERS = ["High", "Medium", "Low"];
 var EMPTY_PROFILE = { rank: null, niche: "", city: "", website: "", size: "", title: "", dealTier: "", ease: "", whyFit: "", pitch: "", sourceDetail: "", checkFirst: "", painPoints: "", offer: "", angle: "", research: "", address: "" };
 var HISTORY_MAX = 100;
 var CRM_EVENTS = ["crm.contact", "crm.stage", "crm.touch", "crm.note", "crm.qualify", "crm.removed", ...LEADGEN_ORG_EVENTS, ...LEADGEN_DEAL_EVENTS, ...FLOW_ORG_EVENTS, ...FLOW_DEAL_EVENTS, ...RESEARCH_DEAL_EVENTS];
-var EMAIL_RE2 = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-var PHONE_RE = /^\+?[\d\s()-]{7,20}$/;
 var STALE_DAYS2 = 7;
 var NEW_LEAD_HOURS = 48;
 var OPEN = ["lead", "contacted", "qualified", "proposal"];
@@ -950,7 +952,7 @@ function computeCrm(events, now = Date.now()) {
       const c = d.contact;
       const prev = map.get(c.id);
       const summary = String(d.summary ?? "");
-      const what = !prev ? summary.startsWith("Contact imported") ? "Imported from a list" : summary.startsWith("Lead from") ? summary.split(":")[0] : "Added to the CRM" : summary.startsWith("Contact updated from a list") ? "Details filled in from a list" : summary.startsWith("Contact updated by CRM Sync") ? "Details filled in by CRM Sync" : "Details updated";
+      const what = !prev ? summary.startsWith("Contact imported") ? "Imported from a list" : summary.startsWith("Lead from") ? summary.split(":")[0] : "Added to the CRM" : summary.endsWith(" filled from the research") ? `${summary.slice(summary.lastIndexOf(": ") + 2, summary.lastIndexOf(": ") + 3).toUpperCase()}${summary.slice(summary.lastIndexOf(": ") + 3)}` : summary.startsWith("Contact updated from a list") ? "Details filled in from a list" : summary.startsWith("Contact updated by CRM Sync") ? "Details filled in by CRM Sync" : "Details updated";
       const history = addHistory(prev?.history ?? [], { at: e.at, by: e.actor, kind: "update", text: what });
       const lg = prev ? { leadScore: prev.leadScore, sequence: prev.sequence, objections: prev.objections, syncSuggestion: prev.syncSuggestion } : EMPTY_DEAL_LEADGEN;
       const dr = prev ? { researchReport: prev.researchReport, proposal: prev.proposal } : EMPTY_DEAL_RESEARCH;

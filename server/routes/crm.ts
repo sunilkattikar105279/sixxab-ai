@@ -33,7 +33,20 @@ export const GET = handle(async (request) => {
 interface Body {
   action?: string; contact?: ContactInput; contactId?: string; stage?: DealStage; note?: string; kind?: string; csv?: string; meddic?: unknown; callNotes?: string; filters?: ApolloFilters; people?: ApolloPerson[];
   icp?: Record<string, unknown>; icpId?: string; notes?: string; batchId?: string; add?: string[]; dismiss?: string[]; index?: number;
-  key?: string; on?: boolean; edit?: Record<string, unknown>; json?: string;
+  key?: string; on?: boolean; edit?: Record<string, unknown>; json?: string; deals?: unknown; fill?: unknown;
+}
+
+/** The import preview's choices, kept only when they have the right shape: report number to customer id, and to row keys. */
+function importChoices(b: Body): { deals: Record<string, string>; fill: Record<string, string[]> } {
+  const deals: Record<string, string> = {};
+  const fill: Record<string, string[]> = {};
+  if (b.deals && typeof b.deals === 'object' && !Array.isArray(b.deals)) {
+    for (const [k, v] of Object.entries(b.deals as Record<string, unknown>).slice(0, 500)) if (/^\d{1,4}$/.test(k) && typeof v === 'string') deals[k] = v;
+  }
+  if (b.fill && typeof b.fill === 'object' && !Array.isArray(b.fill)) {
+    for (const [k, v] of Object.entries(b.fill as Record<string, unknown>).slice(0, 500)) if (/^\d{1,4}$/.test(k) && Array.isArray(v)) fill[k] = v.filter((x): x is string => typeof x === 'string').slice(0, 20);
+  }
+  return { deals, fill };
 }
 
 export const POST = handle(async (request) => {
@@ -88,7 +101,7 @@ export const POST = handle(async (request) => {
       case 'autopilot': await setAutopilot(store, orgId, Boolean(b.on), label); return json({ crm: await crmView(store, orgId) });
       case 'autofind': await setAutofind(store, orgId, Boolean(b.on), label); return json({ crm: await crmView(store, orgId) });
       // Research and proposals: the owner adds a checked detail, edits the proposal, or marks it sent.
-      case 'import_research': return json({ ...(await importResearch(store, orgId, String(b.json ?? ''), label)), crm: await crmView(store, orgId) });
+      case 'import_research': return json({ ...(await importResearch(store, orgId, String(b.json ?? ''), label, importChoices(b))), crm: await crmView(store, orgId) });
       case 'research_use': await useResearchField(store, orgId, id, Number(b.index), label); return json({ crm: await crmView(store, orgId) });
       case 'proposal_edit': await editProposal(store, orgId, id, b.edit ?? {}, label); return json({ crm: await crmView(store, orgId) });
       case 'proposal_sent': await markProposalSent(store, orgId, id, label); return json({ crm: await crmView(store, orgId) });
