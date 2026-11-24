@@ -99,7 +99,15 @@ export class SupabaseStore implements Store {
   }
   async listAuditByActions(orgId: string, actions: string[]) {
     const list = actions.map((a) => `"${a.replace(/[^a-z_.]/gi, '')}"`).join(',');
-    return (await this.req(`audit_log?org_id=eq.${orgId}&action=in.(${encodeURIComponent(list)})&order=at.asc&limit=2000`)).map((r) => fromRow<AuditEvent>(r));
+    // The API returns at most 1,000 rows per request, so read page by page: oldest first, newest never dropped.
+    const PAGE = 1000;
+    const rows: Row[] = [];
+    for (let offset = 0; offset < 20 * PAGE; offset += PAGE) {
+      const page = await this.req(`audit_log?org_id=eq.${orgId}&action=in.(${encodeURIComponent(list)})&order=at.asc,id.asc&limit=${PAGE}&offset=${offset}`);
+      rows.push(...page);
+      if (page.length < PAGE) break;
+    }
+    return rows.map((r) => fromRow<AuditEvent>(r));
   }
   async addFeedback(f: Feedback) {
     await this.req('feedback', { method: 'POST', body: JSON.stringify(toRow(f)), headers: { prefer: 'return=minimal' } });

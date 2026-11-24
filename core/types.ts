@@ -25,6 +25,8 @@ export interface RoleCard {
   usesModel: boolean;
   /** A safe first task the owner can run from the Agents tab (and the admin proof run uses). */
   starter?: string;
+  /** Model turns allowed per task (default 8); agents that save onto many deals need a few more. */
+  maxTurns?: number;
 }
 
 /** Risk class drives defaults: money and external actions never start above L1/L2. */

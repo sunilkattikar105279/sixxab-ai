@@ -213,5 +213,20 @@ th { color: var(--sub); font-weight: 500; font-size: 12px; text-transform: upper
 .history { list-style: none; padding: 0; margin: 12px 0 0; display: flex; flex-direction: column; gap: 10px; }
 .history li { padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,0.03); }
 .history li p { margin: 4px 0 0; }
+/* Lead generation: ICPs, prospects waiting for a yes, outreach sequences. */
+.icp-card { padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,0.03); }
+.icp-card summary { cursor: pointer; }
+.icp-card .lead-facts { margin-top: 10px; }
+.prospect-batch { padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; }
+.prospects { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.prospects li { padding: 8px 0; border-bottom: 1px solid var(--line); }
+.prospects li:last-child { border-bottom: 0; }
+.row-start { display: flex; align-items: flex-start; gap: 10px; }
+.row-start input[type="checkbox"] { margin-top: 4px; min-width: 18px; min-height: 18px; }
+.stack-xs { display: flex; flex-direction: column; gap: 3px; min-width: 0; overflow-wrap: anywhere; }
+.sequence { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.sequence li { padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,0.03); }
+.sequence li.sent { opacity: 0.7; }
+.sequence li p { margin: 4px 0 0; }
 .board-open { background: none; border: 0; padding: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 2px; width: 100%; }
 .board-open:hover strong, .board-open:focus-visible strong { color: var(--gold); text-decoration: underline; }

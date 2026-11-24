@@ -5,6 +5,8 @@ import { money } from './AgentRun';
 import { DealPanel } from './DealPanel';
 import { fileToCsv } from '../lib/sheet';
 import type { Meddic } from '../../core/gtm';
+import type { LeadScore, ObjectionPlay, Sequence, SyncSuggestion } from '../../core/leadgen-state';
+import { DealAgents, gradeTone } from './DealAgents';
 
 export interface HistoryItem { at: string; by: string; kind: string; text: string }
 export interface LeadProfile {
@@ -14,6 +16,8 @@ export interface LeadProfile {
 export interface Contact extends LeadProfile {
   id: string; name: string; company: string; email: string; phone: string; source: string; value: number; nextStep: string; notes: string;
   stage: string; lastTouch: string | null; createdAt: string; meddic: Meddic | null; callNotes: string; score: number | null; apolloId?: string; history?: HistoryItem[];
+  /** Saved by the lead agents. */
+  leadScore?: LeadScore | null; sequence?: Sequence | null; objections?: ObjectionPlay[]; syncSuggestion?: SyncSuggestion | null;
 }
 
 export const STAGES = ['lead', 'contacted', 'qualified', 'proposal', 'won', 'lost'];
@@ -22,7 +26,7 @@ const STAGE_LABEL: Record<string, string> = { lead: 'New lead', contacted: 'Cont
 export const stageName = (s: string) => STAGE_LABEL[s] ?? s;
 export const webHref = (w: string) => (/^https?:\/\//i.test(w) ? w : `https://${w}`);
 const SOURCES = ['website', 'referral', 'linkedin', 'whatsapp', 'walk-in', 'event', 'apollo', 'web-search', 'other'];
-const KIND_LABEL: Record<string, string> = { note: 'Note', call: 'Call', email: 'Email', meeting: 'Meeting', research: 'Research', stage: 'Stage', update: 'Update', qualify: 'Qualified', touch: 'Touch' };
+const KIND_LABEL: Record<string, string> = { note: 'Note', call: 'Call', email: 'Email', meeting: 'Meeting', research: 'Research', stage: 'Stage', update: 'Update', qualify: 'Qualified', touch: 'Touch', score: 'Lead score', sequence: 'Outreach', objection: 'Objection', sync: 'CRM Sync', agent: 'Agent' };
 const when = (iso: string) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }); };
 
 type Post = (k: string, b: Record<string, unknown>) => Promise<boolean>;
@@ -44,7 +48,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   return <div><dt>{label}</dt><dd>{children}</dd></div>;
 }
 
-export function CustomerPage({ c, busy, msg, post, back, goApprovals }: { c: Contact; busy: boolean; msg: string | null; post: Post; back: () => void; goApprovals: () => void }) {
+export function CustomerPage({ c, busy, msg, post, back, goApprovals, reload }: { c: Contact; busy: boolean; msg: string | null; post: Post; back: () => void; goApprovals: () => void; reload: () => void }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Form>(() => toForm(c));
   const [kind, setKind] = useState('note');
@@ -76,7 +80,9 @@ export function CustomerPage({ c, busy, msg, post, back, goApprovals }: { c: Con
           {c.value > 0 && <span className="pill">{money(c.value)}</span>}
           {c.dealTier && <span className="pill">Deal {c.dealTier}</span>}
           {c.ease && <span className="pill">Win {c.ease}</span>}
+          {c.leadScore && <span className={`pill ${gradeTone(c.leadScore.grade)}`}>Lead score {c.leadScore.score} · {c.leadScore.grade}</span>}
           {c.score != null && <span className="pill">MEDDIC {c.score}%</span>}
+          {c.syncSuggestion && <span className="pill pill-awaiting_approval">CRM Sync suggests {stageName(c.syncSuggestion.stage)}</span>}
         </div>
         <div className="row-wrap">
           <label className="field inline"><span>Stage</span>
@@ -171,9 +177,11 @@ export function CustomerPage({ c, busy, msg, post, back, goApprovals }: { c: Con
         )}
       </section>
 
+      <DealAgents c={c} busy={busy} post={post} reload={reload} goApprovals={goApprovals} />
+
       <section className="panel glass-card">
         <h3>Sell</h3>
-        <DealPanel c={c} busy={busy} post={post} goApprovals={goApprovals} />
+        <DealPanel c={c} busy={busy} post={post} goApprovals={goApprovals} reload={reload} />
       </section>
     </div>
   );

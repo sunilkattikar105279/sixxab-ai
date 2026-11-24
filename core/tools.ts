@@ -2,6 +2,7 @@
 // and the autonomy policy decides whether it runs, waits for approval, or becomes a draft.
 import type { Memory, RoleCard, Task, ToolSpec } from './types.js';
 import { newId, nowIso, type Store } from './store.js';
+import { LEADGEN_TOOLS } from './leadgen-tools.js';
 
 /** Formats minor units (cents, paise) as money for people: 5000 USD → $50.00. */
 export function formatMoney(amountMinor: number, currency: string): string {
@@ -32,7 +33,7 @@ export interface ToolContext {
 
 export interface Tool {
   spec: ToolSpec;
-  /** Undefined = read-only, always allowed. */
+  /** Undefined = always allowed: reads, or CRM writes that send nothing to anyone (still audited). */
   taskType?: string;
   /** Human-readable one-liner for the approvals inbox. */
   summarize(input: Record<string, unknown>): string;
@@ -204,6 +205,8 @@ export const TOOLS: Record<string, Tool> = {
       return ctx.integrations.dispatch('spend_money', { amountMinor: amount, currency: field(i, 'currency', 3), purpose: field(i, 'purpose', 300), payee: field(i, 'payee', 200) });
     },
   },
+  // Lead generation: read the CRM and save drafts, scores and suggestions onto it (nothing is sent).
+  ...LEADGEN_TOOLS,
 };
 
 /** Claude's own web search, for agents whose role card lists "web_search" ($10 per 1,000 searches). */

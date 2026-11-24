@@ -1,8 +1,9 @@
 // CRM for the signed-in business. GET /api/crm → contacts, pipeline, totals and the follow-up goal.
-// POST /api/crm { action: contact | stage | touch | note | qualify | remove | import, ... }
+// POST /api/crm { action: contact | stage | touch | note | qualify | remove | import | icp_* | prospects_decide | sequence_sent | sync_*, ... }
 import { addNote, importApolloPeople, importContacts, loadCrm, logTouch, qualifyDeal, removeContact, setContactEmail, setDealStage, upsertContact, type ContactInput, type DealStage } from '../../core/crm.js';
 import { apolloEnrich, apolloSearch, type ApolloFilters, type ApolloPerson } from '../../core/apollo.js';
 import { isAdmin } from '../../core/automation.js';
+import { decideProspects, dismissSync, markStepSent, removeIcp, saveIcp, saveIcpNotes } from '../../core/leadgen.js';
 import { newId, nowIso } from '../../core/store.js';
 import { handle, HttpError, json, readJson, requireUser } from '../context.js';
 
@@ -14,7 +15,10 @@ export const GET = handle(async (request) => {
   return json({ crm: await loadCrm(store, orgId), apollo: Boolean(apolloFor(label)) });
 });
 
-interface Body { action?: string; contact?: ContactInput; contactId?: string; stage?: DealStage; note?: string; kind?: string; csv?: string; meddic?: unknown; callNotes?: string; filters?: ApolloFilters; people?: ApolloPerson[] }
+interface Body {
+  action?: string; contact?: ContactInput; contactId?: string; stage?: DealStage; note?: string; kind?: string; csv?: string; meddic?: unknown; callNotes?: string; filters?: ApolloFilters; people?: ApolloPerson[];
+  icp?: Record<string, unknown>; icpId?: string; notes?: string; batchId?: string; add?: string[]; dismiss?: string[]; index?: number;
+}
 
 export const POST = handle(async (request) => {
   const { orgId, label, store } = await requireUser(request);
@@ -48,6 +52,18 @@ export const POST = handle(async (request) => {
         return json({ crm: await setContactEmail(store, orgId, id, r.email, label), found: true, status: r.status });
       }
       case 'import': return json({ ...(await importContacts(store, orgId, String(b.csv ?? ''), label)), crm: await loadCrm(store, orgId) });
+      // Lead generation: the owner's side of the agents' work. Nothing here contacts anyone.
+      case 'icp_notes': await saveIcpNotes(store, orgId, String(b.notes ?? ''), label); return json({ crm: await loadCrm(store, orgId) });
+      case 'icp_save': await saveIcp(store, orgId, b.icp ?? {}, label); return json({ crm: await loadCrm(store, orgId) });
+      case 'icp_remove': await removeIcp(store, orgId, String(b.icpId ?? ''), label); return json({ crm: await loadCrm(store, orgId) });
+      case 'prospects_decide': return json({ ...(await decideProspects(store, orgId, String(b.batchId ?? ''), b.add ?? [], b.dismiss ?? [], label)), crm: await loadCrm(store, orgId) });
+      case 'sequence_sent': await markStepSent(store, orgId, id, Number(b.index), label); return json({ crm: await loadCrm(store, orgId) });
+      case 'sync_dismiss': await dismissSync(store, orgId, id, label); return json({ crm: await loadCrm(store, orgId) });
+      case 'sync_apply': {
+        const c = (await loadCrm(store, orgId)).contacts.find((x) => x.id === id);
+        if (!c?.syncSuggestion) throw new HttpError(404, 'That suggestion is no longer there');
+        return json({ crm: await setDealStage(store, orgId, id, c.syncSuggestion.stage as DealStage, label) });
+      }
       default: throw new HttpError(400, 'Unknown action');
     }
   } catch (e) {

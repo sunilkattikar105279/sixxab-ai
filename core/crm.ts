@@ -3,6 +3,7 @@
 import { newId, nowIso, type Store } from './store.js';
 import type { AuditEvent } from './types.js';
 import { cleanMeddic, scoreMeddic, type Meddic } from './gtm.js';
+import { applyDealEvent, computeLeadgen, crmIssues, EMPTY_DEAL_LEADGEN, LEADGEN_DEAL_EVENTS, LEADGEN_ORG_EVENTS, type CrmIssue, type DealLeadgen, type Icp, type IcpNotes, type ProspectBatch } from './leadgen-state.js';
 
 export const DEAL_STAGES = ['lead', 'contacted', 'qualified', 'proposal', 'won', 'lost'] as const;
 export const SOURCES = ['website', 'referral', 'linkedin', 'whatsapp', 'walk-in', 'event', 'apollo', 'web-search', 'other'] as const;
@@ -30,7 +31,7 @@ export interface ContactInput extends Partial<Omit<LeadProfile, 'rank' | 'dealTi
   id?: string; name: string; company?: string; email?: string; phone?: string; source?: string; value?: number | string; nextStep?: string; notes?: string; apolloId?: string;
   rank?: number | string | null; dealTier?: string; ease?: string;
 }
-export interface Contact extends LeadProfile {
+export interface Contact extends LeadProfile, DealLeadgen {
   id: string; name: string; company: string; email: string; phone: string; source: string; value: number; nextStep: string; notes: string;
   apolloId?: string;
   stage: DealStage; createdAt: string; updatedAt: string; lastTouch: string | null;
@@ -46,9 +47,14 @@ export interface CrmState {
   /** Brand-new leads (48 hours, never contacted, with an email) for the Speed-to-Lead agent. */
   newLeads: number;
   speedGoal: string;
+  /** Lead generation: ideal customer profiles, prospects waiting for a yes, and records CRM Sync would fix. */
+  icps: Icp[];
+  icpNotes: IcpNotes | null;
+  prospectBatches: ProspectBatch[];
+  issues: CrmIssue[];
 }
 
-export const CRM_EVENTS = ['crm.contact', 'crm.stage', 'crm.touch', 'crm.note', 'crm.qualify', 'crm.removed'];
+export const CRM_EVENTS = ['crm.contact', 'crm.stage', 'crm.touch', 'crm.note', 'crm.qualify', 'crm.removed', ...LEADGEN_ORG_EVENTS, ...LEADGEN_DEAL_EVENTS];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^\+?[\d\s()-]{7,20}$/;
 const STALE_DAYS = 7;
@@ -86,12 +92,19 @@ function cleanProfile(i: ContactInput): LeadProfile {
   };
 }
 
-export async function upsertContact(store: Store, orgId: string, input: ContactInput, by: string): Promise<CrmState> {
+export async function upsertContact(store: Store, orgId: string, input: ContactInput, by: string, summary?: string): Promise<CrmState> {
   // Editing keeps whatever the edit did not send (for example an Apollo id), so a short form never wipes research.
   const prev = input.id ? (await loadCrm(store, orgId)).contacts.find((x) => x.id === input.id) : undefined;
   const c = clean(prev ? ({ ...prev, ...input } as ContactInput) : input);
-  await record(store, orgId, by, 'crm.contact', { contact: c, summary: prev ? `Contact updated: ${c.name}` : `Contact saved: ${c.name}` });
+  await record(store, orgId, by, 'crm.contact', { contact: c, summary: summary ?? (prev ? `Contact updated: ${c.name}` : `Contact saved: ${c.name}`) });
   return loadCrm(store, orgId);
+}
+
+/** Records a brand-new contact without reading the CRM first (the caller has already checked it is new). */
+export async function addNewContact(store: Store, orgId: string, input: ContactInput, by: string, summary: string): Promise<string> {
+  const c = clean(input);
+  await record(store, orgId, by, 'crm.contact', { contact: c, summary });
+  return c.id;
 }
 
 export async function setDealStage(store: Store, orgId: string, id: string, stage: DealStage, by: string): Promise<CrmState> {
@@ -312,14 +325,22 @@ export function computeCrm(events: AuditEvent[], now = Date.now()): CrmState {
       const c = d.contact as Omit<Contact, 'stage' | 'createdAt' | 'updatedAt' | 'lastTouch' | 'meddic' | 'callNotes' | 'score'>;
       const prev = map.get(c.id);
       const summary = String(d.summary ?? '');
-      const what = !prev ? (summary.startsWith('Contact imported') ? 'Imported from a list' : 'Added to the CRM') : summary.startsWith('Contact updated from a list') ? 'Details filled in from a list' : 'Details updated';
+      const what = !prev ? (summary.startsWith('Contact imported') ? 'Imported from a list' : summary.startsWith('Lead from') ? summary.split(':')[0] : 'Added to the CRM')
+        : summary.startsWith('Contact updated from a list') ? 'Details filled in from a list' : summary.startsWith('Contact updated by CRM Sync') ? 'Details filled in by CRM Sync' : 'Details updated';
       const history = addHistory(prev?.history ?? [], { at: e.at, by: e.actor, kind: 'update', text: what });
-      map.set(c.id, { ...EMPTY_PROFILE, ...c, stage: prev?.stage ?? 'lead', createdAt: prev?.createdAt ?? e.at, updatedAt: e.at, lastTouch: prev?.lastTouch ?? null, meddic: prev?.meddic ?? null, callNotes: prev?.callNotes ?? '', score: prev?.score ?? null, history });
+      const lg: DealLeadgen = prev ? { leadScore: prev.leadScore, sequence: prev.sequence, objections: prev.objections, syncSuggestion: prev.syncSuggestion } : EMPTY_DEAL_LEADGEN;
+      map.set(c.id, { ...EMPTY_PROFILE, ...c, ...lg, stage: prev?.stage ?? 'lead', createdAt: prev?.createdAt ?? e.at, updatedAt: e.at, lastTouch: prev?.lastTouch ?? null, meddic: prev?.meddic ?? null, callNotes: prev?.callNotes ?? '', score: prev?.score ?? null, history });
+    } else if (LEADGEN_ORG_EVENTS.includes(e.action)) {
+      continue;
     } else {
       const prev = map.get(String(d.contactId));
       if (!prev) continue;
       const log = (kind: string, t: string) => addHistory(prev.history, { at: e.at, by: e.actor, kind, text: t });
-      if (e.action === 'crm.stage') map.set(prev.id, { ...prev, stage: d.stage as DealStage, updatedAt: e.at, lastTouch: e.at, history: log('stage', String(d.stage)) });
+      if (e.action === 'crm.stage') map.set(prev.id, { ...prev, stage: d.stage as DealStage, syncSuggestion: null, updatedAt: e.at, lastTouch: e.at, history: log('stage', String(d.stage)) });
+      else if (LEADGEN_DEAL_EVENTS.includes(e.action)) {
+        const r = applyDealEvent(prev, e, prev.stage);
+        map.set(prev.id, { ...prev, ...r.lg, history: r.history ? log(r.history.kind, r.history.text) : prev.history });
+      }
       else if (e.action === 'crm.touch') map.set(prev.id, { ...prev, updatedAt: e.at, lastTouch: e.at, history: log(String(d.kind ?? 'touch'), String(d.note ?? '') || 'Touched base') });
       else if (e.action === 'crm.note') map.set(prev.id, { ...prev, updatedAt: e.at, history: log(String(d.kind ?? 'note'), String(d.note ?? '')) });
       else if (e.action === 'crm.qualify') { const m = cleanMeddic(d.meddic); const score = scoreMeddic(m).score; map.set(prev.id, { ...prev, meddic: m, callNotes: String(d.callNotes ?? ''), score, updatedAt: e.at, lastTouch: e.at, history: log('qualify', `Qualified: MEDDIC ${score}%${d.callNotes ? `. ${String(d.callNotes).slice(0, 300)}` : ''}`) }); }
@@ -343,6 +364,8 @@ export function computeCrm(events: AuditEvent[], now = Date.now()): CrmState {
     followUpGoal: followUpGoal(stale.slice(0, 10)),
     newLeads: fresh.length,
     speedGoal: speedGoal(fresh.slice(0, 10)),
+    ...computeLeadgen(events),
+    issues: crmIssues(contacts, now),
   };
 }
 
@@ -351,9 +374,9 @@ function speedGoal(list: Contact[]): string {
   return `These leads are new and have not heard from us yet. Write one short first reply to each and queue it with send_message (channel "email"): thank them, answer what they asked if the notes say, and offer one clear next step such as a call time. Under 90 words each. Each email waits for the owner's approval.\n${list.map((c) => `- ${c.name}${c.company ? ` (${c.company})` : ''} <${c.email}>, came from ${c.source}${c.notes ? `, notes: ${c.notes.slice(0, 300)}` : ''}`).join('\n')}`;
 }
 
-/** The Lead Finder's goal for a search the owner describes. */
+/** The Prospect Generator's goal for a search the owner describes (no saved ICP needed). */
 export function leadSearchGoal(query: string): string {
-  return `Find up to 10 businesses that match: "${query.slice(0, 300)}". Use web search. For each: business name, city, website, public business phone or email if listed, and why it fits, with the page you found it on. Save the list as a note titled "Leads: ${query.slice(0, 60)}" with the rows also as CSV lines (name,company,email,phone,source,value) ready to import into the CRM; leave a field empty when it is not published.`;
+  return `Find up to 10 businesses that match: "${query.slice(0, 300)}". First read who is already in the CRM (read_crm view "existing") and skip them. Use web search. For each: business name, decision maker and title only if a page states them, city, website, public business phone or email if listed, why it fits, and the page you found it on; leave a field empty when it is not published. Then call propose_prospects once with all of them; the owner picks which ones become leads.`;
 }
 
 function followUpGoal(list: Contact[]): string {

@@ -5,6 +5,7 @@ import { planGoal, settleParent } from '../../core/orchestrator.js';
 import { createTask, runTask } from '../../core/runtime.js';
 import { autonomyProgress } from '../../core/learning.js';
 import { costSummary } from '../../core/cost.js';
+import { logAgentRun } from '../../core/leadgen.js';
 import { depsFor, handle, HttpError, json, readJson, requireUser } from '../context.js';
 
 export const GET = handle(async (request) => {
@@ -23,12 +24,12 @@ export const GET = handle(async (request) => {
  * POST /api/agents
  *   { goal }            → plan the goal; returns the steps (each a planned task). Fast.
  *   { taskId }          → run one planned step; returns its result and how many items it queued for approval.
- *   { goal, agentId }   → run one agent directly on a goal.
+ *   { goal, agentId }   → run one agent directly on a goal ({ contactId } too: logs the run in that deal's history).
  * Steps run one request at a time so no single request nears the function time limit.
  */
 export const POST = handle(async (request) => {
   const { orgId, label, store } = await requireUser(request);
-  const body = await readJson<{ goal?: string; agentId?: string; taskId?: string }>(request);
+  const body = await readJson<{ goal?: string; agentId?: string; taskId?: string; contactId?: string }>(request);
   const d = await depsFor(store, orgId, label);
 
   if (body.taskId) {
@@ -54,6 +55,9 @@ export const POST = handle(async (request) => {
     if (!agent || !agent.usesModel || agent.layer === 'core') throw new HttpError(400, 'Unknown agent');
     const task = await createTask(store, orgId, agent.id, goal);
     const run = await runTask(d, task.id);
+    // CRM Sync: a run started from a deal leaves a line in that deal's history.
+    const contactId = typeof body.contactId === 'string' && /^[\w-]{6,64}$/.test(body.contactId) ? body.contactId : '';
+    if (contactId) await logAgentRun(store, orgId, contactId, agent.name, run.task.status, run.task.output, run.approvals?.length ?? 0).catch(() => false);
     return json({ taskId: task.id, agentId: agent.id, status: run.task.status, output: run.task.output, queued: run.approvals?.length ?? 0 });
   }
   const planned = await planGoal(d, orgId, goal);

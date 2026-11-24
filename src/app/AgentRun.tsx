@@ -5,9 +5,15 @@ import { Rate } from './Rate';
 import { Spinner } from './ui';
 
 interface RunResult { taskId: string; status: string; output: string | null; queued: number }
-interface Props { agentId: string; goal: string; label: string; emptyText: string; goApprovals: () => void; extra?: (output: string) => React.ReactNode }
+interface Props {
+  agentId: string; goal: string; label: string; emptyText: string; goApprovals: () => void; extra?: (output: string) => React.ReactNode;
+  /** The deal this run is for: the run is logged in its history. */
+  contactId?: string;
+  /** Called after the run, e.g. to reload what the agent saved onto the CRM. */
+  onDone?: () => void;
+}
 
-export function AgentRun({ agentId, goal, label, emptyText, goApprovals, extra }: Props) {
+export function AgentRun({ agentId, goal, label, emptyText, goApprovals, extra, contactId, onDone }: Props) {
   const [busy, setBusy] = useState(false);
   const [run, setRun] = useState<RunResult | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -17,7 +23,8 @@ export function AgentRun({ agentId, goal, label, emptyText, goApprovals, extra }
     setMsg(null);
     setRun(null);
     try {
-      setRun(await api<RunResult>('/api/agents', { method: 'POST', body: JSON.stringify({ goal, agentId }) }));
+      setRun(await api<RunResult>('/api/agents', { method: 'POST', body: JSON.stringify(contactId ? { goal, agentId, contactId } : { goal, agentId }) }));
+      onDone?.();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : 'The agent could not run.');
     } finally {

@@ -1,20 +1,18 @@
-// CRM tab: pipeline board, contacts and deals by stage with their lead research, CSV import and agent follow-ups.
+// CRM tab: pipeline board, contacts and deals by stage with their lead research, CSV import, the lead
+// generation agents (ICP, prospects, scoring, outreach drafts, CRM Sync) and agent follow-ups.
 import React, { useState } from 'react';
 import { Spinner } from './ui';
 import { useLoad } from './useLoad';
 import { AgentRun, money, usePost } from './AgentRun';
 import { DealPanel } from './DealPanel';
 import { pipelineReviewGoal, type Meddic } from '../../core/gtm';
-import { leadSearchGoal } from '../../core/crm';
 import { ApolloSearch } from './ApolloSearch';
 import { api } from '../lib/auth';
 import { fileToCsv } from '../lib/sheet';
 import { CustomerPage, STAGES, stageName, webHref, type Contact } from './Customer';
+import { LeadAgents, type LeadgenState } from './LeadAgents';
 
-/** CSV lead rows (name,company,email,phone,source,value) found in an agent's output. */
-const leadRows = (out: string) => out.split(/\r?\n/).map((l) => l.trim().replace(/^[-*]\s*/, '')).filter((l) => l.split(',').length === 6 && !/^name\s*,/i.test(l));
-
-interface CrmState { contacts: Contact[]; pipeline: Record<string, number>; totals: { open: number; openValue: number; won: number; wonValue: number; winRate: number | null; followUps: number }; followUpGoal: string; newLeads?: number; speedGoal?: string }
+interface CrmState extends LeadgenState { contacts: Contact[]; pipeline: Record<string, number>; totals: { open: number; openValue: number; won: number; wonValue: number; winRate: number | null; followUps: number }; followUpGoal: string; newLeads?: number; speedGoal?: string }
 
 /** Everything the lead research recorded about a business, shown when a deal is opened. */
 export function LeadDetails({ c }: { c: Contact }) {
@@ -51,6 +49,7 @@ export function Board({ contacts, busy, move, open }: { contacts: Contact[]; bus
                     {c.company && c.name !== c.company ? <span className="small">{c.name}</span> : null}
                     {(c.niche || c.city) && <span className="muted small">{[c.niche, c.city].filter(Boolean).join(' · ')}</span>}
                     {(c.dealTier || c.ease || c.value > 0) && <span className="muted small">{[c.value > 0 && money(c.value), c.dealTier && `Deal ${c.dealTier}`, c.ease && `Win ${c.ease}`].filter(Boolean).join(' · ')}</span>}
+                    {(c.leadScore || c.sequence) && <span className="muted small">{[c.leadScore && `Score ${c.leadScore.score} ${c.leadScore.grade}`, c.sequence && `Outreach ${c.sequence.steps.filter((x) => x.sentAt).length}/${c.sequence.steps.length} sent`].filter(Boolean).join(' · ')}</span>}
                     <span className="muted small">Tap to open the full record</span>
                   </button>
                   <select aria-label={`Move ${c.name}`} value={c.stage} disabled={busy} onChange={(e) => move(c, e.target.value)}>{STAGES.map((x) => <option key={x} value={x}>{stageName(x)}</option>)}</select>
@@ -74,7 +73,6 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
   const [csv, setCsv] = useState('');
   const [filter, setFilter] = useState('open');
   const [openId, setOpenId] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [fileName, setFileName] = useState('');
@@ -101,7 +99,7 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
   const t = crm.totals;
   const customer = customerId ? crm.contacts.find((c) => c.id === customerId) : undefined;
   const openCustomer = (c: Contact) => { setCustomerId(c.id); window.scrollTo?.({ top: 0 }); };
-  if (customer) return <CustomerPage key={customer.id} c={customer} busy={!!busy} msg={msg} post={post} back={() => setCustomerId(null)} goApprovals={goApprovals} />;
+  if (customer) return <CustomerPage key={customer.id} c={customer} busy={!!busy} msg={msg} post={post} back={() => setCustomerId(null)} goApprovals={goApprovals} reload={reload} />;
   const shown = crm.contacts.filter((c) => (filter === 'open' ? !['won', 'lost'].includes(c.stage) : filter === 'all' ? true : c.stage === filter));
 
   return (
@@ -134,14 +132,11 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
 
       {data.apollo && <ApolloSearch onImported={reload} />}
 
+      <LeadAgents crm={crm} busy={!!busy} post={post} reload={reload} goApprovals={goApprovals} />
+
       <section className="panel glass-card">
-        <p className="eyebrow">New business · Lead Finder and Speed-to-Lead</p>
-        <h2>Find and answer leads</h2>
-        <label className="field"><span>Who should the Lead Finder look for?</span>
-          <input aria-label="Lead search" value={search} maxLength={300} onChange={(e) => setSearch(e.target.value)} placeholder="e.g. physiotherapy clinics in Pune with a website" />
-        </label>
-        <AgentRun agentId="lead-finder" goal={search.trim() ? leadSearchGoal(search.trim()) : ''} label="Find leads" emptyText="Describe the businesses to find. Found businesses can be imported with one click." goApprovals={goApprovals}
-          extra={(out) => { const rows = leadRows(out); return rows.length ? <div className="row-end"><button type="button" className="btn-primary" disabled={!!busy || importing} onClick={() => importCsv(rows.map((r) => r.replace(/^((?:[^,]*,){4})[^,]*/, '$1web-search')).join('\n'))}>Import {rows.length} lead{rows.length === 1 ? '' : 's'} into the CRM</button></div> : null; }} />
+        <p className="eyebrow">New business · Speed-to-Lead</p>
+        <h2>Answer new leads</h2>
         <AgentRun agentId="speed-to-lead" goal={crm.speedGoal ?? ''} label={`Reply to ${crm.newLeads ?? 0} new lead${crm.newLeads === 1 ? '' : 's'}`} emptyText="No new leads from the last 48 hours are waiting for a first reply." goApprovals={goApprovals} />
       </section>
 
@@ -198,7 +193,7 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
               <tbody>{shown.map((c) => (
                 <React.Fragment key={c.id}>
                 <tr>
-                  <td><strong>{c.name}</strong>{c.company && c.company !== c.name ? <span className="muted small"> · {c.company}</span> : null}<br /><span className="muted small">{[c.niche, c.city].filter(Boolean).join(' · ') || c.email || c.phone || c.source}</span></td>
+                  <td><strong>{c.name}</strong>{c.company && c.company !== c.name ? <span className="muted small"> · {c.company}</span> : null}<br /><span className="muted small">{[c.leadScore && `Score ${c.leadScore.score} ${c.leadScore.grade}`, [c.niche, c.city].filter(Boolean).join(' · ') || c.email || c.phone || c.source].filter(Boolean).join(' · ')}</span></td>
                   <td>{c.value ? money(c.value) : '—'}</td>
                   <td><select aria-label={`Stage for ${c.name}`} value={c.stage} disabled={!!busy} onChange={(e) => post(c.id, { action: 'stage', contactId: c.id, stage: e.target.value })}>{STAGES.map((s) => <option key={s} value={s}>{stageName(s)}</option>)}</select></td>
                   <td>{c.score == null ? <span className="muted small">—</span> : `${c.score}%`}</td>
@@ -212,7 +207,7 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
                     <button type="button" className="btn-mini" disabled={!!busy} onClick={() => post(c.id, { action: 'remove', contactId: c.id })}>Remove</button>
                   </td>
                 </tr>
-                {openId === c.id && <tr><td colSpan={7}><LeadDetails c={c} /><DealPanel c={c} busy={!!busy} post={post} goApprovals={goApprovals} /></td></tr>}
+                {openId === c.id && <tr><td colSpan={7}><LeadDetails c={c} /><DealPanel c={c} busy={!!busy} post={post} goApprovals={goApprovals} reload={reload} /></td></tr>}
                 </React.Fragment>
               ))}</tbody>
             </table>

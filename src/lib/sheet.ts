@@ -1,6 +1,6 @@
-// Turns the first sheet of an Excel workbook (.xlsx) into CSV text, in the browser, with no library.
-// An .xlsx file is a zip; we read its directory, inflate the shared strings and the first worksheet,
-// and pick the cell values out of the XML.
+// Turns an Excel workbook (.xlsx) into CSV text, in the browser, with no library: the first sheet for
+// imports, or every sheet by name for notes. An .xlsx file is a zip; we read its directory, inflate the
+// shared strings and the worksheets, and pick the cell values out of the XML.
 
 async function inflate(data: Uint8Array): Promise<Uint8Array> {
   const stream = new Blob([data as BlobPart]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
@@ -53,18 +53,16 @@ function colIndex(ref: string): number {
 
 const csvCell = (v: string) => (/[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
 
-export async function xlsxToCsv(buf: ArrayBuffer): Promise<string> {
-  const files = await unzip(buf);
+async function sharedStrings(files: Map<string, () => Promise<string>>): Promise<string[]> {
   const shared: string[] = [];
   const ss = files.get('xl/sharedStrings.xml');
   if (ss) for (const m of (await ss()).matchAll(/<si>([\s\S]*?)<\/si>/g)) shared.push(textOf(m[1]));
-  const sheetName = files.has('xl/worksheets/sheet1.xml')
-    ? 'xl/worksheets/sheet1.xml'
-    : [...files.keys()].filter((k) => /^xl\/worksheets\/[^/]+\.xml$/.test(k)).sort()[0];
-  const sheet = sheetName ? files.get(sheetName) : undefined;
-  if (!sheet) throw new Error('No sheet found in this workbook.');
+  return shared;
+}
+
+function sheetToCsv(xml: string, shared: string[]): string {
   const lines: string[] = [];
-  for (const row of (await sheet()).matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>/g)) {
+  for (const row of xml.matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>/g)) {
     const cells: string[] = [];
     for (const c of row[1].matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
       const attrs = c[1];
@@ -83,6 +81,50 @@ export async function xlsxToCsv(buf: ArrayBuffer): Promise<string> {
     if (cells.some((x) => x.trim())) lines.push(cells.map(csvCell).join(','));
   }
   return lines.join('\n');
+}
+
+export async function xlsxToCsv(buf: ArrayBuffer): Promise<string> {
+  const files = await unzip(buf);
+  const shared = await sharedStrings(files);
+  const sheetName = files.has('xl/worksheets/sheet1.xml')
+    ? 'xl/worksheets/sheet1.xml'
+    : [...files.keys()].filter((k) => /^xl\/worksheets\/[^/]+\.xml$/.test(k)).sort()[0];
+  const sheet = sheetName ? files.get(sheetName) : undefined;
+  if (!sheet) throw new Error('No sheet found in this workbook.');
+  return sheetToCsv(await sheet(), shared);
+}
+
+/** Every sheet of a workbook, in tab order, with its tab name. */
+export async function xlsxSheets(buf: ArrayBuffer): Promise<{ name: string; csv: string }[]> {
+  const files = await unzip(buf);
+  const shared = await sharedStrings(files);
+  const book = files.get('xl/workbook.xml');
+  const rels = files.get('xl/_rels/workbook.xml.rels');
+  const targets = new Map<string, string>();
+  if (rels) for (const m of (await rels()).matchAll(/<Relationship\b([^>]*)\/?>/g)) {
+    const id = /\bId="([^"]+)"/.exec(m[1])?.[1];
+    const target = /\bTarget="([^"]+)"/.exec(m[1])?.[1];
+    if (id && target) targets.set(id, target.replace(/^\/?(xl\/)?/, 'xl/'));
+  }
+  const out: { name: string; csv: string }[] = [];
+  if (book) for (const m of (await book()).matchAll(/<sheet\b([^>]*)\/?>/g)) {
+    const name = unescapeXml(/\bname="([^"]*)"/.exec(m[1])?.[1] ?? '');
+    const rid = /\br:id="([^"]+)"/.exec(m[1])?.[1] ?? '';
+    const file = files.get(targets.get(rid) ?? '');
+    if (file) out.push({ name: name || `Sheet ${out.length + 1}`, csv: sheetToCsv(await file(), shared) });
+  }
+  if (!out.length) return [{ name: 'Sheet 1', csv: await xlsxToCsv(buf) }];
+  return out;
+}
+
+/** Reads a file as plain text for notes; a workbook gives every sheet under its own heading. */
+export async function fileToText(file: File, firstSheets?: RegExp): Promise<string> {
+  const buf = await file.arrayBuffer();
+  const head = new Uint8Array(buf.slice(0, 4));
+  if (!(head[0] === 0x50 && head[1] === 0x4b)) return fileToCsv(file);
+  const sheets = await xlsxSheets(buf);
+  if (firstSheets) sheets.sort((a, b) => Number(firstSheets.test(b.name)) - Number(firstSheets.test(a.name)));
+  return sheets.filter((x) => x.csv.trim()).map((x) => `## Sheet: ${x.name}\n${x.csv}`).join('\n\n');
 }
 
 /** Reads a picked file as CSV text: Excel workbooks are converted, anything else is read as text. */

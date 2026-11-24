@@ -156,7 +156,7 @@ export async function runTask(deps: RuntimeDeps, taskId: string): Promise<RunRes
   if (!agent || !agent.usesModel) throw new Error(`Agent ${task.agentId} cannot run tasks`);
   const types = new Map((await deps.store.getTaskTypes(task.orgId)).map((t) => [t.key, t]));
   const tools = [...toolsFor(agent).map((t) => t.spec), ...(agent.tools.includes('web_search') ? [WEB_SEARCH_TOOL] : [])];
-  const maxTurns = deps.maxTurns ?? 8;
+  const maxTurns = deps.maxTurns ?? agent.maxTurns ?? 8;
   const queued: Approval[] = [];
 
   task = await deps.store.updateTask(task.id, { status: 'running' });

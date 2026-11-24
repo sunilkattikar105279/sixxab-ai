@@ -34,27 +34,33 @@ export function cleanMeddic(input: unknown): Meddic {
 }
 
 export interface DealContext {
+  /** The CRM record id, so agents can save their work onto this deal. */
+  id?: string;
   name: string; company?: string; email?: string; stage: string; value?: number; source?: string;
   nextStep?: string; notes?: string; meddic?: Partial<Meddic> | null; callNotes?: string;
   niche?: string; city?: string; website?: string; size?: string; title?: string; dealTier?: string; ease?: string;
-  whyFit?: string; pitch?: string; checkFirst?: string;
+  whyFit?: string; pitch?: string; checkFirst?: string; painPoints?: string; offer?: string; angle?: string;
 }
 
 const RULES = 'Use only what is written here and in the business profile; never invent facts about the person or their company, and mark anything unknown as "unknown". Keep it short enough to read in two minutes.';
 
-function dealLines(d: DealContext): string {
+export function dealLines(d: DealContext): string {
   const s = scoreMeddic(d.meddic);
   const ev = { ...EMPTY_MEDDIC, ...(d.meddic ?? {}) };
   return [
+    d.id ? `CRM deal id: ${d.id}` : '',
     `Deal: ${d.name}${d.company ? ` at ${d.company}` : ''}; stage ${d.stage}${d.value ? `; value ${d.value}` : ''}${d.source ? `; came from ${d.source}` : ''}.`,
     [d.title && `Their role: ${d.title}`, d.niche && `Business: ${d.niche}`, d.city && `Where: ${d.city}`, d.website && `Website: ${d.website}`, d.size && `Size: ${d.size}`, d.dealTier && `Deal size: ${d.dealTier}`, d.ease && `Ease of win: ${d.ease}`].filter(Boolean).join('; '),
-    d.whyFit ? `Why they fit (our research): ${d.whyFit.slice(0, 800)}` : '',
+    `MEDDIC today (${s.score}%, ${s.verdict}): ${MEDDIC.map((e) => `${e.name} ${ev[e.key]}`).join('; ')}.`,
+    d.whyFit ? `Why they fit (our research): ${d.whyFit.slice(0, 600)}` : '',
+    d.painPoints ? `Their pain points (our research): ${d.painPoints.slice(0, 500)}` : '',
+    d.offer ? `Our offer for them: ${d.offer.slice(0, 300)}` : '',
+    d.angle ? `Outreach angle: ${d.angle.slice(0, 300)}` : '',
     d.pitch ? `What we plan to pitch: ${d.pitch}` : '',
     d.checkFirst ? `Check before outreach: ${d.checkFirst}` : '',
     d.nextStep ? `Agreed next step: ${d.nextStep}.` : '',
-    d.notes ? `Notes: ${d.notes.slice(0, 1500)}` : '',
-    `MEDDIC today (${s.score}%, ${s.verdict}): ${MEDDIC.map((e) => `${e.name} ${ev[e.key]}`).join('; ')}.`,
-  ].filter(Boolean).join('\n');
+    d.notes ? `Notes: ${d.notes.slice(0, 800)}` : '',
+  ].filter(Boolean).join('\n').slice(0, 2400);
 }
 
 export function callPrepGoal(d: DealContext): string {
@@ -74,7 +80,15 @@ export function followUpGoal(d: DealContext): string {
 }
 
 export function objectionGoal(d: DealContext, objection: string): string {
-  return `The contact raised this objection: "${objection.slice(0, 500)}". Write two ways to answer it: acknowledge it in their words, ask one question that finds what is behind it, reframe around the value they told us matters, offer proof only from what we actually have, and suggest a next step. Then say whether this objection is a real blocker for the deal and what would resolve it. ${RULES} Save it as a note titled "Objection: ${d.name}".\n\n${dealLines(d)}`;
+  const save = d.id
+    ? `Save the answers onto the deal with save_objection (contactId ${d.id}): the objection, the two answers, and the blocker verdict.`
+    : `Save it as a note titled "Objection: ${d.name}".`;
+  return `The contact raised this objection: "${objection.slice(0, 500)}". Write two ways to answer it: acknowledge it in their words, ask one question that finds what is behind it, reframe around the value they told us matters, offer proof only from what we actually have, and suggest a next step. Then say whether this objection is a real blocker for the deal and what would resolve it. ${RULES} ${save}\n\n${dealLines(d)}`;
+}
+
+/** Before the first conversation: the objections this kind of buyer usually raises, answered ahead of time. */
+export function likelyObjectionsGoal(d: DealContext & { id: string }): string {
+  return `Before we talk to this lead, predict the three objections a buyer like this is most likely to raise (from their niche, size, role and what we plan to pitch). For each, write two short answers: acknowledge, ask one question, reframe around their likely pain, offer proof only from what we actually have, and a next step. Say whether each could be a real blocker. ${RULES} Save each one onto the deal with save_objection (contactId ${d.id}), one call per objection.\n\n${dealLines(d)}`;
 }
 
 /** The Head of GTM's weekly review across every open deal. Empty when there is nothing open. */
