@@ -14,6 +14,7 @@ import { LeadAgents, type LeadgenState } from './LeadAgents';
 import { SalesFlow } from './SalesFlow';
 import { Fold, reveal } from './Fold';
 import { ResearchMapper } from './ResearchMapper';
+import { researchImpact, RESEARCH_SCORER } from '../../core/research-score';
 import { researchGoal } from '../../core/research';
 import type { FlowOrg, FlowStage, NextAction } from '../../core/salesflow-state';
 import type { ResearchImportSummary } from '../../core/research-state';
@@ -131,8 +132,9 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
         r.skipped ? `${r.skipped} skipped` : '',
         notPlaced ? `${notPlaced} not placed` : '',
       ].filter(Boolean);
+      const moved = r.scored ? ` Scored ${r.scored} researched lead${r.scored === 1 ? '' : 's'} from the research with no agent run: ${r.workNow} worth working now${r.workNow ? ' moved on (send the proposal next)' : ''}${r.scored - r.workNow ? `, ${r.scored - r.workNow} scored under 60 stay in Qualify` : ''}.` : '';
       const lines = r.results.filter((x) => x.filled.length || x.reason).map((x) => `${x.dealName || x.company}: ${[x.filled.length ? `copied ${x.filled.join(', ').toLowerCase()}` : '', x.reason].filter(Boolean).join('; ')}`);
-      setResearchMsg({ ok: r.matched > 0 || r.skipped > 0, text: `${parts.join(', ')}. No contacts were added and nothing was sent.`, lines });
+      setResearchMsg({ ok: r.matched > 0 || r.skipped > 0, text: `${parts.join(', ')}.${moved} No contacts were added and nothing was sent.`, lines });
       setResearchFile(null);
       reload();
     } catch (e) {
@@ -168,14 +170,31 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
     if (section) setTimeout(() => document.getElementById(section)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
   };
   if (customer) return <CustomerPage key={customer.id} c={customer} busy={!!busy} msg={msg} post={post} back={() => setCustomerId(null)} goApprovals={goApprovals} reload={reload} actions={(crm.nextActions ?? []).filter((a) => a.contactId === customer.id)} />;
-  const shown = crm.contacts.filter((c) => (filter === 'open' ? !['won', 'lost'].includes(c.stage) : filter === 'all' ? true : c.stage === filter));
+  const shown = crm.contacts.filter((c) => (filter === 'open' ? !['won', 'lost'].includes(c.stage) : filter === 'all' ? true : filter === 'researched' ? !!c.researchReport : c.stage === filter));
+  const impact = researchImpact(crm.contacts);
 
   return (
     <div className="stack">
       <SalesFlow crm={crm} busy={!!busy} post={post} reload={reload} goApprovals={goApprovals} open={openCustomer} admin={data.admin} />
       {msg && <p className="error" role="alert">{msg}</p>}
 
-      <Fold id="import" title="Import leads and research" hint="Excel, CSV or a research file">
+      <Fold id="import" title="Import leads and research" hint={impact.researched ? `${impact.researched} researched · ${impact.workNow} moved on to Outreach` : 'Excel, CSV or a research file'}>
+        {impact.researched > 0 && (
+          <div className="research-impact" id="research-impact">
+            <h3>What the research has done</h3>
+            <div className="cost-tiles">
+              <div><span className="muted small">Researched leads</span><strong>{impact.researched}</strong><span className="muted small">{impact.imported === impact.researched ? 'all from research files' : `${impact.imported} from research files`}</span></div>
+              <div><span className="muted small">Details copied</span><strong>{impact.detailsCopied}</strong><span className="muted small">onto customer records</span></div>
+              <div><span className="muted small">Moved on</span><strong>{impact.workNow}</strong><span className="muted small">{impact.scored ? `of ${impact.scored} scored, now in Outreach` : 'none scored yet'}</span></div>
+              <div><span className="muted small">Agent runs not needed</span><strong>{impact.agentRunsSaved}</strong><span className="muted small">research, scoring and proposals</span></div>
+            </div>
+            <p className="muted small">{impact.proposals} proposal draft{impact.proposals === 1 ? '' : 's'} wait for you to edit and send. Researched leads are scored from their research with no agent run and no tokens used ({RESEARCH_SCORER.toLowerCase()} shows as the scorer). Those scoring 60 or more with a proposal draft move to Outreach; the rest stay in Qualify, as does a lead whose proposal shows no net gain for them.</p>
+            <div className="row-end">
+              <button type="button" className="btn-ghost" onClick={() => { setFilter('researched'); reveal('contacts'); }}>Show researched leads</button>
+              {impact.waiting > 0 && <button type="button" className="btn-primary" disabled={!!busy} onClick={() => post('research_advance', { action: 'research_advance' })}>Move {impact.waiting} researched lead{impact.waiting === 1 ? '' : 's'} on</button>}
+            </div>
+          </div>
+        )}
         <div className="grid2 import-grid">
           <div className="import-box" id="import-list">
             <h3>1. Import a list</h3>
@@ -252,7 +271,7 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
       <Fold id="contacts" title="Contacts" hint={`${crm.contacts.length} in the CRM`}>
         <div className="row-end">
           <select aria-label="Show" value={filter} onChange={(e) => setFilter(e.target.value)}>
-            <option value="open">Open deals</option><option value="all">All</option>{STAGES.map((s) => <option key={s} value={s}>{stageName(s)} ({crm.pipeline[s] ?? 0})</option>)}
+            <option value="open">Open deals</option><option value="all">All</option><option value="researched">Researched ({impact.researched})</option>{STAGES.map((s) => <option key={s} value={s}>{stageName(s)} ({crm.pipeline[s] ?? 0})</option>)}
           </select>
         </div>
         <details className="head-group">
@@ -278,7 +297,7 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
               <tbody>{shown.map((c) => (
                 <React.Fragment key={c.id}>
                 <tr>
-                  <td><strong>{c.name}</strong>{c.company && c.company !== c.name ? <span className="muted small"> · {c.company}</span> : null}<br /><span className="muted small">{[c.leadScore && `Score ${c.leadScore.score} ${c.leadScore.grade}`, [c.niche, c.city].filter(Boolean).join(' · ') || c.email || c.phone || c.source].filter(Boolean).join(' · ')}</span></td>
+                  <td><strong>{c.name}</strong>{c.company && c.company !== c.name ? <span className="muted small"> · {c.company}</span> : null}{c.researchReport && <> <span className="pill pill-done">Researched</span></>}<br /><span className="muted small">{[c.leadScore && `Score ${c.leadScore.score} ${c.leadScore.grade}`, [c.niche, c.city].filter(Boolean).join(' · ') || c.email || c.phone || c.source].filter(Boolean).join(' · ')}</span></td>
                   <td>{c.value ? money(c.value) : '—'}</td>
                   <td><select aria-label={`Stage for ${c.name}`} value={c.stage} disabled={!!busy} onChange={(e) => post(c.id, { action: 'stage', contactId: c.id, stage: e.target.value })}>{STAGES.map((s) => <option key={s} value={s}>{stageName(s)}</option>)}</select></td>
                   <td>{c.score == null ? <span className="muted small">—</span> : `${c.score}%`}</td>

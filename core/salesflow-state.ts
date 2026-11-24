@@ -7,6 +7,7 @@ import { fmtMoney, proposalMessage } from './research-state.js';
 import type { Contact } from './crm.js';
 import type { Icp, ProspectBatch } from './leadgen-state.js';
 import { text } from './leadgen-state.js';
+import { WORK_NOW_SCORE } from './research-score.js';
 
 /** Org-level events: the owner skipping an action for a while, the autopilot switch and the weekly prospect search. */
 export const FLOW_ORG_EVENTS = ['crm.action_skip', 'crm.autopilot', 'crm.autofind'];
@@ -136,7 +137,8 @@ const label = (c: Contact) => c.company || c.name;
 
 export function flowStageOf(c: Contact, now = Date.now()): FlowStage | 'closed' {
   if (c.stage === 'lost') return 'closed';
-  if (c.stage === 'lead') return c.sequence ? 'outreach' : c.researchReport || c.leadScore ? 'qualify' : 'research';
+  // A lead worth working now with a proposal draft is past Qualify: the proposal is its outreach.
+  if (c.stage === 'lead') return c.sequence || (c.proposal && (c.leadScore?.score ?? 0) >= WORK_NOW_SCORE) ? 'outreach' : c.researchReport || c.leadScore ? 'qualify' : 'research';
   if (c.stage === 'contacted') return 'outreach';
   if (c.stage === 'qualified') return 'discovery';
   if (c.stage === 'proposal') return 'proposal';
@@ -150,7 +152,7 @@ export function flowStageOf(c: Contact, now = Date.now()): FlowStage | 'closed' 
 
 export type Rule =
   | 'icp' | 'find' | 'prospects' | 'approvals' | 'score' | 'sequence' | 'send_step' | 'sync' | 'quiet' | 'discovery' | 'advance'
-  | 'research' | 'research_import' | 'proposal' | 'proposal_send' | 'proposal_stage' | 'proposal_quiet' | 'winloss' | 'onboard' | 'welcome' | 'onboard_task' | 'review' | 'checkin' | 'renewal' | 'referral';
+  | 'research' | 'research_import' | 'research_advance' | 'proposal' | 'proposal_send' | 'proposal_stage' | 'proposal_quiet' | 'winloss' | 'onboard' | 'welcome' | 'onboard_task' | 'review' | 'checkin' | 'renewal' | 'referral';
 export type ActionKind = 'agent' | 'send' | 'approve' | 'task' | 'open';
 
 export interface NextAction {
@@ -213,6 +215,17 @@ export function nextActions(q: QueueInput, now = Date.now()): NextAction[] {
     });
   }
 
+  // Researched leads with no score: score them from the research (no agent run) and move them on.
+  const toMove = q.contacts.filter((c) => c.stage === 'lead' && c.researchReport && !c.leadScore).length;
+  if (toMove) {
+    add({
+      key: 'research_advance', rule: 'research_advance', stage: 'qualify', kind: 'open', count: toMove,
+      title: `Move ${toMove} researched lead${toMove === 1 ? '' : 's'} on`,
+      why: `${toMove === 1 ? 'It has' : 'They have'} research but no score yet. Score ${toMove === 1 ? 'it' : 'them'} from the research, with no agent run and no tokens used. A lead scoring ${WORK_NOW_SCORE} or more with a proposal draft moves to Outreach, where the next step is sending the proposal.`,
+      priority: 17,
+    });
+  }
+
   for (const c of q.contacts) {
     const stage = flowStageOf(c, now);
     if (stage === 'closed') {
@@ -227,8 +240,10 @@ export function nextActions(q: QueueInput, now = Date.now()): NextAction[] {
     if (c.syncSuggestion) add({ ...base, key: `${c.id}:sync`, rule: 'sync', kind: 'approve', suggestStage: c.syncSuggestion.stage, title: `Move ${label(c)} to ${c.syncSuggestion.stage}?`, why: c.syncSuggestion.reason, priority: 15 });
 
     if (c.stage === 'lead' || c.stage === 'contacted') {
-      if (!c.leadScore && c.stage === 'lead') add({ ...base, key: `${c.id}:score`, rule: 'score', kind: 'agent', agentId: 'lead-scorer', title: `Score ${label(c)}`, why: 'Scoring tells you which leads to work first.', priority: 40 + Math.min(19, c.rank ?? 19) / 100 });
-      else if (c.leadScore && c.leadScore.score >= 60 && !c.sequence) add({ ...base, key: `${c.id}:sequence`, rule: 'sequence', kind: 'agent', agentId: 'outreach-sequencer', title: `Draft outreach for ${label(c)}`, why: `Lead score ${c.leadScore.score} (${c.leadScore.grade}): worth a personal sequence.`, priority: 35 - c.leadScore.score / 100 });
+      // A researched lead is scored from its research instead (Move them on), so no Lead Scorer run is needed.
+      if (!c.leadScore && c.stage === 'lead' && !c.researchReport) add({ ...base, key: `${c.id}:score`, rule: 'score', kind: 'agent', agentId: 'lead-scorer', title: `Score ${label(c)}`, why: 'Scoring tells you which leads to work first.', priority: 40 + Math.min(19, c.rank ?? 19) / 100 });
+      // A proposal draft already is the outreach, so no Outreach Sequencer run is needed.
+      else if (c.leadScore && c.leadScore.score >= WORK_NOW_SCORE && !c.sequence && !c.proposal) add({ ...base, key: `${c.id}:sequence`, rule: 'sequence', kind: 'agent', agentId: 'outreach-sequencer', title: `Draft outreach for ${label(c)}`, why: `Lead score ${c.leadScore.score} (${c.leadScore.grade}): worth a personal sequence.`, priority: 35 - c.leadScore.score / 100 });
       const seq = c.sequence;
       const i = seq ? seq.steps.findIndex((s) => !s.sentAt) : -1;
       if (seq && i >= 0) {

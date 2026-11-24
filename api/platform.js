@@ -846,6 +846,39 @@ function mapRows(research, c) {
   return rows;
 }
 
+// core/research-score.ts
+var RESEARCH_SCORER = "Research import";
+var WORK_NOW_SCORE = 60;
+var TIER = { High: 20, Medium: 12, Low: 6 };
+var plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+function scoreFromResearch(c, r, proposal) {
+  const pains = r.pains.length;
+  const opps = r.opportunities.length;
+  const has3 = (field2) => r.found.some((f) => f.field === field2);
+  const fit = Math.min(40, (c.niche || c.city ? 10 : 4) + 6 * Math.min(3, pains) + 4 * Math.min(3, opps));
+  const fitWhy = `${plural(pains, "pain point")} and ${opps} ${opps === 1 ? "opportunity" : "opportunities"} in the research${c.niche ? `, ${c.niche}` : ""}`;
+  let size = c.dealTier && TIER[c.dealTier] ? TIER[c.dealTier] : 8;
+  let sizeWhy = c.dealTier ? `deal tier ${c.dealTier}` : "no deal tier on the list";
+  if (proposal && proposal.roi.netMonthly <= 0) {
+    size = Math.min(size, 4);
+    sizeWhy += ", but the proposal draft shows no net gain for them";
+  }
+  const ease = c.ease && TIER[c.ease] ? TIER[c.ease] : Math.min(16, 4 * pains);
+  const easeWhy = c.ease ? `ease of win ${c.ease}` : `${plural(pains, "gap")} we would fix`;
+  const named = !!c.name && companyKey(c.name) !== companyKey(c.company) || has3("owner");
+  const phone = !!c.phone || has3("phone");
+  const email = !!c.email || has3("email");
+  const reach = (named ? 4 : 0) + (phone ? 3 : 0) + (email ? 3 : 0);
+  const reachWhy = [named && "named decision maker", phone && "phone", email && "email"].filter(Boolean).join(", ") || "no named contact, phone or email yet";
+  const momentum = proposal ? 3 : 0;
+  const momentumWhy = proposal ? "proposal draft ready, not sent" : "not contacted yet";
+  let score = Math.max(0, Math.min(100, fit + size + ease + reach + momentum));
+  const losing = !!proposal && proposal.roi.netMonthly <= 0 && score >= WORK_NOW_SCORE;
+  if (losing) score = WORK_NOW_SCORE - 1;
+  const reasons = `Scored from the research, with no agent run. Fit ${fit}/40: ${fitWhy}. Size ${size}/20: ${sizeWhy}. Ease ${ease}/20: ${easeWhy}. Reach ${reach}/10: ${reachWhy}. Momentum ${momentum}/10: ${momentumWhy}.${losing ? ` Held at ${WORK_NOW_SCORE - 1} because the proposal draft shows no net gain for them: rework the offer before sending it.` : ""}`;
+  return { score, reasons: reasons.slice(0, 1200) };
+}
+
 // core/salesflow-state.ts
 var FLOW_ORG_EVENTS = ["crm.action_skip", "crm.autopilot", "crm.autofind"];
 var FLOW_DEAL_EVENTS = ["crm.onboarding", "crm.onboarding_step", "crm.account", "crm.customer_sent"];
@@ -945,7 +978,7 @@ var ranBy = (c, agentName, sinceIso) => c.history.some((h) => h.by === agentName
 var label = (c) => c.company || c.name;
 function flowStageOf(c, now = Date.now()) {
   if (c.stage === "lost") return "closed";
-  if (c.stage === "lead") return c.sequence ? "outreach" : c.researchReport || c.leadScore ? "qualify" : "research";
+  if (c.stage === "lead") return c.sequence || c.proposal && (c.leadScore?.score ?? 0) >= WORK_NOW_SCORE ? "outreach" : c.researchReport || c.leadScore ? "qualify" : "research";
   if (c.stage === "contacted") return "outreach";
   if (c.stage === "qualified") return "discovery";
   if (c.stage === "proposal") return "proposal";
@@ -1003,6 +1036,19 @@ function nextActions(q, now = Date.now()) {
       priority: 19
     });
   }
+  const toMove = q.contacts.filter((c) => c.stage === "lead" && c.researchReport && !c.leadScore).length;
+  if (toMove) {
+    add({
+      key: "research_advance",
+      rule: "research_advance",
+      stage: "qualify",
+      kind: "open",
+      count: toMove,
+      title: `Move ${toMove} researched lead${toMove === 1 ? "" : "s"} on`,
+      why: `${toMove === 1 ? "It has" : "They have"} research but no score yet. Score ${toMove === 1 ? "it" : "them"} from the research, with no agent run and no tokens used. A lead scoring ${WORK_NOW_SCORE} or more with a proposal draft moves to Outreach, where the next step is sending the proposal.`,
+      priority: 17
+    });
+  }
   for (const c of q.contacts) {
     const stage = flowStageOf(c, now);
     if (stage === "closed") {
@@ -1016,8 +1062,8 @@ function nextActions(q, now = Date.now()) {
     if (prop?.sentAt && ["lead", "contacted", "qualified"].includes(c.stage)) add({ ...base, key: `${c.id}:pstage:${prop.id}`, rule: "proposal_stage", kind: "approve", suggestStage: "proposal", title: `Move ${label(c)} to Proposal?`, why: "You sent them the proposal.", priority: 14 });
     if (c.syncSuggestion) add({ ...base, key: `${c.id}:sync`, rule: "sync", kind: "approve", suggestStage: c.syncSuggestion.stage, title: `Move ${label(c)} to ${c.syncSuggestion.stage}?`, why: c.syncSuggestion.reason, priority: 15 });
     if (c.stage === "lead" || c.stage === "contacted") {
-      if (!c.leadScore && c.stage === "lead") add({ ...base, key: `${c.id}:score`, rule: "score", kind: "agent", agentId: "lead-scorer", title: `Score ${label(c)}`, why: "Scoring tells you which leads to work first.", priority: 40 + Math.min(19, c.rank ?? 19) / 100 });
-      else if (c.leadScore && c.leadScore.score >= 60 && !c.sequence) add({ ...base, key: `${c.id}:sequence`, rule: "sequence", kind: "agent", agentId: "outreach-sequencer", title: `Draft outreach for ${label(c)}`, why: `Lead score ${c.leadScore.score} (${c.leadScore.grade}): worth a personal sequence.`, priority: 35 - c.leadScore.score / 100 });
+      if (!c.leadScore && c.stage === "lead" && !c.researchReport) add({ ...base, key: `${c.id}:score`, rule: "score", kind: "agent", agentId: "lead-scorer", title: `Score ${label(c)}`, why: "Scoring tells you which leads to work first.", priority: 40 + Math.min(19, c.rank ?? 19) / 100 });
+      else if (c.leadScore && c.leadScore.score >= WORK_NOW_SCORE && !c.sequence && !c.proposal) add({ ...base, key: `${c.id}:sequence`, rule: "sequence", kind: "agent", agentId: "outreach-sequencer", title: `Draft outreach for ${label(c)}`, why: `Lead score ${c.leadScore.score} (${c.leadScore.grade}): worth a personal sequence.`, priority: 35 - c.leadScore.score / 100 });
       const seq = c.sequence;
       const i = seq ? seq.steps.findIndex((s) => !s.sentAt) : -1;
       if (seq && i >= 0) {
@@ -3936,10 +3982,10 @@ function computeGovernance(input) {
 
 // server/build-info.ts
 var BUILD_INFO = {
-  "builtAt": "2026-11-24T14:30:29.619Z",
-  "files": 103,
-  "lines": 11739,
-  "tests": 141,
+  "builtAt": "2026-11-24T14:46:41.972Z",
+  "files": 104,
+  "lines": 11906,
+  "tests": 144,
   "e2e": 11,
   "rlsTables": 9,
   "cspHeader": true,
@@ -4812,8 +4858,12 @@ async function importResearch(store2, orgId, raw, by, choices = {}) {
     res.reason = notes.join("; ");
     results.push(res);
   }
+  const ids = new Set(results.map((x) => x.contactId).filter((x) => !!x));
+  const moved = await scoreResearched(store2, orgId, contacts.filter((c) => ids.has(c.id)));
   const matched = results.filter((x) => x.contactId);
   return {
+    scored: moved.scored,
+    workNow: moved.workNow,
     reports: reports.length,
     matched: matched.length,
     researchSaved: matched.filter((x) => x.research === "saved").length,
@@ -4823,6 +4873,25 @@ async function importResearch(store2, orgId, raw, by, choices = {}) {
     skipped: results.filter((x) => x.research === "skipped").length,
     results
   };
+}
+async function scoreResearched(store2, orgId, contacts) {
+  let scored = 0;
+  let workNow = 0;
+  const names = [];
+  for (const c of contacts) {
+    if (c.stage !== "lead" || c.leadScore || !c.researchReport) continue;
+    const { score, reasons } = scoreFromResearch(c, c.researchReport, c.proposal);
+    const grade = gradeFor(score);
+    await store2.audit({ id: newId(), orgId, at: nowIso(), actor: RESEARCH_SCORER, action: "crm.leadscore", taskId: null, detail: { contactId: c.id, score: { score, grade, reasons, icpId: null }, summary: `${c.company || c.name}: lead score ${score} (${grade}) from the research` } });
+    scored++;
+    if (score >= WORK_NOW_SCORE) workNow++;
+    names.push(c.company || c.name);
+  }
+  return { scored, workNow, names };
+}
+async function advanceResearched(store2, orgId) {
+  const crm = await loadCrm(store2, orgId);
+  return scoreResearched(store2, orgId, crm.contacts);
 }
 
 // server/routes/crm.ts
@@ -4932,6 +5001,8 @@ var POST5 = handle(async (request) => {
       // Research and proposals: the owner adds a checked detail, edits the proposal, or marks it sent.
       case "import_research":
         return json({ ...await importResearch(store2, orgId, String(b.json ?? ""), label5, importChoices(b)), crm: await crmView(store2, orgId) });
+      case "research_advance":
+        return json({ ...await advanceResearched(store2, orgId), crm: await crmView(store2, orgId) });
       case "research_use":
         await useResearchField(store2, orgId, id, Number(b.index), label5);
         return json({ crm: await crmView(store2, orgId) });

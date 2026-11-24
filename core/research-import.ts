@@ -7,6 +7,8 @@ import { newId, nowIso, type Store } from './store.js';
 import { loadCrm, updateContactFields, type Contact, type ContactInput } from './crm.js';
 import { cleanProposal, cleanResearch, FIELD_LABEL, type ImportResult, type ResearchImportSummary } from './research-state.js';
 import { mapRows, matchDeal, type MapTarget } from './research-map.js';
+import { RESEARCH_SCORER, scoreFromResearch, WORK_NOW_SCORE } from './research-score.js';
+import { gradeFor } from './leadgen-state.js';
 export type { ImportResult, ResearchImportSummary } from './research-state.js';
 export { companyKey, matchDeal, phoneKey, siteKey } from './research-map.js';
 
@@ -164,8 +166,14 @@ export async function importResearch(store: Store, orgId: string, raw: string, b
     results.push(res);
   }
 
+  // Research done: score the matched leads from it (no agent run) so they move on to the next step.
+  const ids = new Set(results.map((x) => x.contactId).filter((x): x is string => !!x));
+  const moved = await scoreResearched(store, orgId, contacts.filter((c) => ids.has(c.id)));
+
   const matched = results.filter((x) => x.contactId);
   return {
+    scored: moved.scored,
+    workNow: moved.workNow,
     reports: reports.length,
     matched: matched.length,
     researchSaved: matched.filter((x) => x.research === 'saved').length,
@@ -175,4 +183,31 @@ export async function importResearch(store: Store, orgId: string, raw: string, b
     skipped: results.filter((x) => x.research === 'skipped').length,
     results,
   };
+}
+
+/**
+ * Scores each researched lead that has no score yet from its research, with no agent run, so it leaves the
+ * Research and Qualify steps: a lead worth working now (60 or more) with a proposal draft moves on to Outreach,
+ * where the next step is sending the proposal. A score already on a deal is never replaced. Nothing is sent.
+ */
+async function scoreResearched(store: Store, orgId: string, contacts: Contact[]): Promise<{ scored: number; workNow: number; names: string[] }> {
+  let scored = 0;
+  let workNow = 0;
+  const names: string[] = [];
+  for (const c of contacts) {
+    if (c.stage !== 'lead' || c.leadScore || !c.researchReport) continue;
+    const { score, reasons } = scoreFromResearch(c, c.researchReport, c.proposal);
+    const grade = gradeFor(score);
+    await store.audit({ id: newId(), orgId, at: nowIso(), actor: RESEARCH_SCORER, action: 'crm.leadscore', taskId: null, detail: { contactId: c.id, score: { score, grade, reasons, icpId: null }, summary: `${c.company || c.name}: lead score ${score} (${grade}) from the research` } });
+    scored++;
+    if (score >= WORK_NOW_SCORE) workNow++;
+    names.push(c.company || c.name);
+  }
+  return { scored, workNow, names };
+}
+
+/** The owner's "Move them on": scores every researched lead that has no score yet. */
+export async function advanceResearched(store: Store, orgId: string): Promise<{ scored: number; workNow: number; names: string[] }> {
+  const crm = await loadCrm(store, orgId);
+  return scoreResearched(store, orgId, crm.contacts);
 }

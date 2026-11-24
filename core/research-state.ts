@@ -158,6 +158,8 @@ export interface ImportResult {
 }
 export interface ResearchImportSummary {
   reports: number; matched: number; researchSaved: number; proposalsSaved: number; unchanged: number; detailsFilled: number; skipped: number;
+  /** Matched leads scored from the research (no agent run), and how many of them are worth working now. */
+  scored: number; workNow: number;
   results: ImportResult[];
 }
 

@@ -657,6 +657,9 @@ function researchLines(dr) {
 var EMAIL_RE2 = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 var PHONE_RE = /^\+?[\d\s()-]{7,20}$/;
 
+// core/research-score.ts
+var WORK_NOW_SCORE = 60;
+
 // core/salesflow-state.ts
 var FLOW_ORG_EVENTS = ["crm.action_skip", "crm.autopilot", "crm.autofind"];
 var FLOW_DEAL_EVENTS = ["crm.onboarding", "crm.onboarding_step", "crm.account", "crm.customer_sent"];
@@ -756,7 +759,7 @@ var ranBy = (c, agentName, sinceIso) => c.history.some((h) => h.by === agentName
 var label = (c) => c.company || c.name;
 function flowStageOf(c, now = Date.now()) {
   if (c.stage === "lost") return "closed";
-  if (c.stage === "lead") return c.sequence ? "outreach" : c.researchReport || c.leadScore ? "qualify" : "research";
+  if (c.stage === "lead") return c.sequence || c.proposal && (c.leadScore?.score ?? 0) >= WORK_NOW_SCORE ? "outreach" : c.researchReport || c.leadScore ? "qualify" : "research";
   if (c.stage === "contacted") return "outreach";
   if (c.stage === "qualified") return "discovery";
   if (c.stage === "proposal") return "proposal";
@@ -813,6 +816,19 @@ function nextActions(q, now = Date.now()) {
       priority: 19
     });
   }
+  const toMove = q.contacts.filter((c) => c.stage === "lead" && c.researchReport && !c.leadScore).length;
+  if (toMove) {
+    add({
+      key: "research_advance",
+      rule: "research_advance",
+      stage: "qualify",
+      kind: "open",
+      count: toMove,
+      title: `Move ${toMove} researched lead${toMove === 1 ? "" : "s"} on`,
+      why: `${toMove === 1 ? "It has" : "They have"} research but no score yet. Score ${toMove === 1 ? "it" : "them"} from the research, with no agent run and no tokens used. A lead scoring ${WORK_NOW_SCORE} or more with a proposal draft moves to Outreach, where the next step is sending the proposal.`,
+      priority: 17
+    });
+  }
   for (const c of q.contacts) {
     const stage = flowStageOf(c, now);
     if (stage === "closed") {
@@ -826,8 +842,8 @@ function nextActions(q, now = Date.now()) {
     if (prop?.sentAt && ["lead", "contacted", "qualified"].includes(c.stage)) add({ ...base, key: `${c.id}:pstage:${prop.id}`, rule: "proposal_stage", kind: "approve", suggestStage: "proposal", title: `Move ${label(c)} to Proposal?`, why: "You sent them the proposal.", priority: 14 });
     if (c.syncSuggestion) add({ ...base, key: `${c.id}:sync`, rule: "sync", kind: "approve", suggestStage: c.syncSuggestion.stage, title: `Move ${label(c)} to ${c.syncSuggestion.stage}?`, why: c.syncSuggestion.reason, priority: 15 });
     if (c.stage === "lead" || c.stage === "contacted") {
-      if (!c.leadScore && c.stage === "lead") add({ ...base, key: `${c.id}:score`, rule: "score", kind: "agent", agentId: "lead-scorer", title: `Score ${label(c)}`, why: "Scoring tells you which leads to work first.", priority: 40 + Math.min(19, c.rank ?? 19) / 100 });
-      else if (c.leadScore && c.leadScore.score >= 60 && !c.sequence) add({ ...base, key: `${c.id}:sequence`, rule: "sequence", kind: "agent", agentId: "outreach-sequencer", title: `Draft outreach for ${label(c)}`, why: `Lead score ${c.leadScore.score} (${c.leadScore.grade}): worth a personal sequence.`, priority: 35 - c.leadScore.score / 100 });
+      if (!c.leadScore && c.stage === "lead" && !c.researchReport) add({ ...base, key: `${c.id}:score`, rule: "score", kind: "agent", agentId: "lead-scorer", title: `Score ${label(c)}`, why: "Scoring tells you which leads to work first.", priority: 40 + Math.min(19, c.rank ?? 19) / 100 });
+      else if (c.leadScore && c.leadScore.score >= WORK_NOW_SCORE && !c.sequence && !c.proposal) add({ ...base, key: `${c.id}:sequence`, rule: "sequence", kind: "agent", agentId: "outreach-sequencer", title: `Draft outreach for ${label(c)}`, why: `Lead score ${c.leadScore.score} (${c.leadScore.grade}): worth a personal sequence.`, priority: 35 - c.leadScore.score / 100 });
       const seq = c.sequence;
       const i = seq ? seq.steps.findIndex((s) => !s.sentAt) : -1;
       if (seq && i >= 0) {

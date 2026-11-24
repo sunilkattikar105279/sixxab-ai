@@ -99,6 +99,7 @@ export function ActionCard({ a, c, busy, post, reload, goApprovals, open, showCo
           {a.rule === 'icp' && <button type="button" className="btn-primary" onClick={() => goto('who-you-sell-to')}>Go to Who you sell to</button>}
           {a.rule === 'prospects' && <button type="button" className="btn-primary" onClick={() => goto('find-prospects')}>Review the prospects</button>}
           {a.rule === 'research_import' && <button type="button" className="btn-primary" onClick={gotoImport}>Import research</button>}
+          {a.rule === 'research_advance' && <button type="button" className="btn-primary" disabled={busy} onClick={() => post(a.key, { action: 'research_advance' })}>Move them on</button>}
           {a.rule === 'renewal' && c && open && <button type="button" className="btn-primary" onClick={() => open(c)}>Open the customer</button>}
         </div>
       )}

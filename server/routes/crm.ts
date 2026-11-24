@@ -6,7 +6,7 @@ import { isAdmin } from '../../core/automation.js';
 import { decideProspects, dismissSync, markStepSent, removeIcp, saveIcp, saveIcpNotes } from '../../core/leadgen.js';
 import { markCustomerSent, markOnboardingStep, setAutofind, setAutopilot, skipAction } from '../../core/salesflow.js';
 import { editProposal, markProposalSent, useResearchField } from '../../core/research.js';
-import { importResearch } from '../../core/research-import.js';
+import { advanceResearched, importResearch } from '../../core/research-import.js';
 import type { NextAction } from '../../core/salesflow-state.js';
 import { newId, nowIso, type Store } from '../../core/store.js';
 import { handle, HttpError, json, readJson, requireUser } from '../context.js';
@@ -102,6 +102,7 @@ export const POST = handle(async (request) => {
       case 'autofind': await setAutofind(store, orgId, Boolean(b.on), label); return json({ crm: await crmView(store, orgId) });
       // Research and proposals: the owner adds a checked detail, edits the proposal, or marks it sent.
       case 'import_research': return json({ ...(await importResearch(store, orgId, String(b.json ?? ''), label, importChoices(b))), crm: await crmView(store, orgId) });
+      case 'research_advance': return json({ ...(await advanceResearched(store, orgId)), crm: await crmView(store, orgId) });
       case 'research_use': await useResearchField(store, orgId, id, Number(b.index), label); return json({ crm: await crmView(store, orgId) });
       case 'proposal_edit': await editProposal(store, orgId, id, b.edit ?? {}, label); return json({ crm: await crmView(store, orgId) });
       case 'proposal_sent': await markProposalSent(store, orgId, id, label); return json({ crm: await crmView(store, orgId) });
