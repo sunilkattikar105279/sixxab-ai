@@ -165,13 +165,203 @@ function crmIssues(deals, now = Date.now()) {
   return out;
 }
 
+// core/salesflow-state.ts
+var FLOW_ORG_EVENTS = ["crm.action_skip", "crm.autopilot"];
+var FLOW_DEAL_EVENTS = ["crm.onboarding", "crm.onboarding_step", "crm.account", "crm.customer_sent"];
+var FLOW_STAGES = [
+  { key: "find", name: "Find", does: "Set who you sell to, then find businesses that fit.", agents: ["ICP Builder", "Prospect Generator"], gate: "You tick which prospects join the CRM." },
+  { key: "qualify", name: "Qualify", does: "Score each new lead on fit, size, ease of win and reach.", agents: ["Lead Scorer", "Speed-to-Lead"], gate: "First replies wait in Approvals." },
+  { key: "outreach", name: "Outreach", does: "Personal email, LinkedIn and call steps in your voice.", agents: ["Outreach Sequencer", "Follow-up Writer"], gate: "You send each step and mark it sent." },
+  { key: "discovery", name: "Discovery", does: "Prep the call, capture MEDDIC, debrief the notes.", agents: ["Call Prepper", "Deal Qualifier"], gate: "You approve the move to Proposal." },
+  { key: "proposal", name: "Proposal and close", does: "Proposal, objection answers and the follow-up to a yes.", agents: ["Proposal Writer", "Objection Handler", "Win-Loss Analyst"], gate: "You send the proposal and mark it won or lost." },
+  { key: "onboard", name: "Onboard", does: "Welcome email, kickoff agenda and a first-30-days plan.", agents: ["Onboarding Manager"], gate: "You send the welcome and tick steps done." },
+  { key: "retain", name: "Retain", does: "Monthly health check, check-in message and renewal plan.", agents: ["Customer Success Manager"], gate: "You send each check-in." },
+  { key: "expand", name: "Expand", does: "Upsell ideas and a referral ask for healthy customers.", agents: ["Customer Success Manager"], gate: "You choose what to offer and send it." }
+];
+var STEP_OWNERS = ["you", "customer", "agent"];
+var CUSTOMER_MSGS = ["welcome", "checkin", "referral"];
+var EMPTY_CUSTOMER = { wonAt: null, onboarding: null, review: null, sent: [] };
+var num = (v, lo, hi, dflt) => {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : dflt;
+};
+var draft = (v) => {
+  if (!v || typeof v !== "object") return null;
+  const d = v;
+  const t = text(d.text, 4e3);
+  return t ? { subject: text(d.subject, 200), text: t } : null;
+};
+function bandFor(health) {
+  return health >= 70 ? "healthy" : health >= 45 ? "watch" : "at_risk";
+}
+function cleanOnboarding(input) {
+  const raw = Array.isArray(input.steps) ? input.steps : [];
+  const steps = raw.slice(0, 12).map((s) => {
+    const o = s && typeof s === "object" ? s : {};
+    const owner = STEP_OWNERS.find((x) => x === String(o.owner ?? "").toLowerCase()) ?? "you";
+    return { title: text(o.title, 300), owner, day: num(o.day, 0, 90, 0), doneAt: null };
+  }).filter((s) => s.title).sort((a, b) => a.day - b.day);
+  if (steps.length < 2) throw new Error("An onboarding plan needs at least two steps, each with a title");
+  return { steps, welcome: draft(input.welcome), kickoff: text(input.kickoff, 3e3), notes: text(input.notes, 1e3) };
+}
+function cleanReview(input) {
+  const reasons = text(input.reasons, 2e3);
+  if (!reasons) throw new Error("Give the reasons behind the health score");
+  const health = num(input.health, 0, 100, 50);
+  const date = text(input.renewalDate, 10);
+  const upsell = (Array.isArray(input.upsell) ? input.upsell : []).map((u) => text(u, 400)).filter(Boolean).slice(0, 3);
+  return {
+    health,
+    band: bandFor(health),
+    reasons,
+    risks: text(input.risks, 1500),
+    checkIn: draft(input.checkIn),
+    renewalDate: /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "",
+    renewalPlan: text(input.renewalPlan, 1500),
+    upsell,
+    referral: health >= 70 ? draft(input.referral) : null
+  };
+}
+var MSG_NAME = { welcome: "the welcome email", checkin: "the check-in message", referral: "the referral ask" };
+function applyFlowEvent(cf, e) {
+  const d = e.detail;
+  if (e.action === "crm.onboarding") {
+    const o = d.onboarding;
+    return { cf: { ...cf, onboarding: { ...o, at: e.at, by: e.actor } }, history: { kind: "agent", text: `Onboarding plan saved: ${o.steps.length} steps${o.welcome ? " and a welcome email draft" : ""}` } };
+  }
+  if (e.action === "crm.onboarding_step") {
+    const o = cf.onboarding;
+    const i = Number(d.index);
+    if (!o || o.id !== d.onboardingId || !o.steps[i]) return { cf };
+    const steps = o.steps.map((s, n) => n === i ? { ...s, doneAt: e.at } : s);
+    return { cf: { ...cf, onboarding: { ...o, steps } }, history: { kind: "onboarding", text: `Onboarding step done: ${o.steps[i].title}` } };
+  }
+  if (e.action === "crm.account") {
+    const r = d.review;
+    return { cf: { ...cf, review: { ...r, at: e.at, by: e.actor } }, history: { kind: "health", text: `Account review: health ${r.health} (${r.band.replace("_", " ")}). ${r.reasons.slice(0, 200)}` } };
+  }
+  if (e.action === "crm.customer_sent") {
+    const kind = CUSTOMER_MSGS.find((k) => k === d.kind);
+    if (!kind) return { cf };
+    return { cf: { ...cf, sent: [...cf.sent, { kind, ref: String(d.ref ?? ""), at: e.at }].slice(-30) }, history: { kind: "email", text: `Sent ${MSG_NAME[kind]}` }, touch: true };
+  }
+  return { cf };
+}
+var wasSent = (cf, kind, ref) => cf.sent.some((s) => s.kind === kind && s.ref === ref);
+function computeFlowOrg(events) {
+  const out = { autopilot: null, skipped: {} };
+  for (const e of events) {
+    if (e.action === "crm.autopilot") out.autopilot = { on: Boolean(e.detail.on), at: e.at, by: e.actor };
+    else if (e.action === "crm.action_skip") out.skipped[String(e.detail.key)] = String(e.detail.until ?? "");
+  }
+  return out;
+}
+var DAY = 864e5;
+var daysSince = (iso, now) => iso ? (now - Date.parse(iso)) / DAY : Infinity;
+var ranBy = (c, agentName, sinceIso) => c.history.some((h) => h.by === agentName && (!sinceIso || h.at >= sinceIso));
+var label = (c) => c.company || c.name;
+function flowStageOf(c, now = Date.now()) {
+  if (c.stage === "lost") return "closed";
+  if (c.stage === "lead") return c.sequence ? "outreach" : "qualify";
+  if (c.stage === "contacted") return "outreach";
+  if (c.stage === "qualified") return "discovery";
+  if (c.stage === "proposal") return "proposal";
+  const cf = c.customer ?? EMPTY_CUSTOMER;
+  const onboarded = !!cf.onboarding && cf.onboarding.steps.every((s) => s.doneAt);
+  const days = daysSince(cf.wonAt, now);
+  if (!onboarded && days < 30) return "onboard";
+  if (cf.review && cf.review.health >= 70 && days >= 45) return "expand";
+  return "retain";
+}
+var QUIET_DAYS = 7;
+var PROPOSAL_QUIET_DAYS = 5;
+var REVIEW_EVERY_DAYS = 30;
+var RENEWAL_WINDOW_DAYS = 45;
+function nextActions(q, now = Date.now()) {
+  const out = [];
+  const iso = (t) => new Date(t).toISOString();
+  const today = iso(now);
+  const add = (a) => out.push({ due: today, ...a });
+  if (q.pendingApprovals) add({ key: "approvals", rule: "approvals", stage: "outreach", kind: "open", title: `${q.pendingApprovals} message${q.pendingApprovals === 1 ? "" : "s"} wait for your approval`, why: "Agents drafted these emails; nothing goes out until you approve each one.", priority: 0, count: q.pendingApprovals });
+  if (!q.icps.length) add({ key: "icp", rule: "icp", stage: "find", kind: "open", agentId: "icp-builder", title: "Define who you sell to", why: "Every agent scores, writes and searches from your ICP. Upload your lead workbook or paste notes, then build it.", priority: 5 });
+  const pending = q.prospectBatches.reduce((n, b) => n + b.items.filter((p) => p.status === "pending").length, 0);
+  if (pending) add({ key: "prospects", rule: "prospects", stage: "find", kind: "open", title: `Review ${pending} new prospect${pending === 1 ? "" : "s"}`, why: "The Prospect Generator found them on public pages. Tick the ones to add to New lead.", priority: 18, count: pending });
+  for (const c of q.contacts) {
+    const stage = flowStageOf(c, now);
+    if (stage === "closed") {
+      if (!ranBy(c, "Win-Loss Analyst")) add({ key: `${c.id}:winloss`, rule: "winloss", stage: "proposal", kind: "agent", agentId: "win-loss", contactId: c.id, company: label(c), title: `Learn why ${label(c)} was lost`, why: "A short win-loss review sharpens the ICP and the next pitch.", priority: 60 });
+      continue;
+    }
+    const base = { contactId: c.id, company: label(c), stage };
+    if (c.syncSuggestion) add({ ...base, key: `${c.id}:sync`, rule: "sync", kind: "approve", suggestStage: c.syncSuggestion.stage, title: `Move ${label(c)} to ${c.syncSuggestion.stage}?`, why: c.syncSuggestion.reason, priority: 15 });
+    if (c.stage === "lead" || c.stage === "contacted") {
+      if (!c.leadScore && c.stage === "lead") add({ ...base, key: `${c.id}:score`, rule: "score", kind: "agent", agentId: "lead-scorer", title: `Score ${label(c)}`, why: "Scoring tells you which leads to work first.", priority: 40 + Math.min(19, c.rank ?? 19) / 100 });
+      else if (c.leadScore && c.leadScore.score >= 60 && !c.sequence) add({ ...base, key: `${c.id}:sequence`, rule: "sequence", kind: "agent", agentId: "outreach-sequencer", title: `Draft outreach for ${label(c)}`, why: `Lead score ${c.leadScore.score} (${c.leadScore.grade}): worth a personal sequence.`, priority: 35 - c.leadScore.score / 100 });
+      const seq = c.sequence;
+      const i = seq ? seq.steps.findIndex((s) => !s.sentAt) : -1;
+      if (seq && i >= 0) {
+        const st = seq.steps[i];
+        const prevSent = i === 0 ? seq.at : seq.steps[i - 1].sentAt ?? seq.at;
+        const dueAt = Date.parse(prevSent) + (i === 0 ? 0 : Math.max(0, st.day - seq.steps[i - 1].day)) * DAY;
+        if (dueAt <= now) {
+          const to = st.channel === "email" ? c.email : st.channel === "linkedin" ? "LinkedIn" : c.phone;
+          add({ ...base, key: `${c.id}:step:${seq.id}:${i}`, rule: "send_step", kind: "send", stepIndex: i, draft: { channel: st.channel, subject: st.subject, text: st.text, to: to || "" }, title: `Send step ${i + 1} of ${seq.steps.length} to ${label(c)}`, why: `Day ${st.day} ${st.channel === "linkedin" ? "LinkedIn message" : st.channel}, drafted in your voice.`, priority: 10 - Math.min(5, (now - dueAt) / DAY) / 10, due: iso(dueAt) });
+        }
+      } else if (c.stage === "contacted" && daysSince(c.lastTouch ?? c.createdAt, now) >= QUIET_DAYS) {
+        add({ ...base, key: `${c.id}:quiet:${(c.lastTouch ?? c.createdAt).slice(0, 10)}`, rule: "quiet", kind: "agent", agentId: "follow-up-writer", title: `${label(c)} has gone quiet`, why: `No touch for ${Math.floor(daysSince(c.lastTouch ?? c.createdAt, now))} days. Draft a follow-up, or mark it lost.`, priority: 25 });
+      }
+    } else if (c.stage === "qualified") {
+      const s = c.score ?? 0;
+      if (s >= 70) add({ ...base, key: `${c.id}:advance`, rule: "advance", kind: "approve", suggestStage: "proposal", title: `Move ${label(c)} to Proposal?`, why: `MEDDIC ${s}%: the deal is qualified enough to propose.`, priority: 15 });
+      else if (!c.callNotes && !ranBy(c, "Call Prepper")) add({ ...base, key: `${c.id}:discovery`, rule: "discovery", kind: "agent", agentId: "call-prepper", title: `Prep the discovery call with ${label(c)}`, why: "Questions to fill the MEDDIC gaps: the pain, the number, who decides and by when.", priority: 30 });
+    } else if (c.stage === "proposal") {
+      if (!ranBy(c, "Proposal Writer")) add({ ...base, key: `${c.id}:proposal`, rule: "proposal", kind: "agent", agentId: "proposal-writer", title: `Draft the proposal for ${label(c)}`, why: "Built from their pains, MEDDIC and the offer in the record.", priority: 28 });
+      else if (daysSince(c.lastTouch ?? c.updatedAt, now) >= PROPOSAL_QUIET_DAYS) add({ ...base, key: `${c.id}:pquiet:${(c.lastTouch ?? c.updatedAt).slice(0, 10)}`, rule: "proposal_quiet", kind: "agent", agentId: "follow-up-writer", title: `Follow up on the proposal to ${label(c)}`, why: `Quiet for ${Math.floor(daysSince(c.lastTouch ?? c.updatedAt, now))} days since the proposal.`, priority: 22 });
+    } else if (c.stage === "won") {
+      const cf = c.customer ?? EMPTY_CUSTOMER;
+      const o = cf.onboarding;
+      if (!o) add({ ...base, key: `${c.id}:onboard`, rule: "onboard", kind: "agent", agentId: "onboarding-manager", title: `Plan onboarding for ${label(c)}`, why: "A welcome email, kickoff agenda and first-30-days plan, so the start feels looked after.", priority: 16 });
+      else {
+        if (o.welcome && !wasSent(cf, "welcome", o.id)) add({ ...base, key: `${c.id}:welcome:${o.id}`, rule: "welcome", kind: "send", msg: "welcome", ref: o.id, draft: { channel: "email", subject: o.welcome.subject, text: o.welcome.text, to: c.email }, title: `Send the welcome email to ${label(c)}`, why: "First impression after the yes. Drafted from the deal record.", priority: 12 });
+        const won = Date.parse(cf.wonAt ?? o.at);
+        const n = o.steps.findIndex((s) => !s.doneAt && s.owner !== "customer");
+        if (n >= 0 && won + o.steps[n].day * DAY <= now) add({ ...base, key: `${c.id}:ostep:${o.id}:${n}`, rule: "onboard_task", kind: "task", stepIndex: n, ref: o.id, title: o.steps[n].title, why: `Onboarding day ${o.steps[n].day} for ${label(c)}${o.steps[n].owner === "agent" ? " (an agent can draft it; you confirm)" : ""}.`, priority: 20, due: iso(won + o.steps[n].day * DAY) });
+      }
+      const r = cf.review;
+      const reviewDue = r ? daysSince(r.at, now) >= REVIEW_EVERY_DAYS : !!o && o.steps.every((s) => s.doneAt) || daysSince(cf.wonAt, now) >= 21;
+      if (reviewDue) add({ ...base, key: `${c.id}:review:${r?.id ?? "first"}`, rule: "review", kind: "agent", agentId: "customer-success", title: `Health check on ${label(c)}`, why: r ? `Last review ${Math.floor(daysSince(r.at, now))} days ago (health ${r.health}).` : "First account review since the win.", priority: r && r.band === "at_risk" ? 13 : 26 });
+      if (r) {
+        if (r.checkIn && !wasSent(cf, "checkin", r.id)) add({ ...base, key: `${c.id}:checkin:${r.id}`, rule: "checkin", kind: "send", msg: "checkin", ref: r.id, draft: { channel: "email", subject: r.checkIn.subject, text: r.checkIn.text, to: c.email }, title: `Check in with ${label(c)}`, why: `Health ${r.health} (${r.band.replace("_", " ")}). ${r.risks ? `Risk: ${r.risks.slice(0, 120)}` : "Keep the relationship warm."}`, priority: r.band === "at_risk" ? 11 : 14 });
+        if (r.renewalDate) {
+          const until = (Date.parse(r.renewalDate) - now) / DAY;
+          if (until >= -7 && until <= RENEWAL_WINDOW_DAYS) add({ ...base, key: `${c.id}:renewal:${r.renewalDate}`, rule: "renewal", kind: "open", title: `${label(c)} renews ${until < 0 ? "now" : `in ${Math.ceil(until)} days`}`, why: r.renewalPlan || "Plan the renewal conversation before the date.", priority: 17, due: new Date(Date.parse(r.renewalDate)).toISOString() });
+        }
+        if (r.referral && !wasSent(cf, "referral", r.id)) add({ ...base, key: `${c.id}:referral:${r.id}`, rule: "referral", kind: "send", msg: "referral", ref: r.id, draft: { channel: "email", subject: r.referral.subject, text: r.referral.text, to: c.email }, title: `Ask ${label(c)} for a referral`, why: `Health ${r.health}: a happy customer is the best source of the next one.${r.upsell.length ? ` Upsell idea: ${r.upsell[0].slice(0, 100)}` : ""}`, priority: 30 });
+      }
+    }
+  }
+  return out.filter((a) => {
+    const until = q.flowOrg.skipped[a.key];
+    return !until || Date.parse(until) <= now;
+  }).sort((a, b) => a.priority - b.priority || a.due.localeCompare(b.due));
+}
+function flowCounts(q, now = Date.now()) {
+  const counts = Object.fromEntries(FLOW_STAGES.map((s) => [s.key, 0]));
+  counts.find = q.prospectBatches.reduce((n, b) => n + b.items.filter((p) => p.status === "pending").length, 0);
+  for (const c of q.contacts) {
+    const s = flowStageOf(c, now);
+    if (s !== "closed") counts[s]++;
+  }
+  return counts;
+}
+
 // core/crm.ts
 var DEAL_STAGES = ["lead", "contacted", "qualified", "proposal", "won", "lost"];
 var SOURCES = ["website", "referral", "linkedin", "whatsapp", "walk-in", "event", "apollo", "web-search", "other"];
 var DEAL_TIERS = ["High", "Medium", "Low"];
 var EMPTY_PROFILE = { rank: null, niche: "", city: "", website: "", size: "", title: "", dealTier: "", ease: "", whyFit: "", pitch: "", sourceDetail: "", checkFirst: "", painPoints: "", offer: "", angle: "", research: "" };
 var HISTORY_MAX = 100;
-var CRM_EVENTS = ["crm.contact", "crm.stage", "crm.touch", "crm.note", "crm.qualify", "crm.removed", ...LEADGEN_ORG_EVENTS, ...LEADGEN_DEAL_EVENTS];
+var CRM_EVENTS = ["crm.contact", "crm.stage", "crm.touch", "crm.note", "crm.qualify", "crm.removed", ...LEADGEN_ORG_EVENTS, ...LEADGEN_DEAL_EVENTS, ...FLOW_ORG_EVENTS, ...FLOW_DEAL_EVENTS];
 var EMAIL_RE2 = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 var PHONE_RE = /^\+?[\d\s()-]{7,20}$/;
 var STALE_DAYS2 = 7;
@@ -235,15 +425,21 @@ function computeCrm(events, now = Date.now()) {
       const what = !prev ? summary.startsWith("Contact imported") ? "Imported from a list" : summary.startsWith("Lead from") ? summary.split(":")[0] : "Added to the CRM" : summary.startsWith("Contact updated from a list") ? "Details filled in from a list" : summary.startsWith("Contact updated by CRM Sync") ? "Details filled in by CRM Sync" : "Details updated";
       const history = addHistory(prev?.history ?? [], { at: e.at, by: e.actor, kind: "update", text: what });
       const lg = prev ? { leadScore: prev.leadScore, sequence: prev.sequence, objections: prev.objections, syncSuggestion: prev.syncSuggestion } : EMPTY_DEAL_LEADGEN;
-      map.set(c.id, { ...EMPTY_PROFILE, ...c, ...lg, stage: prev?.stage ?? "lead", createdAt: prev?.createdAt ?? e.at, updatedAt: e.at, lastTouch: prev?.lastTouch ?? null, meddic: prev?.meddic ?? null, callNotes: prev?.callNotes ?? "", score: prev?.score ?? null, history });
-    } else if (LEADGEN_ORG_EVENTS.includes(e.action)) {
+      map.set(c.id, { ...EMPTY_PROFILE, ...c, ...lg, customer: prev?.customer ?? EMPTY_CUSTOMER, stage: prev?.stage ?? "lead", createdAt: prev?.createdAt ?? e.at, updatedAt: e.at, lastTouch: prev?.lastTouch ?? null, meddic: prev?.meddic ?? null, callNotes: prev?.callNotes ?? "", score: prev?.score ?? null, history });
+    } else if (LEADGEN_ORG_EVENTS.includes(e.action) || FLOW_ORG_EVENTS.includes(e.action)) {
       continue;
     } else {
       const prev = map.get(String(d.contactId));
       if (!prev) continue;
       const log = (kind, t) => addHistory(prev.history, { at: e.at, by: e.actor, kind, text: t });
-      if (e.action === "crm.stage") map.set(prev.id, { ...prev, stage: d.stage, syncSuggestion: null, updatedAt: e.at, lastTouch: e.at, history: log("stage", String(d.stage)) });
-      else if (LEADGEN_DEAL_EVENTS.includes(e.action)) {
+      if (e.action === "crm.stage") {
+        const won2 = d.stage === "won";
+        const customer = won2 ? prev.stage === "won" ? prev.customer : { ...prev.customer, wonAt: e.at } : { ...prev.customer, wonAt: null };
+        map.set(prev.id, { ...prev, stage: d.stage, syncSuggestion: null, customer, updatedAt: e.at, lastTouch: e.at, history: log("stage", String(d.stage)) });
+      } else if (FLOW_DEAL_EVENTS.includes(e.action)) {
+        const r = applyFlowEvent(prev.customer, e);
+        map.set(prev.id, { ...prev, customer: r.cf, ...r.touch ? { lastTouch: e.at, updatedAt: e.at } : {}, history: r.history ? log(r.history.kind, r.history.text) : prev.history });
+      } else if (LEADGEN_DEAL_EVENTS.includes(e.action)) {
         const r = applyDealEvent(prev, e, prev.stage);
         map.set(prev.id, { ...prev, ...r.lg, history: r.history ? log(r.history.kind, r.history.text) : prev.history });
       } else if (e.action === "crm.touch") map.set(prev.id, { ...prev, updatedAt: e.at, lastTouch: e.at, history: log(String(d.kind ?? "touch"), String(d.note ?? "") || "Touched base") });
@@ -263,6 +459,9 @@ function computeCrm(events, now = Date.now()) {
   const closed = won.length + pipeline.lost;
   const fresh = contacts.filter((c) => c.stage === "lead" && c.email && !c.lastTouch && now - Date.parse(c.createdAt) <= NEW_LEAD_HOURS * 36e5);
   const stale = open.filter((c) => c.email && now - Date.parse(c.lastTouch ?? c.createdAt) >= STALE_DAYS2 * 864e5);
+  const leadgen = computeLeadgen(events);
+  const flowOrg = computeFlowOrg(events);
+  const flow = { contacts, icps: leadgen.icps, prospectBatches: leadgen.prospectBatches, flowOrg };
   return {
     contacts,
     pipeline,
@@ -277,8 +476,11 @@ function computeCrm(events, now = Date.now()) {
     followUpGoal: followUpGoal(stale.slice(0, 10)),
     newLeads: fresh.length,
     speedGoal: speedGoal(fresh.slice(0, 10)),
-    ...computeLeadgen(events),
-    issues: crmIssues(contacts, now)
+    ...leadgen,
+    issues: crmIssues(contacts, now),
+    flowOrg,
+    flowCounts: flowCounts(flow, now),
+    nextActions: nextActions(flow, now)
   };
 }
 function speedGoal(list) {
@@ -294,13 +496,13 @@ ${list.map((c) => `- ${c.name}${c.company ? ` (${c.company})` : ""} <${c.email}>
 
 // core/leadgen.ts
 var record2 = (store, orgId, by, action, detail) => store.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
-async function dealOf(store, orgId, contactId2) {
+async function dealOf(store, orgId, contactId3) {
   const crm = await loadCrm(store, orgId);
-  const c = crm.contacts.find((x) => x.id === String(contactId2 ?? "").trim());
-  if (!c) throw new Error(`No deal with id "${String(contactId2 ?? "")}" in the CRM. Use read_crm to find the right id.`);
+  const c = crm.contacts.find((x) => x.id === String(contactId3 ?? "").trim());
+  if (!c) throw new Error(`No deal with id "${String(contactId3 ?? "")}" in the CRM. Use read_crm to find the right id.`);
   return { crm, c };
 }
-var label = (c) => c.company || c.name;
+var label2 = (c) => c.company || c.name;
 var domainOf2 = (w) => w.toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
 async function saveIcp(store, orgId, input, by) {
   const crm = await loadCrm(store, orgId);
@@ -343,30 +545,30 @@ async function proposeProspects(store, orgId, icpId, items, by) {
   await record2(store, orgId, by, "crm.prospects", { batch, summary: `${kept.length} prospects found${icp ? ` for ${icp.name}` : ""}, waiting for your yes` });
   return { kept: kept.length, skipped };
 }
-async function saveLeadScore(store, orgId, contactId2, score, reasons, icpId, by) {
-  const { crm, c } = await dealOf(store, orgId, contactId2);
+async function saveLeadScore(store, orgId, contactId3, score, reasons, icpId, by) {
+  const { crm, c } = await dealOf(store, orgId, contactId3);
   const n = Math.round(Number(score));
   if (!Number.isFinite(n) || n < 0 || n > 100) throw new Error("score must be a whole number from 0 to 100");
   const why = text(reasons, 1200);
   if (!why) throw new Error("Give the reasons for the score");
   const icp = crm.icps.find((i) => i.id === text(icpId, 64));
-  await record2(store, orgId, by, "crm.leadscore", { contactId: c.id, score: { score: n, grade: gradeFor(n), reasons: why, icpId: icp?.id ?? null }, summary: `${label(c)}: lead score ${n} (${gradeFor(n)})` });
-  return `Saved lead score ${n} (${gradeFor(n)}) on ${label(c)}`;
+  await record2(store, orgId, by, "crm.leadscore", { contactId: c.id, score: { score: n, grade: gradeFor(n), reasons: why, icpId: icp?.id ?? null }, summary: `${label2(c)}: lead score ${n} (${gradeFor(n)})` });
+  return `Saved lead score ${n} (${gradeFor(n)}) on ${label2(c)}`;
 }
-async function saveSequence(store, orgId, contactId2, steps, notes, by) {
-  const { c } = await dealOf(store, orgId, contactId2);
+async function saveSequence(store, orgId, contactId3, steps, notes, by) {
+  const { c } = await dealOf(store, orgId, contactId3);
   const clean2 = cleanSteps(steps);
-  await record2(store, orgId, by, "crm.sequence", { contactId: c.id, sequence: { id: newId(), steps: clean2, notes: text(notes, 1e3) }, summary: `${label(c)}: outreach sequence drafted (${clean2.length} steps, not sent)` });
-  return `Saved a ${clean2.length}-step outreach sequence on ${label(c)} as drafts. Nothing was sent.`;
+  await record2(store, orgId, by, "crm.sequence", { contactId: c.id, sequence: { id: newId(), steps: clean2, notes: text(notes, 1e3) }, summary: `${label2(c)}: outreach sequence drafted (${clean2.length} steps, not sent)` });
+  return `Saved a ${clean2.length}-step outreach sequence on ${label2(c)} as drafts. Nothing was sent.`;
 }
-async function saveObjection(store, orgId, contactId2, objection, responses, blocker, by) {
-  const { c } = await dealOf(store, orgId, contactId2);
+async function saveObjection(store, orgId, contactId3, objection, responses, blocker, by) {
+  const { c } = await dealOf(store, orgId, contactId3);
   const o = text(objection, 500);
   if (!o) throw new Error("Say which objection this answers");
   const list = (Array.isArray(responses) ? responses : [responses]).map((r) => text(r, 2e3)).filter(Boolean).slice(0, 3);
   if (!list.length) throw new Error("Give at least one answer to the objection");
-  await record2(store, orgId, by, "crm.objection", { contactId: c.id, play: { objection: o, responses: list, blocker: text(blocker, 500) }, summary: `${label(c)}: objection answers saved` });
-  return `Saved ${list.length} answer${list.length === 1 ? "" : "s"} to "${o.slice(0, 60)}" on ${label(c)}`;
+  await record2(store, orgId, by, "crm.objection", { contactId: c.id, play: { objection: o, responses: list, blocker: text(blocker, 500) }, summary: `${label2(c)}: objection answers saved` });
+  return `Saved ${list.length} answer${list.length === 1 ? "" : "s"} to "${o.slice(0, 60)}" on ${label2(c)}`;
 }
 var FILLABLE = ["niche", "city", "website", "size", "title", "phone", "email", "nextStep", "painPoints", "offer", "angle"];
 async function syncDeal(store, orgId, input, by) {
@@ -394,19 +596,19 @@ async function syncDeal(store, orgId, input, by) {
   }
   const stage = text(input.suggestStage, 20).toLowerCase();
   const suggestStage = DEAL_STAGES.includes(stage) && stage !== c.stage ? stage : "";
-  await record2(store, orgId, by, "crm.sync", { contactId: c.id, filled, suggestStage, reason, summary: `CRM Sync on ${label(c)}` });
-  return `CRM Sync on ${label(c)}: ${filled.length ? `filled ${filled.join(", ")}` : "no fields changed"}${suggestStage ? `; suggested moving to ${suggestStage} (the owner decides)` : ""}.`;
+  await record2(store, orgId, by, "crm.sync", { contactId: c.id, filled, suggestStage, reason, summary: `CRM Sync on ${label2(c)}` });
+  return `CRM Sync on ${label2(c)}: ${filled.length ? `filled ${filled.join(", ")}` : "no fields changed"}${suggestStage ? `; suggested moving to ${suggestStage} (the owner decides)` : ""}.`;
 }
 var cut = (s, n) => s ? s.replace(/\s+/g, " ").trim().slice(0, n) : "";
 var READ_MAX = 24e3;
 function dealRow(c) {
   const reach = [c.email && "email", c.phone && "phone"].filter(Boolean).join("+") || "no contact info";
-  return `- id ${c.id} | ${label(c)}${c.name && c.name !== c.company ? ` (${c.name}${c.title ? `, ${c.title}` : ""})` : ""} | ${[c.niche, c.city, c.size].filter(Boolean).join(" \xB7 ") || "no research"} | stage ${c.stage} | deal ${c.dealTier || "?"} / ease ${c.ease || "?"}${c.rank ? ` | rank ${c.rank}` : ""} | ${reach}${c.leadScore ? ` | score ${c.leadScore.score} ${c.leadScore.grade}` : ""}${c.sequence ? " | sequence drafted" : ""}${c.whyFit ? ` | why: ${cut(c.whyFit, 160)}` : ""}`;
+  return `- id ${c.id} | ${label2(c)}${c.name && c.name !== c.company ? ` (${c.name}${c.title ? `, ${c.title}` : ""})` : ""} | ${[c.niche, c.city, c.size].filter(Boolean).join(" \xB7 ") || "no research"} | stage ${c.stage} | deal ${c.dealTier || "?"} / ease ${c.ease || "?"}${c.rank ? ` | rank ${c.rank}` : ""} | ${reach}${c.leadScore ? ` | score ${c.leadScore.score} ${c.leadScore.grade}` : ""}${c.sequence ? " | sequence drafted" : ""}${c.whyFit ? ` | why: ${cut(c.whyFit, 160)}` : ""}`;
 }
 function dealFull(c) {
   const m = c.meddic;
   return [
-    `Deal id ${c.id}: ${label(c)}; stage ${c.stage}; source ${c.source}${c.sourceDetail ? ` (${c.sourceDetail})` : ""}`,
+    `Deal id ${c.id}: ${label2(c)}; stage ${c.stage}; source ${c.source}${c.sourceDetail ? ` (${c.sourceDetail})` : ""}`,
     `Decision maker: ${c.name !== c.company ? c.name : "not stated"}${c.title ? `, ${c.title}` : ""}`,
     [c.niche && `Niche: ${c.niche}`, c.city && `City: ${c.city}`, c.website && `Website: ${c.website}`, c.size && `Size: ${c.size}`, c.phone && `Phone: ${c.phone}`, c.email && `Email: ${c.email}`, c.value && `Value: ${c.value}`, c.dealTier && `Deal size: ${c.dealTier}`, c.ease && `Ease of win: ${c.ease}`, c.rank && `Rank: ${c.rank}`].filter(Boolean).join("; "),
     c.whyFit && `Why they fit: ${cut(c.whyFit, 1e3)}`,
@@ -424,25 +626,38 @@ function dealFull(c) {
     c.leadScore && `Lead score: ${c.leadScore.score} (${c.leadScore.grade}) \u2014 ${cut(c.leadScore.reasons, 400)}`,
     c.sequence && `Outreach sequence: ${c.sequence.steps.map((s, i) => `step ${i + 1} day ${s.day} ${s.channel}${s.sentAt ? " (sent)" : ""}`).join(", ")}`,
     c.objections.length ? `Objections answered: ${c.objections.map((o) => `"${cut(o.objection, 100)}"`).join("; ")}` : "",
+    ...customerLines(c),
     `History (newest first):
 ${c.history.slice(0, 15).map((h) => `  ${h.at.slice(0, 10)} ${h.kind}: ${cut(h.text, 200)}`).join("\n") || "  none"}`
   ].filter(Boolean).join("\n");
+}
+function customerLines(c) {
+  const cf = c.customer;
+  if (!cf || c.stage !== "won") return [];
+  const o = cf.onboarding;
+  const r = cf.review;
+  return [
+    `Customer since: ${cf.wonAt ? cf.wonAt.slice(0, 10) : "unknown"}`,
+    o ? `Onboarding plan (${o.at.slice(0, 10)}): ${o.steps.map((s) => `day ${s.day} ${cut(s.title, 80)} [${s.owner}]${s.doneAt ? " done" : ""}`).join("; ")}${o.welcome ? `; welcome email ${cf.sent.some((x) => x.kind === "welcome" && x.ref === o.id) ? "sent" : "not sent yet"}` : ""}` : "Onboarding plan: none yet",
+    r ? `Last account review (${r.at.slice(0, 10)}): health ${r.health} (${r.band}); ${cut(r.reasons, 400)}${r.risks ? `; risks: ${cut(r.risks, 300)}` : ""}${r.renewalDate ? `; renewal ${r.renewalDate}` : ""}` : "Account review: none yet",
+    cf.sent.length ? `Customer messages sent: ${cf.sent.map((x) => `${x.kind} ${x.at.slice(0, 10)}`).join(", ")}` : ""
+  ].filter(Boolean);
 }
 function icpFull(i) {
   return [`ICP id ${i.id}: ${i.name}`, `Summary: ${i.summary}`, i.industries && `Industries: ${i.industries}`, i.locations && `Locations: ${i.locations}`, i.size && `Size: ${i.size}`, i.buyer && `Buyer: ${i.buyer}`, i.pains && `Pains: ${i.pains}`, i.signals && `Buying signals: ${i.signals}`, i.disqualifiers && `Disqualifiers: ${i.disqualifiers}`, i.offer && `Offer: ${i.offer}`, i.valueCase && `Why it pays: ${i.valueCase}`, i.voice && `Voice: ${i.voice}`].filter(Boolean).join("\n");
 }
 var READ_VIEWS = ["pipeline", "deal", "deals", "icps", "icp_notes", "existing", "issues"];
-async function readCrm(store, orgId, view, contactId2, contactIds) {
+async function readCrm(store, orgId, view, contactId3, contactIds) {
   const crm = await loadCrm(store, orgId);
   let out;
   switch (view) {
     case "deal": {
-      const c = crm.contacts.find((x) => x.id === String(contactId2 ?? ""));
-      out = c ? dealFull(c) : `No deal with id "${String(contactId2 ?? "")}". Read the pipeline view for ids.`;
+      const c = crm.contacts.find((x) => x.id === String(contactId3 ?? ""));
+      out = c ? dealFull(c) : `No deal with id "${String(contactId3 ?? "")}". Read the pipeline view for ids.`;
       break;
     }
     case "deals": {
-      const ids = (Array.isArray(contactIds) ? contactIds : [contactId2]).map((x) => String(x ?? "").trim()).filter(Boolean).slice(0, 12);
+      const ids = (Array.isArray(contactIds) ? contactIds : [contactId3]).map((x) => String(x ?? "").trim()).filter(Boolean).slice(0, 12);
       const found = ids.map((id) => crm.contacts.find((x) => x.id === id));
       out = ids.length ? found.map((c, n) => c ? dealFull(c) : `No deal with id "${ids[n]}".`).join("\n\n---\n\n") : "Pass contactIds (up to 12 deal ids).";
       break;
@@ -457,7 +672,7 @@ ${crm.icpNotes.text}` : "The owner has not added ICP notes.";
     case "existing": {
       const pending = crm.prospectBatches.flatMap((b) => b.items.filter((p) => p.status === "pending"));
       out = `Already in the CRM (${crm.contacts.length}):
-${crm.contacts.map((c) => `- ${label(c)}${c.website ? ` (${c.website})` : ""}`).join("\n") || "- none"}
+${crm.contacts.map((c) => `- ${label2(c)}${c.website ? ` (${c.website})` : ""}`).join("\n") || "- none"}
 Waiting for the owner's yes (${pending.length}):
 ${pending.map((p) => `- ${p.company}${p.website ? ` (${p.website})` : ""}`).join("\n") || "- none"}`;
       break;
@@ -589,6 +804,78 @@ var LEADGEN_TOOLS = {
     },
     summarize: (i) => `CRM Sync on ${String(i.contactId ?? "")}`,
     execute: (i, ctx) => syncDeal(ctx.store, ctx.orgId, i, ctx.agent.name)
+  }
+};
+
+// core/salesflow.ts
+var record3 = (store, orgId, by, action, detail) => store.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
+var label3 = (c) => c.company || c.name;
+async function customerOf(store, orgId, contactId3) {
+  const c = (await loadCrm(store, orgId)).contacts.find((x) => x.id === String(contactId3 ?? "").trim());
+  if (!c) throw new Error(`No deal with id "${String(contactId3 ?? "")}" in the CRM. Use read_crm to find the right id.`);
+  return c;
+}
+async function saveOnboarding(store, orgId, contactId3, input, by) {
+  const c = await customerOf(store, orgId, contactId3);
+  if (c.stage !== "won") throw new Error(`${label3(c)} is not a won customer yet (stage ${c.stage}). Onboarding starts after the win.`);
+  const plan = { id: newId(), ...cleanOnboarding(input) };
+  await record3(store, orgId, by, "crm.onboarding", { contactId: c.id, onboarding: plan, summary: `${label3(c)}: onboarding plan saved` });
+  return `Saved an onboarding plan with ${plan.steps.length} steps${plan.welcome ? " and a welcome email draft" : ""} on ${label3(c)}. Nothing was sent.`;
+}
+async function saveAccountReview(store, orgId, contactId3, input, by) {
+  const c = await customerOf(store, orgId, contactId3);
+  if (c.stage !== "won") throw new Error(`${label3(c)} is not a customer yet (stage ${c.stage}). Account reviews are for won deals.`);
+  const review = { id: newId(), ...cleanReview(input) };
+  await record3(store, orgId, by, "crm.account", { contactId: c.id, review, summary: `${label3(c)}: account review, health ${review.health}` });
+  return `Saved the account review on ${label3(c)}: health ${review.health} (${review.band.replace("_", " ")}). Nothing was sent.`;
+}
+
+// core/salesflow-tools.ts
+var str2 = { type: "string" };
+var contactId2 = { type: "string", description: "The deal id from read_crm" };
+var draft2 = { type: "object", properties: { subject: str2, text: str2 }, required: ["text"] };
+var SALESFLOW_TOOLS = {
+  save_onboarding: {
+    spec: {
+      name: "save_onboarding",
+      description: "Save an onboarding plan onto a won customer: steps over the first 30 days, a welcome email draft and a kickoff agenda. Nothing is sent; the owner sends the welcome and ticks steps done.",
+      input_schema: {
+        type: "object",
+        properties: {
+          contactId: contactId2,
+          steps: { type: "array", minItems: 2, maxItems: 12, items: { type: "object", properties: { day: { type: "number" }, title: str2, owner: { type: "string", enum: [...STEP_OWNERS] } }, required: ["day", "title", "owner"] } },
+          welcome: draft2,
+          kickoff: { type: "string", description: "A 30-minute kickoff agenda" },
+          notes: { type: "string", description: "Anything to check first" }
+        },
+        required: ["contactId", "steps"]
+      }
+    },
+    summarize: (i) => `Plan onboarding for ${String(i.contactId ?? "")}`,
+    execute: (i, ctx) => saveOnboarding(ctx.store, ctx.orgId, i.contactId, i, ctx.agent.name)
+  },
+  save_account_review: {
+    spec: {
+      name: "save_account_review",
+      description: "Save an account review onto a won customer: health 0 to 100 with reasons, risks, a check-in message draft, the renewal date and plan, upsell ideas and (health 70+) a referral ask draft. Nothing is sent.",
+      input_schema: {
+        type: "object",
+        properties: {
+          contactId: contactId2,
+          health: { type: "number" },
+          reasons: str2,
+          risks: str2,
+          checkIn: draft2,
+          renewalDate: { type: "string", description: "YYYY-MM-DD, only if the record states it" },
+          renewalPlan: str2,
+          upsell: { type: "array", items: str2, maxItems: 3 },
+          referral: draft2
+        },
+        required: ["contactId", "health", "reasons"]
+      }
+    },
+    summarize: (i) => `Account review for ${String(i.contactId ?? "")}: health ${String(i.health ?? "")}`,
+    execute: (i, ctx) => saveAccountReview(ctx.store, ctx.orgId, i.contactId, i, ctx.agent.name)
   }
 };
 
@@ -759,7 +1046,8 @@ ${body}`, agentId: ctx.agent.id, at: nowIso() });
     }
   },
   // Lead generation: read the CRM and save drafts, scores and suggestions onto it (nothing is sent).
-  ...LEADGEN_TOOLS
+  ...LEADGEN_TOOLS,
+  ...SALESFLOW_TOOLS
 };
 
 // core/profile.ts

@@ -7,6 +7,9 @@ import { fileToCsv } from '../lib/sheet';
 import type { Meddic } from '../../core/gtm';
 import type { LeadScore, ObjectionPlay, Sequence, SyncSuggestion } from '../../core/leadgen-state';
 import { DealAgents, gradeTone } from './DealAgents';
+import { CustomerSuccess } from './CustomerSuccess';
+import { ActionCard } from './SalesFlow';
+import type { CustomerFlow, NextAction } from '../../core/salesflow-state';
 
 export interface HistoryItem { at: string; by: string; kind: string; text: string }
 export interface LeadProfile {
@@ -18,6 +21,8 @@ export interface Contact extends LeadProfile {
   stage: string; lastTouch: string | null; createdAt: string; meddic: Meddic | null; callNotes: string; score: number | null; apolloId?: string; history?: HistoryItem[];
   /** Saved by the lead agents. */
   leadScore?: LeadScore | null; sequence?: Sequence | null; objections?: ObjectionPlay[]; syncSuggestion?: SyncSuggestion | null;
+  /** After the win: onboarding plan, account reviews and customer messages sent. */
+  customer?: CustomerFlow;
 }
 
 export const STAGES = ['lead', 'contacted', 'qualified', 'proposal', 'won', 'lost'];
@@ -26,7 +31,7 @@ const STAGE_LABEL: Record<string, string> = { lead: 'New lead', contacted: 'Cont
 export const stageName = (s: string) => STAGE_LABEL[s] ?? s;
 export const webHref = (w: string) => (/^https?:\/\//i.test(w) ? w : `https://${w}`);
 const SOURCES = ['website', 'referral', 'linkedin', 'whatsapp', 'walk-in', 'event', 'apollo', 'web-search', 'other'];
-const KIND_LABEL: Record<string, string> = { note: 'Note', call: 'Call', email: 'Email', meeting: 'Meeting', research: 'Research', stage: 'Stage', update: 'Update', qualify: 'Qualified', touch: 'Touch', score: 'Lead score', sequence: 'Outreach', objection: 'Objection', sync: 'CRM Sync', agent: 'Agent' };
+const KIND_LABEL: Record<string, string> = { note: 'Note', call: 'Call', email: 'Email', meeting: 'Meeting', research: 'Research', stage: 'Stage', update: 'Update', qualify: 'Qualified', touch: 'Touch', score: 'Lead score', sequence: 'Outreach', objection: 'Objection', sync: 'CRM Sync', agent: 'Agent', onboarding: 'Onboarding', health: 'Account health' };
 const when = (iso: string) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }); };
 
 type Post = (k: string, b: Record<string, unknown>) => Promise<boolean>;
@@ -48,7 +53,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   return <div><dt>{label}</dt><dd>{children}</dd></div>;
 }
 
-export function CustomerPage({ c, busy, msg, post, back, goApprovals, reload }: { c: Contact; busy: boolean; msg: string | null; post: Post; back: () => void; goApprovals: () => void; reload: () => void }) {
+export function CustomerPage({ c, busy, msg, post, back, goApprovals, reload, actions = [] }: { c: Contact; busy: boolean; msg: string | null; post: Post; back: () => void; goApprovals: () => void; reload: () => void; actions?: NextAction[] }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Form>(() => toForm(c));
   const [kind, setKind] = useState('note');
@@ -92,6 +97,16 @@ export function CustomerPage({ c, busy, msg, post, back, goApprovals, reload }: 
         </div>
         {msg && <p className="error" role="alert">{msg}</p>}
       </section>
+
+      {actions.length > 0 && (
+        <section className="panel glass-card">
+          <p className="eyebrow">Sales flow</p>
+          <h3>Next for {c.company || c.name}</h3>
+          <ol className="action-list">{actions.map((a) => <ActionCard key={a.key} a={a} c={c} busy={busy} post={post} reload={reload} goApprovals={goApprovals} showCompany={false} />)}</ol>
+        </section>
+      )}
+
+      {c.stage === 'won' && <CustomerSuccess c={c} busy={busy} post={post} reload={reload} goApprovals={goApprovals} />}
 
       {editing ? (
         <section className="panel glass-card">

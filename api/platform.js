@@ -133,9 +133,9 @@ var PROFILE_PREFIX = "Business profile";
 var LEGACY_PREFIX = "Company profile";
 var MAX_FIELD = 1e3;
 function profileText(p) {
-  const lines = PROFILE_FIELDS.map(({ key, label: label2 }) => {
+  const lines = PROFILE_FIELDS.map(({ key, label: label4 }) => {
     const v = (p[key] ?? "").toString().replace(/\s+/g, " ").trim().slice(0, MAX_FIELD);
-    return v ? `${label2}: ${v}` : null;
+    return v ? `${label4}: ${v}` : null;
   }).filter(Boolean);
   return [PROFILE_PREFIX, ...lines].join("\n");
 }
@@ -144,8 +144,8 @@ function parseProfile(text6) {
   for (const line of text6.split("\n").slice(1)) {
     const i = line.indexOf(": ");
     if (i < 0) continue;
-    const label2 = line.slice(0, i);
-    const field2 = PROFILE_FIELDS.find((f) => f.label === label2) ?? PROFILE_FIELDS.find((f) => f.aliases?.includes(label2));
+    const label4 = line.slice(0, i);
+    const field2 = PROFILE_FIELDS.find((f) => f.label === label4) ?? PROFILE_FIELDS.find((f) => f.aliases?.includes(label4));
     if (field2) out[field2.key] = line.slice(i + 2);
   }
   return out;
@@ -397,8 +397,8 @@ var SupabaseStore = class {
    * Creates a workspace for a user who has none (for example, an account made before the database
    * trigger existed). Mirrors handle_new_user() in the migration: org, owner membership, default autonomy.
    */
-  async provisionWorkspace(userId, label2) {
-    const org = this.one(await this.req("orgs", { method: "POST", body: JSON.stringify({ name: label2.slice(0, 200) || "My company" }) }), "Org");
+  async provisionWorkspace(userId, label4) {
+    const org = this.one(await this.req("orgs", { method: "POST", body: JSON.stringify({ name: label4.slice(0, 200) || "My company" }) }), "Org");
     await this.req("org_members", { method: "POST", body: JSON.stringify({ org_id: org.id, user_id: userId, role: "owner" }), headers: { prefer: "return=minimal" } });
     const types = DEFAULT_TASK_TYPES.map((t) => taskTypeRow(org.id, t));
     await this.req("task_types", { method: "POST", body: JSON.stringify(types), headers: { prefer: "return=minimal" } });
@@ -602,6 +602,197 @@ function crmIssues(deals, now = Date.now()) {
   return out;
 }
 
+// core/salesflow-state.ts
+var FLOW_ORG_EVENTS = ["crm.action_skip", "crm.autopilot"];
+var FLOW_DEAL_EVENTS = ["crm.onboarding", "crm.onboarding_step", "crm.account", "crm.customer_sent"];
+var FLOW_STAGES = [
+  { key: "find", name: "Find", does: "Set who you sell to, then find businesses that fit.", agents: ["ICP Builder", "Prospect Generator"], gate: "You tick which prospects join the CRM." },
+  { key: "qualify", name: "Qualify", does: "Score each new lead on fit, size, ease of win and reach.", agents: ["Lead Scorer", "Speed-to-Lead"], gate: "First replies wait in Approvals." },
+  { key: "outreach", name: "Outreach", does: "Personal email, LinkedIn and call steps in your voice.", agents: ["Outreach Sequencer", "Follow-up Writer"], gate: "You send each step and mark it sent." },
+  { key: "discovery", name: "Discovery", does: "Prep the call, capture MEDDIC, debrief the notes.", agents: ["Call Prepper", "Deal Qualifier"], gate: "You approve the move to Proposal." },
+  { key: "proposal", name: "Proposal and close", does: "Proposal, objection answers and the follow-up to a yes.", agents: ["Proposal Writer", "Objection Handler", "Win-Loss Analyst"], gate: "You send the proposal and mark it won or lost." },
+  { key: "onboard", name: "Onboard", does: "Welcome email, kickoff agenda and a first-30-days plan.", agents: ["Onboarding Manager"], gate: "You send the welcome and tick steps done." },
+  { key: "retain", name: "Retain", does: "Monthly health check, check-in message and renewal plan.", agents: ["Customer Success Manager"], gate: "You send each check-in." },
+  { key: "expand", name: "Expand", does: "Upsell ideas and a referral ask for healthy customers.", agents: ["Customer Success Manager"], gate: "You choose what to offer and send it." }
+];
+var STEP_OWNERS = ["you", "customer", "agent"];
+var CUSTOMER_MSGS = ["welcome", "checkin", "referral"];
+var EMPTY_CUSTOMER = { wonAt: null, onboarding: null, review: null, sent: [] };
+var num = (v, lo, hi, dflt) => {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : dflt;
+};
+var draft = (v) => {
+  if (!v || typeof v !== "object") return null;
+  const d = v;
+  const t = text(d.text, 4e3);
+  return t ? { subject: text(d.subject, 200), text: t } : null;
+};
+function bandFor(health) {
+  return health >= 70 ? "healthy" : health >= 45 ? "watch" : "at_risk";
+}
+function cleanOnboarding(input) {
+  const raw = Array.isArray(input.steps) ? input.steps : [];
+  const steps = raw.slice(0, 12).map((s) => {
+    const o = s && typeof s === "object" ? s : {};
+    const owner = STEP_OWNERS.find((x) => x === String(o.owner ?? "").toLowerCase()) ?? "you";
+    return { title: text(o.title, 300), owner, day: num(o.day, 0, 90, 0), doneAt: null };
+  }).filter((s) => s.title).sort((a, b) => a.day - b.day);
+  if (steps.length < 2) throw new Error("An onboarding plan needs at least two steps, each with a title");
+  return { steps, welcome: draft(input.welcome), kickoff: text(input.kickoff, 3e3), notes: text(input.notes, 1e3) };
+}
+function cleanReview(input) {
+  const reasons = text(input.reasons, 2e3);
+  if (!reasons) throw new Error("Give the reasons behind the health score");
+  const health = num(input.health, 0, 100, 50);
+  const date = text(input.renewalDate, 10);
+  const upsell = (Array.isArray(input.upsell) ? input.upsell : []).map((u) => text(u, 400)).filter(Boolean).slice(0, 3);
+  return {
+    health,
+    band: bandFor(health),
+    reasons,
+    risks: text(input.risks, 1500),
+    checkIn: draft(input.checkIn),
+    renewalDate: /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "",
+    renewalPlan: text(input.renewalPlan, 1500),
+    upsell,
+    referral: health >= 70 ? draft(input.referral) : null
+  };
+}
+var MSG_NAME = { welcome: "the welcome email", checkin: "the check-in message", referral: "the referral ask" };
+function applyFlowEvent(cf, e) {
+  const d = e.detail;
+  if (e.action === "crm.onboarding") {
+    const o = d.onboarding;
+    return { cf: { ...cf, onboarding: { ...o, at: e.at, by: e.actor } }, history: { kind: "agent", text: `Onboarding plan saved: ${o.steps.length} steps${o.welcome ? " and a welcome email draft" : ""}` } };
+  }
+  if (e.action === "crm.onboarding_step") {
+    const o = cf.onboarding;
+    const i = Number(d.index);
+    if (!o || o.id !== d.onboardingId || !o.steps[i]) return { cf };
+    const steps = o.steps.map((s, n) => n === i ? { ...s, doneAt: e.at } : s);
+    return { cf: { ...cf, onboarding: { ...o, steps } }, history: { kind: "onboarding", text: `Onboarding step done: ${o.steps[i].title}` } };
+  }
+  if (e.action === "crm.account") {
+    const r = d.review;
+    return { cf: { ...cf, review: { ...r, at: e.at, by: e.actor } }, history: { kind: "health", text: `Account review: health ${r.health} (${r.band.replace("_", " ")}). ${r.reasons.slice(0, 200)}` } };
+  }
+  if (e.action === "crm.customer_sent") {
+    const kind = CUSTOMER_MSGS.find((k) => k === d.kind);
+    if (!kind) return { cf };
+    return { cf: { ...cf, sent: [...cf.sent, { kind, ref: String(d.ref ?? ""), at: e.at }].slice(-30) }, history: { kind: "email", text: `Sent ${MSG_NAME[kind]}` }, touch: true };
+  }
+  return { cf };
+}
+var wasSent = (cf, kind, ref) => cf.sent.some((s) => s.kind === kind && s.ref === ref);
+function computeFlowOrg(events) {
+  const out = { autopilot: null, skipped: {} };
+  for (const e of events) {
+    if (e.action === "crm.autopilot") out.autopilot = { on: Boolean(e.detail.on), at: e.at, by: e.actor };
+    else if (e.action === "crm.action_skip") out.skipped[String(e.detail.key)] = String(e.detail.until ?? "");
+  }
+  return out;
+}
+var DAY = 864e5;
+var daysSince = (iso, now) => iso ? (now - Date.parse(iso)) / DAY : Infinity;
+var ranBy = (c, agentName, sinceIso) => c.history.some((h) => h.by === agentName && (!sinceIso || h.at >= sinceIso));
+var label = (c) => c.company || c.name;
+function flowStageOf(c, now = Date.now()) {
+  if (c.stage === "lost") return "closed";
+  if (c.stage === "lead") return c.sequence ? "outreach" : "qualify";
+  if (c.stage === "contacted") return "outreach";
+  if (c.stage === "qualified") return "discovery";
+  if (c.stage === "proposal") return "proposal";
+  const cf = c.customer ?? EMPTY_CUSTOMER;
+  const onboarded = !!cf.onboarding && cf.onboarding.steps.every((s) => s.doneAt);
+  const days = daysSince(cf.wonAt, now);
+  if (!onboarded && days < 30) return "onboard";
+  if (cf.review && cf.review.health >= 70 && days >= 45) return "expand";
+  return "retain";
+}
+var SKIP_DAYS = 7;
+var QUIET_DAYS = 7;
+var PROPOSAL_QUIET_DAYS = 5;
+var REVIEW_EVERY_DAYS = 30;
+var RENEWAL_WINDOW_DAYS = 45;
+function nextActions(q, now = Date.now()) {
+  const out = [];
+  const iso = (t) => new Date(t).toISOString();
+  const today = iso(now);
+  const add = (a) => out.push({ due: today, ...a });
+  if (q.pendingApprovals) add({ key: "approvals", rule: "approvals", stage: "outreach", kind: "open", title: `${q.pendingApprovals} message${q.pendingApprovals === 1 ? "" : "s"} wait for your approval`, why: "Agents drafted these emails; nothing goes out until you approve each one.", priority: 0, count: q.pendingApprovals });
+  if (!q.icps.length) add({ key: "icp", rule: "icp", stage: "find", kind: "open", agentId: "icp-builder", title: "Define who you sell to", why: "Every agent scores, writes and searches from your ICP. Upload your lead workbook or paste notes, then build it.", priority: 5 });
+  const pending = q.prospectBatches.reduce((n, b) => n + b.items.filter((p) => p.status === "pending").length, 0);
+  if (pending) add({ key: "prospects", rule: "prospects", stage: "find", kind: "open", title: `Review ${pending} new prospect${pending === 1 ? "" : "s"}`, why: "The Prospect Generator found them on public pages. Tick the ones to add to New lead.", priority: 18, count: pending });
+  for (const c of q.contacts) {
+    const stage = flowStageOf(c, now);
+    if (stage === "closed") {
+      if (!ranBy(c, "Win-Loss Analyst")) add({ key: `${c.id}:winloss`, rule: "winloss", stage: "proposal", kind: "agent", agentId: "win-loss", contactId: c.id, company: label(c), title: `Learn why ${label(c)} was lost`, why: "A short win-loss review sharpens the ICP and the next pitch.", priority: 60 });
+      continue;
+    }
+    const base = { contactId: c.id, company: label(c), stage };
+    if (c.syncSuggestion) add({ ...base, key: `${c.id}:sync`, rule: "sync", kind: "approve", suggestStage: c.syncSuggestion.stage, title: `Move ${label(c)} to ${c.syncSuggestion.stage}?`, why: c.syncSuggestion.reason, priority: 15 });
+    if (c.stage === "lead" || c.stage === "contacted") {
+      if (!c.leadScore && c.stage === "lead") add({ ...base, key: `${c.id}:score`, rule: "score", kind: "agent", agentId: "lead-scorer", title: `Score ${label(c)}`, why: "Scoring tells you which leads to work first.", priority: 40 + Math.min(19, c.rank ?? 19) / 100 });
+      else if (c.leadScore && c.leadScore.score >= 60 && !c.sequence) add({ ...base, key: `${c.id}:sequence`, rule: "sequence", kind: "agent", agentId: "outreach-sequencer", title: `Draft outreach for ${label(c)}`, why: `Lead score ${c.leadScore.score} (${c.leadScore.grade}): worth a personal sequence.`, priority: 35 - c.leadScore.score / 100 });
+      const seq = c.sequence;
+      const i = seq ? seq.steps.findIndex((s) => !s.sentAt) : -1;
+      if (seq && i >= 0) {
+        const st = seq.steps[i];
+        const prevSent = i === 0 ? seq.at : seq.steps[i - 1].sentAt ?? seq.at;
+        const dueAt = Date.parse(prevSent) + (i === 0 ? 0 : Math.max(0, st.day - seq.steps[i - 1].day)) * DAY;
+        if (dueAt <= now) {
+          const to = st.channel === "email" ? c.email : st.channel === "linkedin" ? "LinkedIn" : c.phone;
+          add({ ...base, key: `${c.id}:step:${seq.id}:${i}`, rule: "send_step", kind: "send", stepIndex: i, draft: { channel: st.channel, subject: st.subject, text: st.text, to: to || "" }, title: `Send step ${i + 1} of ${seq.steps.length} to ${label(c)}`, why: `Day ${st.day} ${st.channel === "linkedin" ? "LinkedIn message" : st.channel}, drafted in your voice.`, priority: 10 - Math.min(5, (now - dueAt) / DAY) / 10, due: iso(dueAt) });
+        }
+      } else if (c.stage === "contacted" && daysSince(c.lastTouch ?? c.createdAt, now) >= QUIET_DAYS) {
+        add({ ...base, key: `${c.id}:quiet:${(c.lastTouch ?? c.createdAt).slice(0, 10)}`, rule: "quiet", kind: "agent", agentId: "follow-up-writer", title: `${label(c)} has gone quiet`, why: `No touch for ${Math.floor(daysSince(c.lastTouch ?? c.createdAt, now))} days. Draft a follow-up, or mark it lost.`, priority: 25 });
+      }
+    } else if (c.stage === "qualified") {
+      const s = c.score ?? 0;
+      if (s >= 70) add({ ...base, key: `${c.id}:advance`, rule: "advance", kind: "approve", suggestStage: "proposal", title: `Move ${label(c)} to Proposal?`, why: `MEDDIC ${s}%: the deal is qualified enough to propose.`, priority: 15 });
+      else if (!c.callNotes && !ranBy(c, "Call Prepper")) add({ ...base, key: `${c.id}:discovery`, rule: "discovery", kind: "agent", agentId: "call-prepper", title: `Prep the discovery call with ${label(c)}`, why: "Questions to fill the MEDDIC gaps: the pain, the number, who decides and by when.", priority: 30 });
+    } else if (c.stage === "proposal") {
+      if (!ranBy(c, "Proposal Writer")) add({ ...base, key: `${c.id}:proposal`, rule: "proposal", kind: "agent", agentId: "proposal-writer", title: `Draft the proposal for ${label(c)}`, why: "Built from their pains, MEDDIC and the offer in the record.", priority: 28 });
+      else if (daysSince(c.lastTouch ?? c.updatedAt, now) >= PROPOSAL_QUIET_DAYS) add({ ...base, key: `${c.id}:pquiet:${(c.lastTouch ?? c.updatedAt).slice(0, 10)}`, rule: "proposal_quiet", kind: "agent", agentId: "follow-up-writer", title: `Follow up on the proposal to ${label(c)}`, why: `Quiet for ${Math.floor(daysSince(c.lastTouch ?? c.updatedAt, now))} days since the proposal.`, priority: 22 });
+    } else if (c.stage === "won") {
+      const cf = c.customer ?? EMPTY_CUSTOMER;
+      const o = cf.onboarding;
+      if (!o) add({ ...base, key: `${c.id}:onboard`, rule: "onboard", kind: "agent", agentId: "onboarding-manager", title: `Plan onboarding for ${label(c)}`, why: "A welcome email, kickoff agenda and first-30-days plan, so the start feels looked after.", priority: 16 });
+      else {
+        if (o.welcome && !wasSent(cf, "welcome", o.id)) add({ ...base, key: `${c.id}:welcome:${o.id}`, rule: "welcome", kind: "send", msg: "welcome", ref: o.id, draft: { channel: "email", subject: o.welcome.subject, text: o.welcome.text, to: c.email }, title: `Send the welcome email to ${label(c)}`, why: "First impression after the yes. Drafted from the deal record.", priority: 12 });
+        const won = Date.parse(cf.wonAt ?? o.at);
+        const n = o.steps.findIndex((s) => !s.doneAt && s.owner !== "customer");
+        if (n >= 0 && won + o.steps[n].day * DAY <= now) add({ ...base, key: `${c.id}:ostep:${o.id}:${n}`, rule: "onboard_task", kind: "task", stepIndex: n, ref: o.id, title: o.steps[n].title, why: `Onboarding day ${o.steps[n].day} for ${label(c)}${o.steps[n].owner === "agent" ? " (an agent can draft it; you confirm)" : ""}.`, priority: 20, due: iso(won + o.steps[n].day * DAY) });
+      }
+      const r = cf.review;
+      const reviewDue = r ? daysSince(r.at, now) >= REVIEW_EVERY_DAYS : !!o && o.steps.every((s) => s.doneAt) || daysSince(cf.wonAt, now) >= 21;
+      if (reviewDue) add({ ...base, key: `${c.id}:review:${r?.id ?? "first"}`, rule: "review", kind: "agent", agentId: "customer-success", title: `Health check on ${label(c)}`, why: r ? `Last review ${Math.floor(daysSince(r.at, now))} days ago (health ${r.health}).` : "First account review since the win.", priority: r && r.band === "at_risk" ? 13 : 26 });
+      if (r) {
+        if (r.checkIn && !wasSent(cf, "checkin", r.id)) add({ ...base, key: `${c.id}:checkin:${r.id}`, rule: "checkin", kind: "send", msg: "checkin", ref: r.id, draft: { channel: "email", subject: r.checkIn.subject, text: r.checkIn.text, to: c.email }, title: `Check in with ${label(c)}`, why: `Health ${r.health} (${r.band.replace("_", " ")}). ${r.risks ? `Risk: ${r.risks.slice(0, 120)}` : "Keep the relationship warm."}`, priority: r.band === "at_risk" ? 11 : 14 });
+        if (r.renewalDate) {
+          const until = (Date.parse(r.renewalDate) - now) / DAY;
+          if (until >= -7 && until <= RENEWAL_WINDOW_DAYS) add({ ...base, key: `${c.id}:renewal:${r.renewalDate}`, rule: "renewal", kind: "open", title: `${label(c)} renews ${until < 0 ? "now" : `in ${Math.ceil(until)} days`}`, why: r.renewalPlan || "Plan the renewal conversation before the date.", priority: 17, due: new Date(Date.parse(r.renewalDate)).toISOString() });
+        }
+        if (r.referral && !wasSent(cf, "referral", r.id)) add({ ...base, key: `${c.id}:referral:${r.id}`, rule: "referral", kind: "send", msg: "referral", ref: r.id, draft: { channel: "email", subject: r.referral.subject, text: r.referral.text, to: c.email }, title: `Ask ${label(c)} for a referral`, why: `Health ${r.health}: a happy customer is the best source of the next one.${r.upsell.length ? ` Upsell idea: ${r.upsell[0].slice(0, 100)}` : ""}`, priority: 30 });
+      }
+    }
+  }
+  return out.filter((a) => {
+    const until = q.flowOrg.skipped[a.key];
+    return !until || Date.parse(until) <= now;
+  }).sort((a, b) => a.priority - b.priority || a.due.localeCompare(b.due));
+}
+function flowCounts(q, now = Date.now()) {
+  const counts = Object.fromEntries(FLOW_STAGES.map((s) => [s.key, 0]));
+  counts.find = q.prospectBatches.reduce((n, b) => n + b.items.filter((p) => p.status === "pending").length, 0);
+  for (const c of q.contacts) {
+    const s = flowStageOf(c, now);
+    if (s !== "closed") counts[s]++;
+  }
+  return counts;
+}
+
 // core/crm.ts
 var DEAL_STAGES = ["lead", "contacted", "qualified", "proposal", "won", "lost"];
 var SOURCES = ["website", "referral", "linkedin", "whatsapp", "walk-in", "event", "apollo", "web-search", "other"];
@@ -610,7 +801,7 @@ var EMPTY_PROFILE = { rank: null, niche: "", city: "", website: "", size: "", ti
 var NOTE_KINDS = ["note", "call", "email", "meeting", "research"];
 var TOUCH_KINDS = ["call", "email", "meeting"];
 var HISTORY_MAX = 100;
-var CRM_EVENTS = ["crm.contact", "crm.stage", "crm.touch", "crm.note", "crm.qualify", "crm.removed", ...LEADGEN_ORG_EVENTS, ...LEADGEN_DEAL_EVENTS];
+var CRM_EVENTS = ["crm.contact", "crm.stage", "crm.touch", "crm.note", "crm.qualify", "crm.removed", ...LEADGEN_ORG_EVENTS, ...LEADGEN_DEAL_EVENTS, ...FLOW_ORG_EVENTS, ...FLOW_DEAL_EVENTS];
 var EMAIL_RE2 = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 var PHONE_RE = /^\+?[\d\s()-]{7,20}$/;
 var STALE_DAYS2 = 7;
@@ -884,15 +1075,21 @@ function computeCrm(events, now = Date.now()) {
       const what = !prev ? summary.startsWith("Contact imported") ? "Imported from a list" : summary.startsWith("Lead from") ? summary.split(":")[0] : "Added to the CRM" : summary.startsWith("Contact updated from a list") ? "Details filled in from a list" : summary.startsWith("Contact updated by CRM Sync") ? "Details filled in by CRM Sync" : "Details updated";
       const history = addHistory(prev?.history ?? [], { at: e.at, by: e.actor, kind: "update", text: what });
       const lg = prev ? { leadScore: prev.leadScore, sequence: prev.sequence, objections: prev.objections, syncSuggestion: prev.syncSuggestion } : EMPTY_DEAL_LEADGEN;
-      map.set(c.id, { ...EMPTY_PROFILE, ...c, ...lg, stage: prev?.stage ?? "lead", createdAt: prev?.createdAt ?? e.at, updatedAt: e.at, lastTouch: prev?.lastTouch ?? null, meddic: prev?.meddic ?? null, callNotes: prev?.callNotes ?? "", score: prev?.score ?? null, history });
-    } else if (LEADGEN_ORG_EVENTS.includes(e.action)) {
+      map.set(c.id, { ...EMPTY_PROFILE, ...c, ...lg, customer: prev?.customer ?? EMPTY_CUSTOMER, stage: prev?.stage ?? "lead", createdAt: prev?.createdAt ?? e.at, updatedAt: e.at, lastTouch: prev?.lastTouch ?? null, meddic: prev?.meddic ?? null, callNotes: prev?.callNotes ?? "", score: prev?.score ?? null, history });
+    } else if (LEADGEN_ORG_EVENTS.includes(e.action) || FLOW_ORG_EVENTS.includes(e.action)) {
       continue;
     } else {
       const prev = map.get(String(d.contactId));
       if (!prev) continue;
       const log = (kind, t) => addHistory(prev.history, { at: e.at, by: e.actor, kind, text: t });
-      if (e.action === "crm.stage") map.set(prev.id, { ...prev, stage: d.stage, syncSuggestion: null, updatedAt: e.at, lastTouch: e.at, history: log("stage", String(d.stage)) });
-      else if (LEADGEN_DEAL_EVENTS.includes(e.action)) {
+      if (e.action === "crm.stage") {
+        const won2 = d.stage === "won";
+        const customer = won2 ? prev.stage === "won" ? prev.customer : { ...prev.customer, wonAt: e.at } : { ...prev.customer, wonAt: null };
+        map.set(prev.id, { ...prev, stage: d.stage, syncSuggestion: null, customer, updatedAt: e.at, lastTouch: e.at, history: log("stage", String(d.stage)) });
+      } else if (FLOW_DEAL_EVENTS.includes(e.action)) {
+        const r = applyFlowEvent(prev.customer, e);
+        map.set(prev.id, { ...prev, customer: r.cf, ...r.touch ? { lastTouch: e.at, updatedAt: e.at } : {}, history: r.history ? log(r.history.kind, r.history.text) : prev.history });
+      } else if (LEADGEN_DEAL_EVENTS.includes(e.action)) {
         const r = applyDealEvent(prev, e, prev.stage);
         map.set(prev.id, { ...prev, ...r.lg, history: r.history ? log(r.history.kind, r.history.text) : prev.history });
       } else if (e.action === "crm.touch") map.set(prev.id, { ...prev, updatedAt: e.at, lastTouch: e.at, history: log(String(d.kind ?? "touch"), String(d.note ?? "") || "Touched base") });
@@ -912,6 +1109,9 @@ function computeCrm(events, now = Date.now()) {
   const closed = won.length + pipeline.lost;
   const fresh = contacts.filter((c) => c.stage === "lead" && c.email && !c.lastTouch && now - Date.parse(c.createdAt) <= NEW_LEAD_HOURS * 36e5);
   const stale = open.filter((c) => c.email && now - Date.parse(c.lastTouch ?? c.createdAt) >= STALE_DAYS2 * 864e5);
+  const leadgen = computeLeadgen(events);
+  const flowOrg = computeFlowOrg(events);
+  const flow = { contacts, icps: leadgen.icps, prospectBatches: leadgen.prospectBatches, flowOrg };
   return {
     contacts,
     pipeline,
@@ -926,8 +1126,11 @@ function computeCrm(events, now = Date.now()) {
     followUpGoal: followUpGoal(stale.slice(0, 10)),
     newLeads: fresh.length,
     speedGoal: speedGoal(fresh.slice(0, 10)),
-    ...computeLeadgen(events),
-    issues: crmIssues(contacts, now)
+    ...leadgen,
+    issues: crmIssues(contacts, now),
+    flowOrg,
+    flowCounts: flowCounts(flow, now),
+    nextActions: nextActions(flow, now)
   };
 }
 function speedGoal(list2) {
@@ -943,13 +1146,13 @@ ${list2.map((c) => `- ${c.name}${c.company ? ` (${c.company})` : ""} <${c.email}
 
 // core/leadgen.ts
 var record2 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
-async function dealOf(store2, orgId, contactId2) {
+async function dealOf(store2, orgId, contactId3) {
   const crm = await loadCrm(store2, orgId);
-  const c = crm.contacts.find((x) => x.id === String(contactId2 ?? "").trim());
-  if (!c) throw new Error(`No deal with id "${String(contactId2 ?? "")}" in the CRM. Use read_crm to find the right id.`);
+  const c = crm.contacts.find((x) => x.id === String(contactId3 ?? "").trim());
+  if (!c) throw new Error(`No deal with id "${String(contactId3 ?? "")}" in the CRM. Use read_crm to find the right id.`);
   return { crm, c };
 }
-var label = (c) => c.company || c.name;
+var label2 = (c) => c.company || c.name;
 var domainOf2 = (w) => w.toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
 async function saveIcp(store2, orgId, input, by) {
   const crm = await loadCrm(store2, orgId);
@@ -1030,8 +1233,8 @@ async function decideProspects(store2, orgId, batchId, addKeys, dismissKeys, by)
   for (const p of batch.items.filter((x) => x.status === "pending")) {
     if (add.has(p.key)) {
       try {
-        const contactId2 = await addNewContact(store2, orgId, prospectToContact(p, batch.icpName), by, `Lead from the Prospect Generator: ${p.company}`);
-        added.push({ key: p.key, contactId: contactId2 });
+        const contactId3 = await addNewContact(store2, orgId, prospectToContact(p, batch.icpName), by, `Lead from the Prospect Generator: ${p.company}`);
+        added.push({ key: p.key, contactId: contactId3 });
       } catch {
         dismissed.push(p.key);
       }
@@ -1040,40 +1243,40 @@ async function decideProspects(store2, orgId, batchId, addKeys, dismissKeys, by)
   if (added.length || dismissed.length) await record2(store2, orgId, by, "crm.prospects_decided", { batchId, added, dismissed, summary: `Prospects: ${added.length} added to New lead, ${dismissed.length} dismissed` });
   return { added: added.length, dismissed: dismissed.length };
 }
-async function saveLeadScore(store2, orgId, contactId2, score, reasons, icpId, by) {
-  const { crm, c } = await dealOf(store2, orgId, contactId2);
+async function saveLeadScore(store2, orgId, contactId3, score, reasons, icpId, by) {
+  const { crm, c } = await dealOf(store2, orgId, contactId3);
   const n = Math.round(Number(score));
   if (!Number.isFinite(n) || n < 0 || n > 100) throw new Error("score must be a whole number from 0 to 100");
   const why = text(reasons, 1200);
   if (!why) throw new Error("Give the reasons for the score");
   const icp = crm.icps.find((i) => i.id === text(icpId, 64));
-  await record2(store2, orgId, by, "crm.leadscore", { contactId: c.id, score: { score: n, grade: gradeFor(n), reasons: why, icpId: icp?.id ?? null }, summary: `${label(c)}: lead score ${n} (${gradeFor(n)})` });
-  return `Saved lead score ${n} (${gradeFor(n)}) on ${label(c)}`;
+  await record2(store2, orgId, by, "crm.leadscore", { contactId: c.id, score: { score: n, grade: gradeFor(n), reasons: why, icpId: icp?.id ?? null }, summary: `${label2(c)}: lead score ${n} (${gradeFor(n)})` });
+  return `Saved lead score ${n} (${gradeFor(n)}) on ${label2(c)}`;
 }
-async function saveSequence(store2, orgId, contactId2, steps, notes, by) {
-  const { c } = await dealOf(store2, orgId, contactId2);
+async function saveSequence(store2, orgId, contactId3, steps, notes, by) {
+  const { c } = await dealOf(store2, orgId, contactId3);
   const clean2 = cleanSteps(steps);
-  await record2(store2, orgId, by, "crm.sequence", { contactId: c.id, sequence: { id: newId(), steps: clean2, notes: text(notes, 1e3) }, summary: `${label(c)}: outreach sequence drafted (${clean2.length} steps, not sent)` });
-  return `Saved a ${clean2.length}-step outreach sequence on ${label(c)} as drafts. Nothing was sent.`;
+  await record2(store2, orgId, by, "crm.sequence", { contactId: c.id, sequence: { id: newId(), steps: clean2, notes: text(notes, 1e3) }, summary: `${label2(c)}: outreach sequence drafted (${clean2.length} steps, not sent)` });
+  return `Saved a ${clean2.length}-step outreach sequence on ${label2(c)} as drafts. Nothing was sent.`;
 }
-async function markStepSent(store2, orgId, contactId2, index, by) {
-  const { c } = await dealOf(store2, orgId, contactId2);
+async function markStepSent(store2, orgId, contactId3, index, by) {
+  const { c } = await dealOf(store2, orgId, contactId3);
   const step = c.sequence?.steps[index];
   if (!c.sequence || !step) throw new Error("That outreach step was not found");
   if (step.sentAt) throw new Error("That step is already marked as sent");
-  await record2(store2, orgId, by, "crm.sequence_step", { contactId: c.id, sequenceId: c.sequence.id, index, summary: `${label(c)}: outreach step ${index + 1} sent` });
+  await record2(store2, orgId, by, "crm.sequence_step", { contactId: c.id, sequenceId: c.sequence.id, index, summary: `${label2(c)}: outreach step ${index + 1} sent` });
   const what = step.channel === "email" ? `Sent outreach email${step.subject ? `: ${step.subject}` : ""}` : step.channel === "linkedin" ? "Sent the LinkedIn message from the sequence" : step.channel === "call" ? "Made the outreach call from the sequence" : "Sent the text message from the sequence";
   await record2(store2, orgId, by, "crm.touch", { contactId: c.id, kind: step.channel, note: `${what} (step ${index + 1} of ${c.sequence.steps.length})`, summary: `Touched base with ${c.name}` });
   if (c.stage === "lead") await record2(store2, orgId, "crm-sync", "crm.stage", { contactId: c.id, stage: "contacted", summary: `${c.name}: contacted (first outreach step sent)` });
 }
-async function saveObjection(store2, orgId, contactId2, objection, responses, blocker, by) {
-  const { c } = await dealOf(store2, orgId, contactId2);
+async function saveObjection(store2, orgId, contactId3, objection, responses, blocker, by) {
+  const { c } = await dealOf(store2, orgId, contactId3);
   const o = text(objection, 500);
   if (!o) throw new Error("Say which objection this answers");
   const list2 = (Array.isArray(responses) ? responses : [responses]).map((r) => text(r, 2e3)).filter(Boolean).slice(0, 3);
   if (!list2.length) throw new Error("Give at least one answer to the objection");
-  await record2(store2, orgId, by, "crm.objection", { contactId: c.id, play: { objection: o, responses: list2, blocker: text(blocker, 500) }, summary: `${label(c)}: objection answers saved` });
-  return `Saved ${list2.length} answer${list2.length === 1 ? "" : "s"} to "${o.slice(0, 60)}" on ${label(c)}`;
+  await record2(store2, orgId, by, "crm.objection", { contactId: c.id, play: { objection: o, responses: list2, blocker: text(blocker, 500) }, summary: `${label2(c)}: objection answers saved` });
+  return `Saved ${list2.length} answer${list2.length === 1 ? "" : "s"} to "${o.slice(0, 60)}" on ${label2(c)}`;
 }
 var FILLABLE = ["niche", "city", "website", "size", "title", "phone", "email", "nextStep", "painPoints", "offer", "angle"];
 async function syncDeal(store2, orgId, input, by) {
@@ -1101,23 +1304,23 @@ async function syncDeal(store2, orgId, input, by) {
   }
   const stage = text(input.suggestStage, 20).toLowerCase();
   const suggestStage = DEAL_STAGES.includes(stage) && stage !== c.stage ? stage : "";
-  await record2(store2, orgId, by, "crm.sync", { contactId: c.id, filled, suggestStage, reason, summary: `CRM Sync on ${label(c)}` });
-  return `CRM Sync on ${label(c)}: ${filled.length ? `filled ${filled.join(", ")}` : "no fields changed"}${suggestStage ? `; suggested moving to ${suggestStage} (the owner decides)` : ""}.`;
+  await record2(store2, orgId, by, "crm.sync", { contactId: c.id, filled, suggestStage, reason, summary: `CRM Sync on ${label2(c)}` });
+  return `CRM Sync on ${label2(c)}: ${filled.length ? `filled ${filled.join(", ")}` : "no fields changed"}${suggestStage ? `; suggested moving to ${suggestStage} (the owner decides)` : ""}.`;
 }
-async function dismissSync(store2, orgId, contactId2, by) {
-  const { c } = await dealOf(store2, orgId, contactId2);
-  await record2(store2, orgId, by, "crm.sync", { contactId: c.id, dismiss: true, summary: `CRM Sync suggestion dismissed for ${label(c)}` });
+async function dismissSync(store2, orgId, contactId3, by) {
+  const { c } = await dealOf(store2, orgId, contactId3);
+  await record2(store2, orgId, by, "crm.sync", { contactId: c.id, dismiss: true, summary: `CRM Sync suggestion dismissed for ${label2(c)}` });
 }
 var cut = (s, n) => s ? s.replace(/\s+/g, " ").trim().slice(0, n) : "";
 var READ_MAX = 24e3;
 function dealRow(c) {
   const reach = [c.email && "email", c.phone && "phone"].filter(Boolean).join("+") || "no contact info";
-  return `- id ${c.id} | ${label(c)}${c.name && c.name !== c.company ? ` (${c.name}${c.title ? `, ${c.title}` : ""})` : ""} | ${[c.niche, c.city, c.size].filter(Boolean).join(" \xB7 ") || "no research"} | stage ${c.stage} | deal ${c.dealTier || "?"} / ease ${c.ease || "?"}${c.rank ? ` | rank ${c.rank}` : ""} | ${reach}${c.leadScore ? ` | score ${c.leadScore.score} ${c.leadScore.grade}` : ""}${c.sequence ? " | sequence drafted" : ""}${c.whyFit ? ` | why: ${cut(c.whyFit, 160)}` : ""}`;
+  return `- id ${c.id} | ${label2(c)}${c.name && c.name !== c.company ? ` (${c.name}${c.title ? `, ${c.title}` : ""})` : ""} | ${[c.niche, c.city, c.size].filter(Boolean).join(" \xB7 ") || "no research"} | stage ${c.stage} | deal ${c.dealTier || "?"} / ease ${c.ease || "?"}${c.rank ? ` | rank ${c.rank}` : ""} | ${reach}${c.leadScore ? ` | score ${c.leadScore.score} ${c.leadScore.grade}` : ""}${c.sequence ? " | sequence drafted" : ""}${c.whyFit ? ` | why: ${cut(c.whyFit, 160)}` : ""}`;
 }
 function dealFull(c) {
   const m = c.meddic;
   return [
-    `Deal id ${c.id}: ${label(c)}; stage ${c.stage}; source ${c.source}${c.sourceDetail ? ` (${c.sourceDetail})` : ""}`,
+    `Deal id ${c.id}: ${label2(c)}; stage ${c.stage}; source ${c.source}${c.sourceDetail ? ` (${c.sourceDetail})` : ""}`,
     `Decision maker: ${c.name !== c.company ? c.name : "not stated"}${c.title ? `, ${c.title}` : ""}`,
     [c.niche && `Niche: ${c.niche}`, c.city && `City: ${c.city}`, c.website && `Website: ${c.website}`, c.size && `Size: ${c.size}`, c.phone && `Phone: ${c.phone}`, c.email && `Email: ${c.email}`, c.value && `Value: ${c.value}`, c.dealTier && `Deal size: ${c.dealTier}`, c.ease && `Ease of win: ${c.ease}`, c.rank && `Rank: ${c.rank}`].filter(Boolean).join("; "),
     c.whyFit && `Why they fit: ${cut(c.whyFit, 1e3)}`,
@@ -1135,25 +1338,38 @@ function dealFull(c) {
     c.leadScore && `Lead score: ${c.leadScore.score} (${c.leadScore.grade}) \u2014 ${cut(c.leadScore.reasons, 400)}`,
     c.sequence && `Outreach sequence: ${c.sequence.steps.map((s, i) => `step ${i + 1} day ${s.day} ${s.channel}${s.sentAt ? " (sent)" : ""}`).join(", ")}`,
     c.objections.length ? `Objections answered: ${c.objections.map((o) => `"${cut(o.objection, 100)}"`).join("; ")}` : "",
+    ...customerLines(c),
     `History (newest first):
 ${c.history.slice(0, 15).map((h) => `  ${h.at.slice(0, 10)} ${h.kind}: ${cut(h.text, 200)}`).join("\n") || "  none"}`
   ].filter(Boolean).join("\n");
+}
+function customerLines(c) {
+  const cf = c.customer;
+  if (!cf || c.stage !== "won") return [];
+  const o = cf.onboarding;
+  const r = cf.review;
+  return [
+    `Customer since: ${cf.wonAt ? cf.wonAt.slice(0, 10) : "unknown"}`,
+    o ? `Onboarding plan (${o.at.slice(0, 10)}): ${o.steps.map((s) => `day ${s.day} ${cut(s.title, 80)} [${s.owner}]${s.doneAt ? " done" : ""}`).join("; ")}${o.welcome ? `; welcome email ${cf.sent.some((x) => x.kind === "welcome" && x.ref === o.id) ? "sent" : "not sent yet"}` : ""}` : "Onboarding plan: none yet",
+    r ? `Last account review (${r.at.slice(0, 10)}): health ${r.health} (${r.band}); ${cut(r.reasons, 400)}${r.risks ? `; risks: ${cut(r.risks, 300)}` : ""}${r.renewalDate ? `; renewal ${r.renewalDate}` : ""}` : "Account review: none yet",
+    cf.sent.length ? `Customer messages sent: ${cf.sent.map((x) => `${x.kind} ${x.at.slice(0, 10)}`).join(", ")}` : ""
+  ].filter(Boolean);
 }
 function icpFull(i) {
   return [`ICP id ${i.id}: ${i.name}`, `Summary: ${i.summary}`, i.industries && `Industries: ${i.industries}`, i.locations && `Locations: ${i.locations}`, i.size && `Size: ${i.size}`, i.buyer && `Buyer: ${i.buyer}`, i.pains && `Pains: ${i.pains}`, i.signals && `Buying signals: ${i.signals}`, i.disqualifiers && `Disqualifiers: ${i.disqualifiers}`, i.offer && `Offer: ${i.offer}`, i.valueCase && `Why it pays: ${i.valueCase}`, i.voice && `Voice: ${i.voice}`].filter(Boolean).join("\n");
 }
 var READ_VIEWS = ["pipeline", "deal", "deals", "icps", "icp_notes", "existing", "issues"];
-async function readCrm(store2, orgId, view, contactId2, contactIds) {
+async function readCrm(store2, orgId, view, contactId3, contactIds) {
   const crm = await loadCrm(store2, orgId);
   let out;
   switch (view) {
     case "deal": {
-      const c = crm.contacts.find((x) => x.id === String(contactId2 ?? ""));
-      out = c ? dealFull(c) : `No deal with id "${String(contactId2 ?? "")}". Read the pipeline view for ids.`;
+      const c = crm.contacts.find((x) => x.id === String(contactId3 ?? ""));
+      out = c ? dealFull(c) : `No deal with id "${String(contactId3 ?? "")}". Read the pipeline view for ids.`;
       break;
     }
     case "deals": {
-      const ids = (Array.isArray(contactIds) ? contactIds : [contactId2]).map((x) => String(x ?? "").trim()).filter(Boolean).slice(0, 12);
+      const ids = (Array.isArray(contactIds) ? contactIds : [contactId3]).map((x) => String(x ?? "").trim()).filter(Boolean).slice(0, 12);
       const found = ids.map((id) => crm.contacts.find((x) => x.id === id));
       out = ids.length ? found.map((c, n) => c ? dealFull(c) : `No deal with id "${ids[n]}".`).join("\n\n---\n\n") : "Pass contactIds (up to 12 deal ids).";
       break;
@@ -1168,7 +1384,7 @@ ${crm.icpNotes.text}` : "The owner has not added ICP notes.";
     case "existing": {
       const pending = crm.prospectBatches.flatMap((b) => b.items.filter((p) => p.status === "pending"));
       out = `Already in the CRM (${crm.contacts.length}):
-${crm.contacts.map((c) => `- ${label(c)}${c.website ? ` (${c.website})` : ""}`).join("\n") || "- none"}
+${crm.contacts.map((c) => `- ${label2(c)}${c.website ? ` (${c.website})` : ""}`).join("\n") || "- none"}
 Waiting for the owner's yes (${pending.length}):
 ${pending.map((p) => `- ${p.company}${p.website ? ` (${p.website})` : ""}`).join("\n") || "- none"}`;
       break;
@@ -1300,6 +1516,102 @@ var LEADGEN_TOOLS = {
     },
     summarize: (i) => `CRM Sync on ${String(i.contactId ?? "")}`,
     execute: (i, ctx) => syncDeal(ctx.store, ctx.orgId, i, ctx.agent.name)
+  }
+};
+
+// core/salesflow.ts
+var record3 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
+var label3 = (c) => c.company || c.name;
+async function customerOf(store2, orgId, contactId3) {
+  const c = (await loadCrm(store2, orgId)).contacts.find((x) => x.id === String(contactId3 ?? "").trim());
+  if (!c) throw new Error(`No deal with id "${String(contactId3 ?? "")}" in the CRM. Use read_crm to find the right id.`);
+  return c;
+}
+async function saveOnboarding(store2, orgId, contactId3, input, by) {
+  const c = await customerOf(store2, orgId, contactId3);
+  if (c.stage !== "won") throw new Error(`${label3(c)} is not a won customer yet (stage ${c.stage}). Onboarding starts after the win.`);
+  const plan = { id: newId(), ...cleanOnboarding(input) };
+  await record3(store2, orgId, by, "crm.onboarding", { contactId: c.id, onboarding: plan, summary: `${label3(c)}: onboarding plan saved` });
+  return `Saved an onboarding plan with ${plan.steps.length} steps${plan.welcome ? " and a welcome email draft" : ""} on ${label3(c)}. Nothing was sent.`;
+}
+async function saveAccountReview(store2, orgId, contactId3, input, by) {
+  const c = await customerOf(store2, orgId, contactId3);
+  if (c.stage !== "won") throw new Error(`${label3(c)} is not a customer yet (stage ${c.stage}). Account reviews are for won deals.`);
+  const review = { id: newId(), ...cleanReview(input) };
+  await record3(store2, orgId, by, "crm.account", { contactId: c.id, review, summary: `${label3(c)}: account review, health ${review.health}` });
+  return `Saved the account review on ${label3(c)}: health ${review.health} (${review.band.replace("_", " ")}). Nothing was sent.`;
+}
+async function markOnboardingStep(store2, orgId, contactId3, index, by) {
+  const c = await customerOf(store2, orgId, contactId3);
+  const o = c.customer.onboarding;
+  if (!o || !o.steps[index]) throw new Error("That onboarding step was not found");
+  if (o.steps[index].doneAt) throw new Error("That step is already done");
+  await record3(store2, orgId, by, "crm.onboarding_step", { contactId: c.id, onboardingId: o.id, index, summary: `${label3(c)}: onboarding step done` });
+}
+async function markCustomerSent(store2, orgId, contactId3, kind, by) {
+  const c = await customerOf(store2, orgId, contactId3);
+  const k = CUSTOMER_MSGS.find((x) => x === kind);
+  if (!k) throw new Error("Unknown message");
+  const ref = k === "welcome" ? c.customer.onboarding?.id : c.customer.review?.id;
+  if (!ref) throw new Error("There is no draft of that message on this customer");
+  if (wasSent(c.customer, k, ref)) throw new Error("That message is already marked as sent");
+  await record3(store2, orgId, by, "crm.customer_sent", { contactId: c.id, kind: k, ref, summary: `${label3(c)}: ${k} sent` });
+}
+async function skipAction(store2, orgId, key, by, days = SKIP_DAYS) {
+  const k = String(key ?? "").trim().slice(0, 200);
+  if (!k) throw new Error("Say which action to skip");
+  await record3(store2, orgId, by, "crm.action_skip", { key: k, until: new Date(Date.now() + days * 864e5).toISOString(), summary: `Next action skipped for ${days} days` });
+}
+async function setAutopilot(store2, orgId, on, by) {
+  await record3(store2, orgId, by, "crm.autopilot", { on, summary: `Sales autopilot ${on ? "on" : "off"}` });
+}
+
+// core/salesflow-tools.ts
+var str2 = { type: "string" };
+var contactId2 = { type: "string", description: "The deal id from read_crm" };
+var draft2 = { type: "object", properties: { subject: str2, text: str2 }, required: ["text"] };
+var SALESFLOW_TOOLS = {
+  save_onboarding: {
+    spec: {
+      name: "save_onboarding",
+      description: "Save an onboarding plan onto a won customer: steps over the first 30 days, a welcome email draft and a kickoff agenda. Nothing is sent; the owner sends the welcome and ticks steps done.",
+      input_schema: {
+        type: "object",
+        properties: {
+          contactId: contactId2,
+          steps: { type: "array", minItems: 2, maxItems: 12, items: { type: "object", properties: { day: { type: "number" }, title: str2, owner: { type: "string", enum: [...STEP_OWNERS] } }, required: ["day", "title", "owner"] } },
+          welcome: draft2,
+          kickoff: { type: "string", description: "A 30-minute kickoff agenda" },
+          notes: { type: "string", description: "Anything to check first" }
+        },
+        required: ["contactId", "steps"]
+      }
+    },
+    summarize: (i) => `Plan onboarding for ${String(i.contactId ?? "")}`,
+    execute: (i, ctx) => saveOnboarding(ctx.store, ctx.orgId, i.contactId, i, ctx.agent.name)
+  },
+  save_account_review: {
+    spec: {
+      name: "save_account_review",
+      description: "Save an account review onto a won customer: health 0 to 100 with reasons, risks, a check-in message draft, the renewal date and plan, upsell ideas and (health 70+) a referral ask draft. Nothing is sent.",
+      input_schema: {
+        type: "object",
+        properties: {
+          contactId: contactId2,
+          health: { type: "number" },
+          reasons: str2,
+          risks: str2,
+          checkIn: draft2,
+          renewalDate: { type: "string", description: "YYYY-MM-DD, only if the record states it" },
+          renewalPlan: str2,
+          upsell: { type: "array", items: str2, maxItems: 3 },
+          referral: draft2
+        },
+        required: ["contactId", "health", "reasons"]
+      }
+    },
+    summarize: (i) => `Account review for ${String(i.contactId ?? "")}: health ${String(i.health ?? "")}`,
+    execute: (i, ctx) => saveAccountReview(ctx.store, ctx.orgId, i.contactId, i, ctx.agent.name)
   }
 };
 
@@ -1471,7 +1783,8 @@ ${body}`, agentId: ctx.agent.id, at: nowIso() });
     }
   },
   // Lead generation: read the CRM and save drafts, scores and suggestions onto it (nothing is sent).
-  ...LEADGEN_TOOLS
+  ...LEADGEN_TOOLS,
+  ...SALESFLOW_TOOLS
 };
 var WEB_SEARCH_TOOL = { type: "web_search_20260209", name: "web_search", max_uses: 5 };
 function toolsFor(agent) {
@@ -1543,12 +1856,12 @@ function store() {
   if (!url || !key) throw new HttpError(503, "The platform database is not configured yet");
   return new SupabaseStore(url, key);
 }
-async function depsFor(s, orgId, label2) {
+async function depsFor(s, orgId, label4) {
   const apiKey = env("ANTHROPIC_API_KEY");
   if (!apiKey) throw new HttpError(503, "The AI model is not configured yet");
   const base = env("N8N_WEBHOOK_URL");
   const [assigned, profile] = await Promise.all([automationPath(s, orgId), loadBusinessProfile(s, orgId)]);
-  const path = assigned ?? (isAdmin(label2, env("ADMIN_EMAILS")) ? defaultPath(base) : null);
+  const path = assigned ?? (isAdmin(label4, env("ADMIN_EMAILS")) ? defaultPath(base) : null);
   return {
     store: s,
     model: new AnthropicClient({ apiKey, models: modelsFromEnv(process.env) }),
@@ -1556,8 +1869,8 @@ async function depsFor(s, orgId, label2) {
     journey: journeyOptions()
   };
 }
-function requireAdmin(label2) {
-  if (!isAdmin(label2, env("ADMIN_EMAILS"))) throw new HttpError(403, "Admins only");
+function requireAdmin(label4) {
+  if (!isAdmin(label4, env("ADMIN_EMAILS"))) throw new HttpError(403, "Admins only");
 }
 function journeyOptions() {
   const rate = Number(env("INR_PER_USD"));
@@ -1571,13 +1884,13 @@ async function requireUser(request) {
   const user = await verifyUser(url, anon, token);
   if (!user) throw new HttpError(401, "Please sign in again");
   const s = store();
-  const label2 = user.email ?? user.phone ?? user.id;
+  const label4 = user.email ?? user.phone ?? user.id;
   let orgId = await s.orgForUser(user.id);
   if (!orgId) {
-    const created = await s.provisionWorkspace(user.id, label2);
+    const created = await s.provisionWorkspace(user.id, label4);
     orgId = await s.orgForUser(user.id) ?? created;
   }
-  return { userId: user.id, orgId, label: label2, store: s };
+  return { userId: user.id, orgId, label: label4, store: s };
 }
 async function readJson(request, maxBytes = 64e3) {
   const text6 = await request.text();
@@ -1602,8 +1915,8 @@ function handle(fn) {
 
 // server/routes/admin.ts
 var GET = handle(async (request) => {
-  const { label: label2, store: store2 } = await requireUser(request);
-  requireAdmin(label2);
+  const { label: label4, store: store2 } = await requireUser(request);
+  requireAdmin(label4);
   const ids = await store2.listOrgIds();
   const orgs = await Promise.all(ids.map(async (orgId) => {
     const [profile, path] = await Promise.all([loadBusinessProfile(store2, orgId), automationPath(store2, orgId)]);
@@ -1612,13 +1925,13 @@ var GET = handle(async (request) => {
   return json({ orgs });
 });
 var POST = handle(async (request) => {
-  const { label: label2, store: store2 } = await requireUser(request);
-  requireAdmin(label2);
+  const { label: label4, store: store2 } = await requireUser(request);
+  requireAdmin(label4);
   const b = await readJson(request);
   if (!b.orgId || !(await store2.listOrgIds()).includes(b.orgId)) throw new HttpError(404, "Business not found");
   const path = typeof b.path === "string" && b.path.trim() ? b.path.trim().toLowerCase() : null;
   try {
-    await setAutomationPath(store2, b.orgId, path, label2);
+    await setAutomationPath(store2, b.orgId, path, label4);
   } catch (e) {
     throw new HttpError(400, e instanceof Error ? e.message : "Invalid path");
   }
@@ -1697,8 +2010,8 @@ async function setInvoiceStatus(store2, orgId, invoiceId, status, by) {
 
 // server/routes/billing.ts
 var GET2 = handle(async (request) => {
-  const { label: label2, store: store2 } = await requireUser(request);
-  requireAdmin(label2);
+  const { label: label4, store: store2 } = await requireUser(request);
+  requireAdmin(label4);
   const ids = await store2.listOrgIds();
   const businesses = await Promise.all(ids.map(async (orgId) => {
     const [profile, plan, invoices] = await Promise.all([loadBusinessProfile(store2, orgId), loadPlan(store2, orgId), listInvoices(store2, orgId)]);
@@ -1707,17 +2020,17 @@ var GET2 = handle(async (request) => {
   return json({ businesses });
 });
 var POST2 = handle(async (request) => {
-  const { label: label2, store: store2 } = await requireUser(request);
-  requireAdmin(label2);
+  const { label: label4, store: store2 } = await requireUser(request);
+  requireAdmin(label4);
   const b = await readJson(request);
   if (!b.orgId || !(await store2.listOrgIds()).includes(b.orgId)) throw new HttpError(404, "Business not found");
   try {
     if (b.action === "plan") {
-      await setPlan(store2, b.orgId, { name: String(b.name ?? ""), monthlyFee: Number(String(b.monthlyFee ?? "").replace(/,/g, "")), currency: String(b.currency ?? "") }, label2);
+      await setPlan(store2, b.orgId, { name: String(b.name ?? ""), monthlyFee: Number(String(b.monthlyFee ?? "").replace(/,/g, "")), currency: String(b.currency ?? "") }, label4);
       return json({ plan: await loadPlan(store2, b.orgId) });
     }
-    if (b.action === "draft") return json({ invoice: await draftInvoice(store2, b.orgId, String(b.period ?? ""), label2) });
-    if (b.action === "status" && b.invoiceId) return json({ invoice: await setInvoiceStatus(store2, b.orgId, b.invoiceId, b.status, label2) });
+    if (b.action === "draft") return json({ invoice: await draftInvoice(store2, b.orgId, String(b.period ?? ""), label4) });
+    if (b.action === "status" && b.invoiceId) return json({ invoice: await setInvoiceStatus(store2, b.orgId, b.invoiceId, b.status, label4) });
   } catch (e) {
     throw new HttpError(400, e instanceof Error ? e.message : "Could not update billing");
   }
@@ -2325,6 +2638,32 @@ Call reply_comment once per comment with the "Copy link to comment" URL the foun
     maxTurns: 12,
     starter: "Read the CRM issues with read_crm, then fix up to 10 deals with sync_deal: fill empty fields the record itself answers, set missing next steps, and suggest stages the history supports.",
     instructions: `You keep the CRM tidy and consistent. Fill an empty field only with a value the record's own research, notes or history states; never guess a phone, email or name. Set a next step when an open deal has none. When the history shows a deal has moved, suggest the stage; the owner decides. Report duplicates in the reason, naming the record to keep. You never delete, merge, overwrite or move a deal. Exception to one tool at a time: you may call sync_deal for several deals in one turn. ${SHARED_RULES}`
+  },
+  {
+    id: "onboarding-manager",
+    name: "Onboarding Manager",
+    layer: "department",
+    stage: 2,
+    reportsTo: "head-of-gtm",
+    job: "Starts every new customer well: a welcome email draft, a kickoff agenda and a first-30-days plan, saved on the customer. Never sends.",
+    modelTier: "worker",
+    tools: ["recall", "read_crm", "save_onboarding"],
+    usesModel: true,
+    starter: "Read the pipeline with read_crm, pick the newest won customer without an onboarding plan, and save one with save_onboarding.",
+    instructions: `You onboard new customers for the owner so the first month feels looked after. Plan from the deal record: what they bought, their pains, who decides and what was promised. Steps are concrete and dated by day from the win, each owned by "you" (the owner), "customer" or "agent". The welcome email is from the owner in the first person: thank them, confirm what they bought as the record states it, propose the kickoff, say what happens in week one. Never invent prices, dates, results or promises; write [DATE], [PRICE] or [First name] where the record does not say. You draft; the owner sends. ${SHARED_RULES}`
+  },
+  {
+    id: "customer-success",
+    name: "Customer Success Manager",
+    layer: "department",
+    stage: 2,
+    reportsTo: "head-of-gtm",
+    job: "Keeps customers long term: monthly health score with reasons, check-in drafts, renewal plans, upsell ideas and referral asks. Never sends.",
+    modelTier: "worker",
+    tools: ["recall", "read_crm", "save_account_review"],
+    usesModel: true,
+    starter: "Read the pipeline with read_crm, pick the won customer whose last account review is oldest (or missing), read it in full and save a review with save_account_review.",
+    instructions: `You look after the owner's customers after the sale, so they stay, renew, buy more and refer others. Score health from what the record shows: onboarding progress, how recently and warmly they replied, results or problems in the notes, open issues. Say what is unknown rather than guessing. The check-in is a short, human message from the owner that asks one useful question. Suggest upsells only when they fit what the customer bought and their pains, and a referral ask only for a healthy customer (70+). Never invent usage, results, prices or dates. You draft; the owner sends. ${SHARED_RULES}`
   },
   {
     id: "speed-to-lead",
@@ -3084,14 +3423,14 @@ function computeAgentProof(events, counts, agents = AGENTS) {
 // core/governance.ts
 var EXTERNAL = ["publish_post", "reply_comment", "send_message", "send_email_campaign", "spend_money"];
 var STAGE_KEYS = ["startup", "struggle", "scale", "success", "significance", "sixxab"];
-var DAY = 24 * 3600 * 1e3;
+var DAY2 = 24 * 3600 * 1e3;
 var r2 = (n) => Math.round(n * 100) / 100;
 function allocate(items, amount) {
   const total = items.reduce((s, i) => s + i.usage, 0);
   return Object.fromEntries(items.map((i) => [i.id, r2(total > 0 ? amount * i.usage / total : amount / Math.max(items.length, 1))]));
 }
 function statusChecks(c, failed24h) {
-  const row = (key, label2, state, detail) => ({ key, label: label2, state, detail });
+  const row = (key, label4, state, detail) => ({ key, label: label4, state, detail });
   const checks = [
     row("database", "Database", c.database ? "green" : "red", c.database ? "Reachable, tables present" : "Not reachable or tables missing"),
     row("signIn", "Sign-in", c.signIn ? "green" : "red", c.signIn ? "Supabase Auth reachable" : "Supabase Auth not configured or unreachable"),
@@ -3108,7 +3447,7 @@ function statusChecks(c, failed24h) {
 }
 function computeGovernance(input) {
   const now = input.now.getTime();
-  const within = (e, days) => now - Date.parse(e.at) <= days * DAY;
+  const within = (e, days) => now - Date.parse(e.at) <= days * DAY2;
   const all = input.orgs.flatMap((o) => o.events30d);
   const rate = input.inrPerUsd && input.inrPerUsd > 0 ? input.inrPerUsd : DEFAULT_INR_PER_USD;
   const toUsd = (amount, currency) => currency === "INR" ? amount / rate : amount;
@@ -3180,10 +3519,10 @@ function computeGovernance(input) {
 
 // server/build-info.ts
 var BUILD_INFO = {
-  "builtAt": "2026-11-24T02:20:37.895Z",
-  "files": 88,
-  "lines": 9655,
-  "tests": 114,
+  "builtAt": "2026-11-24T02:49:48.219Z",
+  "files": 95,
+  "lines": 10488,
+  "tests": 120,
   "e2e": 11,
   "rlsTables": 9,
   "cspHeader": true,
@@ -3254,14 +3593,14 @@ var EVENTS2 = [
   "settings.automation",
   "billing.plan"
 ];
-var DAY2 = 24 * 3600 * 1e3;
+var DAY3 = 24 * 3600 * 1e3;
 async function loadFixedCosts(store2, adminOrgId) {
   const last = (await store2.listAuditByActions(adminOrgId, ["settings.techcost"])).at(-1);
   const costs = last?.detail.costs ?? {};
   return Object.fromEntries(Object.entries(costs).map(([k, v]) => [k, Number(v)]).filter(([, v]) => Number.isFinite(v)));
 }
 async function orgSnapshot(store2, orgId, now) {
-  const since7 = new Date(now - 7 * DAY2).toISOString();
+  const since7 = new Date(now - 7 * DAY3).toISOString();
   const [profile, events, tasks, approvals, proofEvents] = await Promise.all([
     loadBusinessProfile(store2, orgId),
     store2.listAuditByActions(orgId, EVENTS2),
@@ -3282,7 +3621,7 @@ async function orgSnapshot(store2, orgId, now) {
     stepsTotal: j.steps.length,
     pendingApprovals: approvals.map((a) => a.createdAt),
     tasks7d: tasks.map((t) => ({ status: t.status })),
-    events30d: events.filter((e) => now - Date.parse(e.at) <= 30 * DAY2),
+    events30d: events.filter((e) => now - Date.parse(e.at) <= 30 * DAY3),
     proofEvents,
     plan: lastPlan ? { name: String(lastPlan.detail.name), monthlyFee: Number(lastPlan.detail.monthlyFee), currency: String(lastPlan.detail.currency) } : null
   };
@@ -3334,19 +3673,19 @@ var REVIEWERS = {
   cfo: { title: "Tech cost review", ask: "Review cost per customer, fixed tech costs and margins: which customers are unprofitable, what drives model cost, and 3 actions to cut cost or adjust pricing." }
 };
 var GET3 = handle(async (request) => {
-  const { orgId, label: label2, store: store2 } = await requireUser(request);
-  requireAdmin(label2);
+  const { orgId, label: label4, store: store2 } = await requireUser(request);
+  requireAdmin(label4);
   return json({ governance: await governanceSnapshot(store2, orgId), reviewers: Object.entries(REVIEWERS).map(([id, r]) => ({ id, title: r.title })) });
 });
 var POST3 = handle(async (request) => {
-  const { orgId, label: label2, store: store2 } = await requireUser(request);
-  requireAdmin(label2);
+  const { orgId, label: label4, store: store2 } = await requireUser(request);
+  requireAdmin(label4);
   const b = await readJson(request);
   if (b.action === "costs") {
     const entries = Object.entries(b.fixedCosts ?? {}).slice(0, 20).map(([k, v]) => [k.trim().slice(0, 40), Number(v)]);
     if (entries.some(([k, v]) => !k || !Number.isFinite(v) || v < 0)) throw new HttpError(400, "Each cost needs a name and an amount of zero or more (USD a month)");
     const costs = Object.fromEntries(entries);
-    await store2.audit({ id: crypto.randomUUID(), orgId, at: (/* @__PURE__ */ new Date()).toISOString(), actor: label2, action: "settings.techcost", taskId: null, detail: { costs, summary: `Fixed tech costs set: $${entries.reduce((s, [, v]) => s + v, 0)} a month` } });
+    await store2.audit({ id: crypto.randomUUID(), orgId, at: (/* @__PURE__ */ new Date()).toISOString(), actor: label4, action: "settings.techcost", taskId: null, detail: { costs, summary: `Fixed tech costs set: $${entries.reduce((s, [, v]) => s + v, 0)} a month` } });
     return json({ fixedCosts: costs });
   }
   if (b.action === "review") {
@@ -3358,7 +3697,7 @@ var POST3 = handle(async (request) => {
 Platform snapshot (JSON):
 ${JSON.stringify(snapshot).slice(0, 14e3)}`;
     const task = await createTask(store2, orgId, b.agentId, goal);
-    const run = await runTask(await depsFor(store2, orgId, label2), task.id);
+    const run = await runTask(await depsFor(store2, orgId, label4), task.id);
     return json({ taskId: task.id, status: run.task.status, output: run.task.output });
   }
   throw new HttpError(400, "action must be costs or review");
@@ -3370,8 +3709,8 @@ __export(me_exports, {
   GET: () => GET4
 });
 var GET4 = handle(async (request) => {
-  const { label: label2 } = await requireUser(request);
-  return json({ label: label2, admin: isAdmin(label2, process.env.ADMIN_EMAILS) });
+  const { label: label4 } = await requireUser(request);
+  return json({ label: label4, admin: isAdmin(label4, process.env.ADMIN_EMAILS) });
 });
 
 // server/routes/raise.ts
@@ -3539,21 +3878,21 @@ var COMMITTED = ["committed", "signed", "funded"];
 var EMAIL_RE3 = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 var MAX_MONEY = 1e10;
 var text3 = (v, max) => String(v ?? "").trim().slice(0, max);
-var money = (v, label2, required = false) => {
+var money = (v, label4, required = false) => {
   if (v === void 0 || v === null || v === "") {
-    if (required) throw new Error(`${label2} must be more than zero`);
+    if (required) throw new Error(`${label4} must be more than zero`);
     return void 0;
   }
   const n = typeof v === "string" ? Number(v.replace(/[,$\s]/g, "")) : Number(v);
-  if (!Number.isFinite(n) || n < 0 || n > MAX_MONEY || required && n === 0) throw new Error(`${label2} must be ${required ? "more than zero" : "zero or more"}`);
+  if (!Number.isFinite(n) || n < 0 || n > MAX_MONEY || required && n === 0) throw new Error(`${label4} must be ${required ? "more than zero" : "zero or more"}`);
   return n;
 };
-var oneOf = (list2, v, label2) => {
-  if (!list2.includes(v)) throw new Error(`${label2} must be one of: ${list2.join(", ")}`);
+var oneOf = (list2, v, label4) => {
+  if (!list2.includes(v)) throw new Error(`${label4} must be one of: ${list2.join(", ")}`);
   return v;
 };
 var fmt = (n) => n.toLocaleString("en-US", { maximumFractionDigits: 0 });
-var record3 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
+var record4 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
 async function setRound(store2, orgId, r, by) {
   const round3 = {
     name: text3(r.name, 60) || "Pre-seed",
@@ -3567,7 +3906,7 @@ async function setRound(store2, orgId, r, by) {
     currency: "USD"
   };
   if (round3.discount !== void 0 && !(round3.discount >= 0 && round3.discount <= 50)) throw new Error("The discount must be between 0 and 50 percent");
-  await record3(store2, orgId, by, "raise.round", { ...round3, summary: `Round set: ${round3.name}, $${fmt(round3.target)} (${round3.instrument}, ${round3.exemption})${round3.preMoney ? ` at $${fmt(round3.preMoney)} pre-money` : ""}` });
+  await record4(store2, orgId, by, "raise.round", { ...round3, summary: `Round set: ${round3.name}, $${fmt(round3.target)} (${round3.instrument}, ${round3.exemption})${round3.preMoney ? ` at $${fmt(round3.preMoney)} pre-money` : ""}` });
   return loadRaise(store2, orgId);
 }
 function cleanInvestor(i) {
@@ -3589,12 +3928,12 @@ function cleanInvestor(i) {
 }
 async function upsertInvestor(store2, orgId, input, by) {
   const inv = cleanInvestor(input);
-  await record3(store2, orgId, by, "raise.investor", { investor: inv, summary: `Investor saved: ${inv.name}` });
+  await record4(store2, orgId, by, "raise.investor", { investor: inv, summary: `Investor saved: ${inv.name}` });
   const found = (await loadRaise(store2, orgId)).investors.find((x) => x.id === inv.id);
   return found;
 }
 async function removeInvestor(store2, orgId, id, by) {
-  await record3(store2, orgId, by, "raise.investor_removed", { investorId: id, summary: "Investor removed from the pipeline" });
+  await record4(store2, orgId, by, "raise.investor_removed", { investorId: id, summary: "Investor removed from the pipeline" });
 }
 async function setInvestorStage(store2, orgId, id, stage, by, amount) {
   const st = oneOf(STAGES2, stage, "stage");
@@ -3605,7 +3944,7 @@ async function setInvestorStage(store2, orgId, id, stage, by, amount) {
   if (st === "funded" && state.round?.exemption === "506c" && inv.accredited !== "verified") {
     throw new Error("Under 506(c), verify this investor is accredited before accepting their money");
   }
-  await record3(store2, orgId, by, "raise.investor_stage", { investorId: id, stage: st, amount: amt, summary: `${inv.name}: ${st}${amt ? ` ($${fmt(amt)})` : ""}` });
+  await record4(store2, orgId, by, "raise.investor_stage", { investorId: id, stage: st, amount: amt, summary: `${inv.name}: ${st}${amt ? ` ($${fmt(amt)})` : ""}` });
   return loadRaise(store2, orgId);
 }
 var DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -3637,7 +3976,7 @@ async function setCampaign(store2, orgId, c, by) {
   if (campaign.stage === "live" && (!campaign.tiers.length || !campaign.deliverBy)) {
     throw new Error("Before going live, add at least one tier and the date you promise to deliver by");
   }
-  await record3(store2, orgId, by, "raise.campaign", { ...campaign, summary: `Founding-member pre-orders (${channel}): ${campaign.stage}` });
+  await record4(store2, orgId, by, "raise.campaign", { ...campaign, summary: `Founding-member pre-orders (${channel}): ${campaign.stage}` });
   return loadRaise(store2, orgId);
 }
 async function completeRaiseStep(store2, orgId, stepId, by) {
@@ -3646,12 +3985,12 @@ async function completeRaiseStep(store2, orgId, stepId, by) {
   if (!step) throw new Error("Unknown step");
   if (step.status === "blocked") throw new Error(`Finish first: ${step.blockedBy.join(", ")}`);
   if (stepId === "terms" && !state.round) throw new Error("Set the round terms before marking this done");
-  await record3(store2, orgId, by, "raise.step", { step: stepId, done: true, summary: `Raise step done: ${step.title}` });
+  await record4(store2, orgId, by, "raise.step", { step: stepId, done: true, summary: `Raise step done: ${step.title}` });
   return loadRaise(store2, orgId);
 }
 async function reopenRaiseStep(store2, orgId, stepId, by) {
   if (!RAISE_STEPS.some((s) => s.id === stepId)) throw new Error("Unknown step");
-  await record3(store2, orgId, by, "raise.step", { step: stepId, done: false, summary: `Raise step reopened: ${stepId}` });
+  await record4(store2, orgId, by, "raise.step", { step: stepId, done: false, summary: `Raise step reopened: ${stepId}` });
   return loadRaise(store2, orgId);
 }
 async function importInvestors(store2, orgId, csv, by) {
@@ -3663,7 +4002,7 @@ async function importInvestors(store2, orgId, csv, by) {
     const [name, firm, email, type, relationship] = row.split(",").map((x) => x.trim());
     try {
       const inv = cleanInvestor({ name, firm, email, type: INVESTOR_TYPES.includes(type) ? type : "angel", relationship });
-      await record3(store2, orgId, by, "raise.investor", { investor: inv, summary: `Investor imported: ${inv.name}` });
+      await record4(store2, orgId, by, "raise.investor", { investor: inv, summary: `Investor imported: ${inv.name}` });
       added++;
     } catch {
       skipped++;
@@ -3800,29 +4139,29 @@ var GET5 = handle(async (request) => {
   return json({ raise: await loadRaise(store2, orgId), sources: RAISE_SOURCES });
 });
 var POST4 = handle(async (request) => {
-  const { orgId, label: label2, store: store2 } = await requireUser(request);
+  const { orgId, label: label4, store: store2 } = await requireUser(request);
   const b = await readJson(request, 1e5);
   const id = String(b.investorId ?? "");
   try {
     switch (b.action) {
       case "round":
-        return json({ raise: await setRound(store2, orgId, b.round ?? {}, label2) });
+        return json({ raise: await setRound(store2, orgId, b.round ?? {}, label4) });
       case "investor":
-        await upsertInvestor(store2, orgId, b.investor ?? {}, label2);
+        await upsertInvestor(store2, orgId, b.investor ?? {}, label4);
         break;
       case "stage":
-        return json({ raise: await setInvestorStage(store2, orgId, id, b.stage, label2, b.amount === void 0 || b.amount === "" ? void 0 : Number(String(b.amount).replace(/[,$\s]/g, ""))) });
+        return json({ raise: await setInvestorStage(store2, orgId, id, b.stage, label4, b.amount === void 0 || b.amount === "" ? void 0 : Number(String(b.amount).replace(/[,$\s]/g, ""))) });
       case "remove":
-        await removeInvestor(store2, orgId, id, label2);
+        await removeInvestor(store2, orgId, id, label4);
         break;
       case "import":
-        return json({ ...await importInvestors(store2, orgId, String(b.csv ?? ""), label2), raise: await loadRaise(store2, orgId) });
+        return json({ ...await importInvestors(store2, orgId, String(b.csv ?? ""), label4), raise: await loadRaise(store2, orgId) });
       case "campaign":
-        return json({ raise: await setCampaign(store2, orgId, b.campaign ?? {}, label2) });
+        return json({ raise: await setCampaign(store2, orgId, b.campaign ?? {}, label4) });
       case "complete":
-        return json({ raise: await completeRaiseStep(store2, orgId, String(b.step ?? ""), label2) });
+        return json({ raise: await completeRaiseStep(store2, orgId, String(b.step ?? ""), label4) });
       case "reopen":
-        return json({ raise: await reopenRaiseStep(store2, orgId, String(b.step ?? ""), label2) });
+        return json({ raise: await reopenRaiseStep(store2, orgId, String(b.step ?? ""), label4) });
       default:
         throw new HttpError(400, "Unknown action");
     }
@@ -3859,22 +4198,22 @@ function apolloBody(f) {
   if (!titles.length && !locations.length && !industries.length && !kw) throw new Error("Add at least a title, a location, an industry or a keyword");
   return body;
 }
-var str2 = (v) => typeof v === "string" ? v : "";
+var str3 = (v) => typeof v === "string" ? v : "";
 function parsePerson(p) {
-  const id = str2(p.id);
+  const id = str3(p.id);
   if (!/^[a-f0-9]{24}$/.test(id)) return null;
   const org = p.organization ?? {};
-  const last = str2(p.last_name) || str2(p.last_name_obfuscated);
-  const name = (str2(p.name) || [str2(p.first_name), last].filter(Boolean).join(" ")).trim();
-  const location = [str2(p.city), str2(p.state), str2(p.country)].filter(Boolean).join(", ");
+  const last = str3(p.last_name) || str3(p.last_name_obfuscated);
+  const name = (str3(p.name) || [str3(p.first_name), last].filter(Boolean).join(" ")).trim();
+  const location = [str3(p.city), str3(p.state), str3(p.country)].filter(Boolean).join(", ");
   return {
     apolloId: id,
     name: name || "Unknown",
-    title: str2(p.title),
-    company: str2(org.name) || str2(p.organization_name),
-    domain: str2(org.primary_domain) || str2(org.website_url).replace(/^https?:\/\//, "").replace(/\/.*$/, ""),
+    title: str3(p.title),
+    company: str3(org.name) || str3(p.organization_name),
+    domain: str3(org.primary_domain) || str3(org.website_url).replace(/^https?:\/\//, "").replace(/\/.*$/, ""),
     location,
-    linkedin: str2(p.linkedin_url)
+    linkedin: str3(p.linkedin_url)
   };
 }
 async function apolloReason(res) {
@@ -3883,7 +4222,7 @@ async function apolloReason(res) {
     let msg = text6;
     try {
       const j = JSON.parse(text6);
-      msg = str2(j.error) || str2(j.message) || text6;
+      msg = str3(j.error) || str3(j.message) || text6;
     } catch {
     }
     msg = msg.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().slice(0, 200);
@@ -3919,78 +4258,100 @@ async function apolloEnrich(apiKey, apolloId, fetchImpl = fetch) {
   if (!/^[a-f0-9]{24}$/.test(apolloId)) throw new Error("This contact did not come from Apollo");
   const json2 = await call(apiKey, "/people/match", { id: apolloId, reveal_personal_emails: false, reveal_phone_number: false }, fetchImpl);
   const p = json2.person ?? {};
-  const email = str2(p.email);
-  return { email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && !/email_not_unlocked/.test(email) ? email : "", status: str2(p.email_status) || (email ? "unknown" : "unavailable") };
+  const email = str3(p.email);
+  return { email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && !/email_not_unlocked/.test(email) ? email : "", status: str3(p.email_status) || (email ? "unknown" : "unavailable") };
 }
 
 // server/routes/crm.ts
-var apolloFor = (label2) => isAdmin(label2, process.env.ADMIN_EMAILS) && process.env.APOLLO_API_KEY?.trim() || "";
+var apolloFor = (label4) => isAdmin(label4, process.env.ADMIN_EMAILS) && process.env.APOLLO_API_KEY?.trim() || "";
+async function crmView(store2, orgId) {
+  const [crm, pending] = await Promise.all([loadCrm(store2, orgId), store2.listApprovals(orgId, "pending").catch(() => [])]);
+  if (pending.length && !crm.flowOrg.skipped.approvals) {
+    const n = pending.length;
+    const a = { key: "approvals", rule: "approvals", stage: "outreach", kind: "open", title: `${n} message${n === 1 ? "" : "s"} wait for your approval`, why: "Agents drafted these; nothing goes out until you approve each one in Approvals.", priority: 0, due: nowIso(), count: n };
+    crm.nextActions = [a, ...crm.nextActions];
+  }
+  return crm;
+}
 var GET6 = handle(async (request) => {
-  const { orgId, label: label2, store: store2 } = await requireUser(request);
-  return json({ crm: await loadCrm(store2, orgId), apollo: Boolean(apolloFor(label2)) });
+  const { orgId, label: label4, store: store2 } = await requireUser(request);
+  return json({ crm: await crmView(store2, orgId), apollo: Boolean(apolloFor(label4)), admin: isAdmin(label4, process.env.ADMIN_EMAILS) });
 });
 var POST5 = handle(async (request) => {
-  const { orgId, label: label2, store: store2 } = await requireUser(request);
+  const { orgId, label: label4, store: store2 } = await requireUser(request);
   const b = await readJson(request, 2e5);
   const id = String(b.contactId ?? "");
   try {
     switch (b.action) {
       case "contact":
-        return json({ crm: await upsertContact(store2, orgId, b.contact ?? {}, label2) });
+        return json({ crm: await upsertContact(store2, orgId, b.contact ?? {}, label4) });
       case "stage":
-        return json({ crm: await setDealStage(store2, orgId, id, b.stage, label2) });
+        return json({ crm: await setDealStage(store2, orgId, id, b.stage, label4) });
       case "touch":
-        return json({ crm: await logTouch(store2, orgId, id, String(b.note ?? ""), label2) });
+        return json({ crm: await logTouch(store2, orgId, id, String(b.note ?? ""), label4) });
       case "note":
-        return json({ crm: await addNote(store2, orgId, id, String(b.kind ?? "note"), String(b.note ?? ""), label2) });
+        return json({ crm: await addNote(store2, orgId, id, String(b.kind ?? "note"), String(b.note ?? ""), label4) });
       case "qualify":
-        return json({ crm: await qualifyDeal(store2, orgId, id, b.meddic, String(b.callNotes ?? ""), label2) });
+        return json({ crm: await qualifyDeal(store2, orgId, id, b.meddic, String(b.callNotes ?? ""), label4) });
       case "remove":
-        return json({ crm: await removeContact(store2, orgId, id, label2) });
+        return json({ crm: await removeContact(store2, orgId, id, label4) });
       case "apollo_search": {
-        const key = apolloFor(label2);
+        const key = apolloFor(label4);
         if (!key) throw new HttpError(403, "Apollo is available to SIXXAB admins once APOLLO_API_KEY is set");
         return json(await apolloSearch(key, b.filters ?? {}));
       }
       case "apollo_import": {
-        if (!apolloFor(label2)) throw new HttpError(403, "Apollo is available to SIXXAB admins once APOLLO_API_KEY is set");
-        return json({ ...await importApolloPeople(store2, orgId, b.people ?? [], label2), crm: await loadCrm(store2, orgId) });
+        if (!apolloFor(label4)) throw new HttpError(403, "Apollo is available to SIXXAB admins once APOLLO_API_KEY is set");
+        return json({ ...await importApolloPeople(store2, orgId, b.people ?? [], label4), crm: await loadCrm(store2, orgId) });
       }
       case "apollo_enrich": {
-        const key = apolloFor(label2);
+        const key = apolloFor(label4);
         if (!key) throw new HttpError(403, "Apollo is available to SIXXAB admins once APOLLO_API_KEY is set");
         const c = (await loadCrm(store2, orgId)).contacts.find((x) => x.id === id);
         if (!c) throw new HttpError(404, "Contact not found");
         const r = await apolloEnrich(key, c.apolloId ?? "");
-        await store2.audit({ id: newId(), orgId, at: nowIso(), actor: label2, action: "apollo.enriched", taskId: null, detail: { contactId: id, found: Boolean(r.email), status: r.status, summary: `Apollo email ${r.email ? "found" : "not found"} for ${c.name} (1 credit)` } });
+        await store2.audit({ id: newId(), orgId, at: nowIso(), actor: label4, action: "apollo.enriched", taskId: null, detail: { contactId: id, found: Boolean(r.email), status: r.status, summary: `Apollo email ${r.email ? "found" : "not found"} for ${c.name} (1 credit)` } });
         if (!r.email) return json({ crm: await loadCrm(store2, orgId), found: false, status: r.status });
-        return json({ crm: await setContactEmail(store2, orgId, id, r.email, label2), found: true, status: r.status });
+        return json({ crm: await setContactEmail(store2, orgId, id, r.email, label4), found: true, status: r.status });
       }
       case "import":
-        return json({ ...await importContacts(store2, orgId, String(b.csv ?? ""), label2), crm: await loadCrm(store2, orgId) });
+        return json({ ...await importContacts(store2, orgId, String(b.csv ?? ""), label4), crm: await loadCrm(store2, orgId) });
       // Lead generation: the owner's side of the agents' work. Nothing here contacts anyone.
       case "icp_notes":
-        await saveIcpNotes(store2, orgId, String(b.notes ?? ""), label2);
+        await saveIcpNotes(store2, orgId, String(b.notes ?? ""), label4);
         return json({ crm: await loadCrm(store2, orgId) });
       case "icp_save":
-        await saveIcp(store2, orgId, b.icp ?? {}, label2);
+        await saveIcp(store2, orgId, b.icp ?? {}, label4);
         return json({ crm: await loadCrm(store2, orgId) });
       case "icp_remove":
-        await removeIcp(store2, orgId, String(b.icpId ?? ""), label2);
+        await removeIcp(store2, orgId, String(b.icpId ?? ""), label4);
         return json({ crm: await loadCrm(store2, orgId) });
       case "prospects_decide":
-        return json({ ...await decideProspects(store2, orgId, String(b.batchId ?? ""), b.add ?? [], b.dismiss ?? [], label2), crm: await loadCrm(store2, orgId) });
+        return json({ ...await decideProspects(store2, orgId, String(b.batchId ?? ""), b.add ?? [], b.dismiss ?? [], label4), crm: await loadCrm(store2, orgId) });
       case "sequence_sent":
-        await markStepSent(store2, orgId, id, Number(b.index), label2);
+        await markStepSent(store2, orgId, id, Number(b.index), label4);
         return json({ crm: await loadCrm(store2, orgId) });
       case "sync_dismiss":
-        await dismissSync(store2, orgId, id, label2);
+        await dismissSync(store2, orgId, id, label4);
         return json({ crm: await loadCrm(store2, orgId) });
       case "sync_apply": {
         const c = (await loadCrm(store2, orgId)).contacts.find((x) => x.id === id);
         if (!c?.syncSuggestion) throw new HttpError(404, "That suggestion is no longer there");
-        return json({ crm: await setDealStage(store2, orgId, id, c.syncSuggestion.stage, label2) });
+        return json({ crm: await setDealStage(store2, orgId, id, c.syncSuggestion.stage, label4) });
       }
+      // Sales flow: the owner's side of the next-action queue. Nothing here contacts anyone.
+      case "customer_sent":
+        await markCustomerSent(store2, orgId, id, String(b.kind ?? ""), label4);
+        return json({ crm: await crmView(store2, orgId) });
+      case "onboarding_step":
+        await markOnboardingStep(store2, orgId, id, Number(b.index), label4);
+        return json({ crm: await crmView(store2, orgId) });
+      case "action_skip":
+        await skipAction(store2, orgId, String(b.key ?? ""), label4);
+        return json({ crm: await crmView(store2, orgId) });
+      case "autopilot":
+        await setAutopilot(store2, orgId, Boolean(b.on), label4);
+        return json({ crm: await crmView(store2, orgId) });
       default:
         throw new HttpError(400, "Unknown action");
     }
@@ -4015,7 +4376,7 @@ var SUPPORT_EVENTS = ["support.ticket", "support.status", "support.note"];
 var SLA_ORDER = ["urgent", "high", "normal", "low"];
 var text4 = (v, max) => String(v ?? "").trim().slice(0, max);
 var oneOf2 = (list2, v, fallback) => list2.includes(String(v)) ? String(v) : fallback;
-var record4 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
+var record5 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
 async function openTicket(store2, orgId, input, by) {
   const subject = text4(input.subject, 160);
   const customer = text4(input.customer, 120);
@@ -4032,14 +4393,14 @@ async function openTicket(store2, orgId, input, by) {
     priority: oneOf2(PRIORITIES, input.priority, "normal"),
     message
   };
-  await record4(store2, orgId, by, "support.ticket", { ticket, summary: `Ticket #${number} opened: ${subject}` });
+  await record5(store2, orgId, by, "support.ticket", { ticket, summary: `Ticket #${number} opened: ${subject}` });
   return loadSupport(store2, orgId);
 }
 async function setTicketStatus(store2, orgId, id, status, by) {
   if (!TICKET_STATUSES.includes(status)) throw new Error(`status must be one of: ${TICKET_STATUSES.join(", ")}`);
   const t = (await loadSupport(store2, orgId)).tickets.find((x) => x.id === id);
   if (!t) throw new Error("Ticket not found");
-  await record4(store2, orgId, by, "support.status", { ticketId: id, status, summary: `Ticket #${t.number} ${status}` });
+  await record5(store2, orgId, by, "support.status", { ticketId: id, status, summary: `Ticket #${t.number} ${status}` });
   return loadSupport(store2, orgId);
 }
 async function addTicketNote(store2, orgId, id, note, by) {
@@ -4047,7 +4408,7 @@ async function addTicketNote(store2, orgId, id, note, by) {
   if (!t) throw new Error("Ticket not found");
   const body = text4(note, 4e3);
   if (!body) throw new Error("Write a note first");
-  await record4(store2, orgId, by, "support.note", { ticketId: id, text: body, summary: `Note on ticket #${t.number}` });
+  await record5(store2, orgId, by, "support.note", { ticketId: id, text: body, summary: `Note on ticket #${t.number}` });
   return loadSupport(store2, orgId);
 }
 async function loadSupport(store2, orgId) {
@@ -4101,17 +4462,17 @@ var GET7 = handle(async (request) => {
   return json({ support: await loadSupport(store2, orgId) });
 });
 var POST6 = handle(async (request) => {
-  const { orgId, label: label2, store: store2 } = await requireUser(request);
+  const { orgId, label: label4, store: store2 } = await requireUser(request);
   const b = await readJson(request, 5e4);
   const id = String(b.ticketId ?? "");
   try {
     switch (b.action) {
       case "open":
-        return json({ support: await openTicket(store2, orgId, b.ticket ?? {}, label2) });
+        return json({ support: await openTicket(store2, orgId, b.ticket ?? {}, label4) });
       case "status":
-        return json({ support: await setTicketStatus(store2, orgId, id, b.status, label2) });
+        return json({ support: await setTicketStatus(store2, orgId, id, b.status, label4) });
       case "note":
-        return json({ support: await addTicketNote(store2, orgId, id, String(b.note ?? ""), label2) });
+        return json({ support: await addTicketNote(store2, orgId, id, String(b.note ?? ""), label4) });
       default:
         throw new HttpError(400, "Unknown action");
     }
@@ -4136,7 +4497,7 @@ var DATE_RE2 = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 var MAX_AMOUNT = 1e11;
 var round2 = (n) => Math.round(n * 100) / 100;
 var text5 = (v, max) => String(v ?? "").trim().slice(0, max);
-var record5 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
+var record6 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
 async function addEntry(store2, orgId, input, by, currency = "USD") {
   if (input.kind !== "income" && input.kind !== "expense") throw new Error("kind must be income or expense");
   const date = text5(input.date, 10);
@@ -4146,7 +4507,7 @@ async function addEntry(store2, orgId, input, by, currency = "USD") {
   const cats = input.kind === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
   const category = cats.includes(input.category) ? input.category : input.kind === "income" ? "other income" : "other";
   const entry = { id: newId(), kind: input.kind, date, amount: round2(amount), category, party: text5(input.party, 120), note: text5(input.note, 300) };
-  await record5(store2, orgId, by, "acct.entry", { entry, summary: `${input.kind === "income" ? "Income" : "Expense"} recorded: ${entry.amount} ${currency} (${category})` });
+  await record6(store2, orgId, by, "acct.entry", { entry, summary: `${input.kind === "income" ? "Income" : "Expense"} recorded: ${entry.amount} ${currency} (${category})` });
   return loadAccounts(store2, orgId, currency);
 }
 var RULES = [
@@ -4190,13 +4551,13 @@ async function importStatement(store2, orgId, csv, by, currency = "USD") {
     const category = categorize(description, kind);
     if (category === "other" || category === "other income") uncategorized++;
     const entry = { id: newId(), kind, date, amount, category, party: "", note: description };
-    await record5(store2, orgId, by, "acct.entry", { entry, source: "statement", summary: `Imported ${kind}: ${amount} ${currency} (${category})` });
+    await record6(store2, orgId, by, "acct.entry", { entry, source: "statement", summary: `Imported ${kind}: ${amount} ${currency} (${category})` });
     added++;
   }
   return { added, skipped, uncategorized };
 }
 async function removeEntry(store2, orgId, id, by, currency = "USD") {
-  await record5(store2, orgId, by, "acct.removed", { entryId: id, summary: "Ledger entry removed" });
+  await record6(store2, orgId, by, "acct.removed", { entryId: id, summary: "Ledger entry removed" });
   return loadAccounts(store2, orgId, currency);
 }
 async function loadAccounts(store2, orgId, currency = "USD", today = /* @__PURE__ */ new Date()) {
@@ -4248,17 +4609,17 @@ var GET8 = handle(async (request) => {
   return json({ accounts: await loadAccounts(store2, orgId, currency) });
 });
 var POST7 = handle(async (request) => {
-  const { orgId, label: label2, store: store2 } = await requireUser(request);
+  const { orgId, label: label4, store: store2 } = await requireUser(request);
   const b = await readJson(request, 3e5);
   const currency = (await loadBusinessProfile(store2, orgId))?.currency ?? "USD";
   try {
     switch (b.action) {
       case "entry":
-        return json({ accounts: await addEntry(store2, orgId, b.entry ?? {}, label2, currency) });
+        return json({ accounts: await addEntry(store2, orgId, b.entry ?? {}, label4, currency) });
       case "import":
-        return json({ ...await importStatement(store2, orgId, String(b.csv ?? ""), label2, currency), accounts: await loadAccounts(store2, orgId, currency) });
+        return json({ ...await importStatement(store2, orgId, String(b.csv ?? ""), label4, currency), accounts: await loadAccounts(store2, orgId, currency) });
       case "remove":
-        return json({ accounts: await removeEntry(store2, orgId, String(b.entryId ?? ""), label2, currency) });
+        return json({ accounts: await removeEntry(store2, orgId, String(b.entryId ?? ""), label4, currency) });
       default:
         throw new HttpError(400, "Unknown action");
     }

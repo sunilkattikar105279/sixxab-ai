@@ -4,6 +4,7 @@ import { newId, nowIso, type Store } from './store.js';
 import type { AuditEvent } from './types.js';
 import { cleanMeddic, scoreMeddic, type Meddic } from './gtm.js';
 import { applyDealEvent, computeLeadgen, crmIssues, EMPTY_DEAL_LEADGEN, LEADGEN_DEAL_EVENTS, LEADGEN_ORG_EVENTS, type CrmIssue, type DealLeadgen, type Icp, type IcpNotes, type ProspectBatch } from './leadgen-state.js';
+import { applyFlowEvent, computeFlowOrg, EMPTY_CUSTOMER, FLOW_DEAL_EVENTS, FLOW_ORG_EVENTS, flowCounts, nextActions, type CustomerFlow, type FlowOrg, type FlowStage, type NextAction } from './salesflow-state.js';
 
 export const DEAL_STAGES = ['lead', 'contacted', 'qualified', 'proposal', 'won', 'lost'] as const;
 export const SOURCES = ['website', 'referral', 'linkedin', 'whatsapp', 'walk-in', 'event', 'apollo', 'web-search', 'other'] as const;
@@ -36,6 +37,8 @@ export interface Contact extends LeadProfile, DealLeadgen {
   apolloId?: string;
   stage: DealStage; createdAt: string; updatedAt: string; lastTouch: string | null;
   meddic: Meddic | null; callNotes: string; score: number | null;
+  /** After the win: onboarding plan, account reviews and the customer messages sent. */
+  customer: CustomerFlow;
   /** Newest first. */
   history: HistoryItem[];
 }
@@ -52,9 +55,13 @@ export interface CrmState {
   icpNotes: IcpNotes | null;
   prospectBatches: ProspectBatch[];
   issues: CrmIssue[];
+  /** The sales flow: autopilot switch and skipped actions, deals per stage, and the next-action queue. */
+  flowOrg: FlowOrg;
+  flowCounts: Record<FlowStage, number>;
+  nextActions: NextAction[];
 }
 
-export const CRM_EVENTS = ['crm.contact', 'crm.stage', 'crm.touch', 'crm.note', 'crm.qualify', 'crm.removed', ...LEADGEN_ORG_EVENTS, ...LEADGEN_DEAL_EVENTS];
+export const CRM_EVENTS = ['crm.contact', 'crm.stage', 'crm.touch', 'crm.note', 'crm.qualify', 'crm.removed', ...LEADGEN_ORG_EVENTS, ...LEADGEN_DEAL_EVENTS, ...FLOW_ORG_EVENTS, ...FLOW_DEAL_EVENTS];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^\+?[\d\s()-]{7,20}$/;
 const STALE_DAYS = 7;
@@ -329,14 +336,21 @@ export function computeCrm(events: AuditEvent[], now = Date.now()): CrmState {
         : summary.startsWith('Contact updated from a list') ? 'Details filled in from a list' : summary.startsWith('Contact updated by CRM Sync') ? 'Details filled in by CRM Sync' : 'Details updated';
       const history = addHistory(prev?.history ?? [], { at: e.at, by: e.actor, kind: 'update', text: what });
       const lg: DealLeadgen = prev ? { leadScore: prev.leadScore, sequence: prev.sequence, objections: prev.objections, syncSuggestion: prev.syncSuggestion } : EMPTY_DEAL_LEADGEN;
-      map.set(c.id, { ...EMPTY_PROFILE, ...c, ...lg, stage: prev?.stage ?? 'lead', createdAt: prev?.createdAt ?? e.at, updatedAt: e.at, lastTouch: prev?.lastTouch ?? null, meddic: prev?.meddic ?? null, callNotes: prev?.callNotes ?? '', score: prev?.score ?? null, history });
-    } else if (LEADGEN_ORG_EVENTS.includes(e.action)) {
+      map.set(c.id, { ...EMPTY_PROFILE, ...c, ...lg, customer: prev?.customer ?? EMPTY_CUSTOMER, stage: prev?.stage ?? 'lead', createdAt: prev?.createdAt ?? e.at, updatedAt: e.at, lastTouch: prev?.lastTouch ?? null, meddic: prev?.meddic ?? null, callNotes: prev?.callNotes ?? '', score: prev?.score ?? null, history });
+    } else if (LEADGEN_ORG_EVENTS.includes(e.action) || FLOW_ORG_EVENTS.includes(e.action)) {
       continue;
     } else {
       const prev = map.get(String(d.contactId));
       if (!prev) continue;
       const log = (kind: string, t: string) => addHistory(prev.history, { at: e.at, by: e.actor, kind, text: t });
-      if (e.action === 'crm.stage') map.set(prev.id, { ...prev, stage: d.stage as DealStage, syncSuggestion: null, updatedAt: e.at, lastTouch: e.at, history: log('stage', String(d.stage)) });
+      if (e.action === 'crm.stage') {
+        const won = d.stage === 'won';
+        const customer = won ? (prev.stage === 'won' ? prev.customer : { ...prev.customer, wonAt: e.at }) : { ...prev.customer, wonAt: null };
+        map.set(prev.id, { ...prev, stage: d.stage as DealStage, syncSuggestion: null, customer, updatedAt: e.at, lastTouch: e.at, history: log('stage', String(d.stage)) });
+      } else if (FLOW_DEAL_EVENTS.includes(e.action)) {
+        const r = applyFlowEvent(prev.customer, e);
+        map.set(prev.id, { ...prev, customer: r.cf, ...(r.touch ? { lastTouch: e.at, updatedAt: e.at } : {}), history: r.history ? log(r.history.kind, r.history.text) : prev.history });
+      }
       else if (LEADGEN_DEAL_EVENTS.includes(e.action)) {
         const r = applyDealEvent(prev, e, prev.stage);
         map.set(prev.id, { ...prev, ...r.lg, history: r.history ? log(r.history.kind, r.history.text) : prev.history });
@@ -355,6 +369,9 @@ export function computeCrm(events: AuditEvent[], now = Date.now()): CrmState {
   const closed = won.length + pipeline.lost;
   const fresh = contacts.filter((c) => c.stage === 'lead' && c.email && !c.lastTouch && now - Date.parse(c.createdAt) <= NEW_LEAD_HOURS * 36e5);
   const stale = open.filter((c) => c.email && now - Date.parse(c.lastTouch ?? c.createdAt) >= STALE_DAYS * 864e5);
+  const leadgen = computeLeadgen(events);
+  const flowOrg = computeFlowOrg(events);
+  const flow = { contacts, icps: leadgen.icps, prospectBatches: leadgen.prospectBatches, flowOrg };
   return {
     contacts, pipeline,
     totals: {
@@ -364,8 +381,11 @@ export function computeCrm(events: AuditEvent[], now = Date.now()): CrmState {
     followUpGoal: followUpGoal(stale.slice(0, 10)),
     newLeads: fresh.length,
     speedGoal: speedGoal(fresh.slice(0, 10)),
-    ...computeLeadgen(events),
+    ...leadgen,
     issues: crmIssues(contacts, now),
+    flowOrg,
+    flowCounts: flowCounts(flow, now),
+    nextActions: nextActions(flow, now),
   };
 }
 

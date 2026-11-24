@@ -100,7 +100,7 @@ export function LeadAgents({ crm, busy, post, reload, goApprovals }: { crm: Lead
 
   return (
     <>
-      <section className="panel glass-card">
+      <section className="panel glass-card" id="who-you-sell-to">
         <p className="eyebrow">Lead generation · ICP Builder</p>
         <h2>Who you sell to</h2>
         <p className="muted small">Add what you know about your ideal customers: paste notes, or upload your lead workbook (every sheet is read, the ICP and outreach sheets first). The ICP Builder turns it and your pipeline into profiles the other agents work from.</p>
@@ -128,7 +128,7 @@ export function LeadAgents({ crm, busy, post, reload, goApprovals }: { crm: Lead
         <AgentRun agentId="icp-builder" goal={crm.icpNotes || crm.contacts.length ? icpGoal({ icps, contacts: crm.contacts }) : ''} label={icps.length ? 'Update the ICPs' : 'Build the ICPs'} emptyText="Save notes about your ideal customers, or add some deals, to build an ICP." {...run} />
       </section>
 
-      <section className="panel glass-card">
+      <section className="panel glass-card" id="find-prospects">
         <p className="eyebrow">Lead generation · Prospect Generator</p>
         <h2>Find new prospects</h2>
         <p className="muted small">The agent searches public business pages for companies that match. Nothing is added or contacted until you tick who to add.</p>

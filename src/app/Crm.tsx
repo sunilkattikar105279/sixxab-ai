@@ -11,8 +11,10 @@ import { api } from '../lib/auth';
 import { fileToCsv } from '../lib/sheet';
 import { CustomerPage, STAGES, stageName, webHref, type Contact } from './Customer';
 import { LeadAgents, type LeadgenState } from './LeadAgents';
+import { SalesFlow } from './SalesFlow';
+import type { FlowOrg, FlowStage, NextAction } from '../../core/salesflow-state';
 
-interface CrmState extends LeadgenState { contacts: Contact[]; pipeline: Record<string, number>; totals: { open: number; openValue: number; won: number; wonValue: number; winRate: number | null; followUps: number }; followUpGoal: string; newLeads?: number; speedGoal?: string }
+interface CrmState extends LeadgenState { contacts: Contact[]; flowOrg: FlowOrg; flowCounts: Record<FlowStage, number>; nextActions: NextAction[]; pipeline: Record<string, number>; totals: { open: number; openValue: number; won: number; wonValue: number; winRate: number | null; followUps: number }; followUpGoal: string; newLeads?: number; speedGoal?: string }
 
 /** Everything the lead research recorded about a business, shown when a deal is opened. */
 export function LeadDetails({ c }: { c: Contact }) {
@@ -67,7 +69,7 @@ const EMPTY = { name: '', company: '', email: '', phone: '', source: 'website', 
 const since = (iso: string | null) => (iso ? `${Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 864e5))}d ago` : 'never');
 
 export function Crm({ goApprovals }: { goApprovals: () => void }) {
-  const { data, error, reload } = useLoad<{ crm: CrmState; apollo?: boolean }>('/api/crm');
+  const { data, error, reload } = useLoad<{ crm: CrmState; apollo?: boolean; admin?: boolean }>('/api/crm');
   const { busy, msg, post } = usePost('/api/crm', reload);
   const [f, setF] = useState(EMPTY);
   const [csv, setCsv] = useState('');
@@ -99,11 +101,14 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
   const t = crm.totals;
   const customer = customerId ? crm.contacts.find((c) => c.id === customerId) : undefined;
   const openCustomer = (c: Contact) => { setCustomerId(c.id); window.scrollTo?.({ top: 0 }); };
-  if (customer) return <CustomerPage key={customer.id} c={customer} busy={!!busy} msg={msg} post={post} back={() => setCustomerId(null)} goApprovals={goApprovals} reload={reload} />;
+  if (customer) return <CustomerPage key={customer.id} c={customer} busy={!!busy} msg={msg} post={post} back={() => setCustomerId(null)} goApprovals={goApprovals} reload={reload} actions={(crm.nextActions ?? []).filter((a) => a.contactId === customer.id)} />;
   const shown = crm.contacts.filter((c) => (filter === 'open' ? !['won', 'lost'].includes(c.stage) : filter === 'all' ? true : c.stage === filter));
 
   return (
     <div className="stack">
+      <SalesFlow crm={crm} busy={!!busy} post={post} reload={reload} goApprovals={goApprovals} open={openCustomer} admin={data.admin} />
+      {msg && <p className="error" role="alert">{msg}</p>}
+
       <section className="panel glass-card">
         <p className="eyebrow">CRM · Sales CRM agent</p>
         <h2>Pipeline</h2>

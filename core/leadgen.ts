@@ -221,8 +221,23 @@ function dealFull(c: Contact): string {
     c.leadScore && `Lead score: ${c.leadScore.score} (${c.leadScore.grade}) — ${cut(c.leadScore.reasons, 400)}`,
     c.sequence && `Outreach sequence: ${c.sequence.steps.map((s, i) => `step ${i + 1} day ${s.day} ${s.channel}${s.sentAt ? ' (sent)' : ''}`).join(', ')}`,
     c.objections.length ? `Objections answered: ${c.objections.map((o) => `"${cut(o.objection, 100)}"`).join('; ')}` : '',
+    ...customerLines(c),
     `History (newest first):\n${c.history.slice(0, 15).map((h) => `  ${h.at.slice(0, 10)} ${h.kind}: ${cut(h.text, 200)}`).join('\n') || '  none'}`,
   ].filter(Boolean).join('\n');
+}
+
+/** What an agent needs to know about a customer after the win: onboarding progress and the latest account review. */
+function customerLines(c: Contact): string[] {
+  const cf = c.customer;
+  if (!cf || c.stage !== 'won') return [];
+  const o = cf.onboarding;
+  const r = cf.review;
+  return [
+    `Customer since: ${cf.wonAt ? cf.wonAt.slice(0, 10) : 'unknown'}`,
+    o ? `Onboarding plan (${o.at.slice(0, 10)}): ${o.steps.map((s) => `day ${s.day} ${cut(s.title, 80)} [${s.owner}]${s.doneAt ? ' done' : ''}`).join('; ')}${o.welcome ? `; welcome email ${cf.sent.some((x) => x.kind === 'welcome' && x.ref === o.id) ? 'sent' : 'not sent yet'}` : ''}` : 'Onboarding plan: none yet',
+    r ? `Last account review (${r.at.slice(0, 10)}): health ${r.health} (${r.band}); ${cut(r.reasons, 400)}${r.risks ? `; risks: ${cut(r.risks, 300)}` : ''}${r.renewalDate ? `; renewal ${r.renewalDate}` : ''}` : 'Account review: none yet',
+    cf.sent.length ? `Customer messages sent: ${cf.sent.map((x) => `${x.kind} ${x.at.slice(0, 10)}`).join(', ')}` : '',
+  ].filter(Boolean);
 }
 
 function icpFull(i: Icp): string {

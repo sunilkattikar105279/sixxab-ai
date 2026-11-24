@@ -1,7 +1,10 @@
-// GET /api/cron-briefing → Vercel Cron: build every company's morning briefing. Protected by CRON_SECRET.
+// GET /api/cron-briefing → Vercel Cron: build every company's morning briefing, then let the sales autopilot
+// prepare up to 3 drafts for companies that switched it on (drafts only: nothing is sent). Protected by CRON_SECRET.
 import { buildBriefing } from '../../core/briefing.js';
+import { runAutopilot } from '../../core/autopilot.js';
+import { loadCrm } from '../../core/crm.js';
 import { AnthropicClient, modelsFromEnv } from '../../core/model.js';
-import { handle, HttpError, json, store } from '../context.js';
+import { depsFor, handle, HttpError, json, store } from '../context.js';
 
 export const GET = handle(async (request) => {
   const secret = process.env.CRON_SECRET;
@@ -9,6 +12,7 @@ export const GET = handle(async (request) => {
   const s = store();
   const key = process.env.ANTHROPIC_API_KEY;
   const model = key ? new AnthropicClient({ apiKey: key, models: modelsFromEnv(process.env) }) : undefined;
+  const started = Date.now();
   const orgs = await s.listOrgIds();
   let ok = 0;
   for (const orgId of orgs) {
@@ -19,5 +23,17 @@ export const GET = handle(async (request) => {
       console.error('briefing failed', orgId, e);
     }
   }
-  return json({ orgs: orgs.length, built: ok });
+  let drafted = 0;
+  if (key) {
+    for (const orgId of orgs) {
+      if (Date.now() - started > 180_000) break; // leave room inside the 300-second limit
+      try {
+        if (!(await loadCrm(s, orgId)).flowOrg.autopilot?.on) continue;
+        drafted += (await runAutopilot(await depsFor(s, orgId, 'Sales autopilot'), orgId, 3)).ran.length;
+      } catch (e) {
+        console.error('autopilot failed', orgId, e);
+      }
+    }
+  }
+  return json({ orgs: orgs.length, built: ok, autopilotDrafts: drafted });
 });

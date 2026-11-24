@@ -14,6 +14,7 @@ import { Governance } from './Governance';
 import { Billing } from './Billing';
 import { useLoad } from './useLoad';
 import { AgentRun } from './AgentRun';
+import { UpdateBanner } from './UpdateBanner';
 
 type Tab = 'journey' | 'today' | 'approvals' | 'crm' | 'support' | 'accounts' | 'raise' | 'agents' | 'activity' | 'governance' | 'billing';
 type AgentInfo = Omit<RoleCard, 'instructions'>;
@@ -56,6 +57,7 @@ export default function Dashboard() {
           <button type="button" className="btn-ghost" onClick={async () => { await signOut(); location.replace('/'); }}>Sign out</button>
         </div>
       </header>
+      <UpdateBanner />
       <nav className="app-tabs" aria-label="Workspace">
         {([...(['journey', 'today', 'approvals', 'crm', 'support', 'accounts', 'raise', 'agents', 'activity'] as Tab[]), ...(admin ? (['governance', 'billing'] as Tab[]) : [])]).map((t) => (
           <button key={t} type="button" className={tab === t ? 'app-tab on' : 'app-tab'} aria-current={tab === t ? 'page' : undefined} onClick={() => setTab(t)}>

@@ -4,20 +4,34 @@ import { addNote, importApolloPeople, importContacts, loadCrm, logTouch, qualify
 import { apolloEnrich, apolloSearch, type ApolloFilters, type ApolloPerson } from '../../core/apollo.js';
 import { isAdmin } from '../../core/automation.js';
 import { decideProspects, dismissSync, markStepSent, removeIcp, saveIcp, saveIcpNotes } from '../../core/leadgen.js';
-import { newId, nowIso } from '../../core/store.js';
+import { markCustomerSent, markOnboardingStep, setAutopilot, skipAction } from '../../core/salesflow.js';
+import type { NextAction } from '../../core/salesflow-state.js';
+import { newId, nowIso, type Store } from '../../core/store.js';
 import { handle, HttpError, json, readJson, requireUser } from '../context.js';
 
 /** Apollo uses SIXXAB's own key and credits, so only admins can search or reveal emails. */
 const apolloFor = (label: string) => (isAdmin(label, process.env.ADMIN_EMAILS) && process.env.APOLLO_API_KEY?.trim()) || '';
 
+/** The CRM plus the sales flow's queue, led by any messages that wait in Approvals. */
+async function crmView(store: Store, orgId: string) {
+  const [crm, pending] = await Promise.all([loadCrm(store, orgId), store.listApprovals(orgId, 'pending').catch(() => [])]);
+  if (pending.length && !crm.flowOrg.skipped.approvals) {
+    const n = pending.length;
+    const a: NextAction = { key: 'approvals', rule: 'approvals', stage: 'outreach', kind: 'open', title: `${n} message${n === 1 ? '' : 's'} wait for your approval`, why: 'Agents drafted these; nothing goes out until you approve each one in Approvals.', priority: 0, due: nowIso(), count: n };
+    crm.nextActions = [a, ...crm.nextActions];
+  }
+  return crm;
+}
+
 export const GET = handle(async (request) => {
   const { orgId, label, store } = await requireUser(request);
-  return json({ crm: await loadCrm(store, orgId), apollo: Boolean(apolloFor(label)) });
+  return json({ crm: await crmView(store, orgId), apollo: Boolean(apolloFor(label)), admin: isAdmin(label, process.env.ADMIN_EMAILS) });
 });
 
 interface Body {
   action?: string; contact?: ContactInput; contactId?: string; stage?: DealStage; note?: string; kind?: string; csv?: string; meddic?: unknown; callNotes?: string; filters?: ApolloFilters; people?: ApolloPerson[];
   icp?: Record<string, unknown>; icpId?: string; notes?: string; batchId?: string; add?: string[]; dismiss?: string[]; index?: number;
+  key?: string; on?: boolean;
 }
 
 export const POST = handle(async (request) => {
@@ -64,6 +78,11 @@ export const POST = handle(async (request) => {
         if (!c?.syncSuggestion) throw new HttpError(404, 'That suggestion is no longer there');
         return json({ crm: await setDealStage(store, orgId, id, c.syncSuggestion.stage as DealStage, label) });
       }
+      // Sales flow: the owner's side of the next-action queue. Nothing here contacts anyone.
+      case 'customer_sent': await markCustomerSent(store, orgId, id, String(b.kind ?? ''), label); return json({ crm: await crmView(store, orgId) });
+      case 'onboarding_step': await markOnboardingStep(store, orgId, id, Number(b.index), label); return json({ crm: await crmView(store, orgId) });
+      case 'action_skip': await skipAction(store, orgId, String(b.key ?? ''), label); return json({ crm: await crmView(store, orgId) });
+      case 'autopilot': await setAutopilot(store, orgId, Boolean(b.on), label); return json({ crm: await crmView(store, orgId) });
       default: throw new HttpError(400, 'Unknown action');
     }
   } catch (e) {
