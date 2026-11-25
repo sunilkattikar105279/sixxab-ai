@@ -25,7 +25,7 @@ test('every role card is unique, reports to a real agent and lists only real too
 });
 
 test('S1 and S2 agents stay safe: no spending, and only outreach agents can message or post', () => {
-  const MAY_SEND = new Set(['speed-to-lead', 'founder-story', 'sales-crm', 'support-desk', 'follow-up-writer', 'customer-reply', 'fundraising', 'social-poster', 'comment-responder', 'cmo']);
+  const MAY_SEND = new Set(['speed-to-lead', 'founder-story', 'sales-crm', 'support-desk', 'front-desk', 'follow-up-writer', 'customer-reply', 'fundraising', 'social-poster', 'comment-responder', 'cmo']);
   for (const a of AGENTS.filter((x) => x.stage <= 2)) {
     if (a.id !== 'cmo') assert.ok(!a.tools.includes('spend_money'), `${a.id} must not spend`);
     if (!MAY_SEND.has(a.id)) assert.ok(!a.tools.some((t) => ['send_message', 'publish_post', 'reply_comment', 'send_email_campaign'].includes(t)), `${a.id} must not contact anyone`);

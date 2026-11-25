@@ -1,8 +1,10 @@
-// Support tab: open a ticket, work the queue (priority first), add notes and resolve; the agent drafts replies.
+// Support tab: the Front Desk (24/7 attendant) settings, then open a ticket, work the queue (priority first), add notes
+// and resolve; the agent drafts replies.
 import React, { useState } from 'react';
 import { Spinner } from './ui';
 import { useLoad } from './useLoad';
 import { AgentRun, usePost } from './AgentRun';
+import { FrontDesk, type FrontDeskState } from './FrontDesk';
 
 interface Note { at: string; by: string; text: string }
 interface Ticket { id: string; number: number; subject: string; customer: string; contact: string; channel: string; priority: string; status: string; createdAt: string; notes: Note[] }
@@ -12,7 +14,7 @@ const EMPTY = { subject: '', customer: '', contact: '', channel: 'email', priori
 const pill = (s: string) => (s === 'resolved' ? 'done' : s === 'waiting' ? 'planned' : 'awaiting_approval');
 
 export function Support({ goApprovals }: { goApprovals: () => void }) {
-  const { data, error, reload } = useLoad<{ support: SupportState }>('/api/support');
+  const { data, error, reload } = useLoad<{ support: SupportState; frontDesk?: FrontDeskState }>('/api/support');
   const { busy, msg, post } = usePost('/api/support', reload);
   const [f, setF] = useState(EMPTY);
   const [showResolved, setShowResolved] = useState(false);
@@ -24,6 +26,7 @@ export function Support({ goApprovals }: { goApprovals: () => void }) {
 
   return (
     <div className="stack">
+      {data.frontDesk && <FrontDesk state={data.frontDesk} reload={reload} goApprovals={goApprovals} />}
       <section className="panel glass-card">
         <p className="eyebrow">Support desk · Support Desk agent</p>
         <h2>Tickets</h2>

@@ -1,0 +1,382 @@
+{
+  "name": "SIXXAB AI: Front Desk into the CRM",
+  "nodes": [
+    {
+      "id": "0430a554-0adb-4052-a58b-591e005c3c58",
+      "name": "Setup notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        -320
+      ],
+      "parameters": {
+        "width": 460,
+        "height": 460,
+        "content": "## SIXXAB Front Desk: calls and messages into the CRM\nLogs each finished call (Retell) and each new customer message (Chatwoot: WhatsApp, email, website chat). It never replies or texts.\n\n1. Change both webhook paths to include a long random part, so nobody can guess them.\n2. **Retell** → agent settings → webhook URL = the **Calls webhook** production URL; events: call_analyzed. Optional: allow only Retell's address 100.20.5.228.\n3. **Chatwoot** → Settings → Integrations → Webhooks → the **Messages webhook** production URL; event: message created.\n4. In both Code nodes set SIXXAB_ORG_ID (the business ID in the Front Desk panel's setup steps), and RETELL_AGENT_IDS / INBOX_IDS. Set HEALTHCARE = true for clinics.\n5. **Send to SIXXAB** nodes → Credential: Header Auth, name `x-inbound-key`, value = the INBOUND_KEY set in Vercel for sixxab.ai.\n6. Activate."
+      }
+    },
+    {
+      "id": "d2043e11-fb61-4421-ab74-979ce3171eb5",
+      "name": "Calls webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        -160
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sixxab-frontdesk-calls",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "c0840f8a-18c9-413d-ab23-5735f746d97f"
+    },
+    {
+      "id": "5088e483-4ec5-4a77-a60c-59da60b6a643",
+      "name": "Map call",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        -160
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Retell → SIXXAB CRM. Edit the settings, then save the workflow.\nconst SIXXAB_INBOUND_URL = 'https://sixxab.ai/api/inbound'; // the CRM entry point (the key goes in the \"Send to SIXXAB\" credential)\nconst SIXXAB_ORG_ID = ''; // the business ID shown in the Front Desk panel's setup steps on sixxab.ai\nconst HEALTHCARE = false;  // true for clinics, dental and med spas: no free text at all, only a good time to call\nconst INTENTS = ['new_enquiry', 'booking', 'existing_customer', 'support', 'emergency', 'spam', 'other'];\nconst OUTCOMES = ['booked', 'callback', 'transferred', 'answered', 'voicemail', 'missed'];\nconst LANGS = { en: 'English', es: 'Spanish', hi: 'Hindi', mr: 'Marathi' };\nconst CALL_TIMES = ['Morning', 'Afternoon', 'Evening', 'Any time'];\nconst pick = (v, list, fallback) => (list.includes(String(v)) ? String(v) : fallback);\nconst clip = (v, n) => String(v == null ? '' : v).replace(/\\s+/g, ' ').trim().slice(0, n);\nconst words = (v) => String(v).replace(/_/g, ' ');\nconst reachable = (phone) => phone.replace(/\\D/g, '').length >= 7;\nconst skip = (reason) => ({ json: { skip: true, reason } });\nconst send = (payload) => (SIXXAB_ORG_ID ? { json: { skip: false, sixxabUrl: SIXXAB_INBOUND_URL, payload: Object.assign({ orgId: SIXXAB_ORG_ID }, payload) } } : skip('Set SIXXAB_ORG_ID in this Code node first'));\nconst RETELL_AGENT_IDS = []; // your Retell agent ids, e.g. ['agent_abc123']; calls to other agents are ignored. Empty = all.\n// Calls that never connected (Retell's disconnection reasons):\nconst NOT_CONNECTED = ['dial_no_answer', 'dial_busy', 'dial_failed', 'invalid_destination', 'sip_routing_error'];\n\nreturn $input.all().map((item) => {\n  const body = item.json.body || {};\n  const call = body.call || {};\n  if (body.event !== 'call_analyzed') return skip('Only finished, analyzed calls are logged');\n  if (!call.call_id) return skip('No call id');\n  if (call.direction && call.direction !== 'inbound') return skip('Outbound calls are not logged here');\n  if (RETELL_AGENT_IDS.length && !RETELL_AGENT_IDS.includes(call.agent_id)) return skip('Call to an agent not listed in RETELL_AGENT_IDS');\n  const a = call.call_analysis || {};\n  const c = a.custom_analysis_data || {};\n  const intent = pick(c.intent, INTENTS, 'other');\n  if (intent === 'spam') return skip('Spam call');\n  const phone = clip(c.callback_number || call.from_number, 20);\n  if (!reachable(phone)) return skip('No number to call back (withheld caller ID)');\n  const reason = String(call.disconnection_reason || '');\n  const durationSec = Math.round(Number(call.duration_ms || 0) / 1000);\n  let outcome = pick(c.outcome, OUTCOMES, '');\n  if (!outcome) {\n    if (a.in_voicemail === true || reason === 'voicemail_reached') outcome = 'voicemail';\n    else if (NOT_CONNECTED.includes(reason) || (reason === 'user_hangup' && durationSec < 10)) outcome = 'missed';\n    else if (reason === 'call_transfer' || reason === 'transfer_bridged') outcome = 'transferred';\n    else outcome = 'answered';\n  }\n  const afterHours = c.after_hours === true || c.after_hours === 'true';\n  const lang = LANGS[c.language] && c.language !== 'en' ? LANGS[c.language] : '';\n  const facts = [\n    'Phone call, ' + words(outcome) + (intent !== 'other' ? ', ' + words(intent) : '') + (afterHours ? ', after hours' : '') + (lang ? ', in ' + lang : '') + (durationSec ? ', ' + durationSec + ' s' : '') + '.',\n    c.booking_start ? 'Booked for ' + clip(c.booking_start, 40) + '.' : '',\n    clip(a.call_summary, 700),\n  ].filter(Boolean).join('\\n');\n  return send({\n    channel: 'call',\n    name: clip(c.caller_name, 120),\n    phone,\n    email: clip(c.caller_email, 200),\n    message: HEALTHCARE ? '' : facts.slice(0, 900),\n    when: pick(c.best_time, CALL_TIMES, ''),\n    ref: 'retell:' + clip(call.call_id, 100),\n  });\n});"
+      }
+    },
+    {
+      "id": "65c65dc0-5223-4018-a258-c9f8279570a9",
+      "name": "Log call?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        -160
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "6054477b-d451-4840-a55e-dc75d3aff9fa",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "5e2f2de4-80b6-49a3-a72e-a4b4bd79ff41",
+      "name": "Send call to SIXXAB",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        -80
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.sixxabUrl }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {
+          "timeout": 8000
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "7de7fb69-09e2-4a8f-a9ce-ce37dea7d4cb",
+      "name": "Calls: done",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        900,
+        -160
+      ],
+      "parameters": {
+        "respondWith": "noData",
+        "options": {
+          "responseCode": 204
+        }
+      }
+    },
+    {
+      "id": "69ea53c2-ac5b-48ed-a736-56a7db1ccee0",
+      "name": "Messages webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sixxab-frontdesk-messages",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "8e66227c-bb94-482f-a047-81204aa24bbb"
+    },
+    {
+      "id": "f9a3261e-8608-4a14-a677-3ee8836c6f63",
+      "name": "Map message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Chatwoot → SIXXAB CRM (WhatsApp, email, website chat). Edit the settings, then save the workflow.\nconst SIXXAB_INBOUND_URL = 'https://sixxab.ai/api/inbound'; // the CRM entry point (the key goes in the \"Send to SIXXAB\" credential)\nconst SIXXAB_ORG_ID = ''; // the business ID shown in the Front Desk panel's setup steps on sixxab.ai\nconst HEALTHCARE = false;  // true for clinics, dental and med spas: no free text at all, only a good time to call\nconst INTENTS = ['new_enquiry', 'booking', 'existing_customer', 'support', 'emergency', 'spam', 'other'];\nconst OUTCOMES = ['booked', 'callback', 'transferred', 'answered', 'voicemail', 'missed'];\nconst LANGS = { en: 'English', es: 'Spanish', hi: 'Hindi', mr: 'Marathi' };\nconst CALL_TIMES = ['Morning', 'Afternoon', 'Evening', 'Any time'];\nconst pick = (v, list, fallback) => (list.includes(String(v)) ? String(v) : fallback);\nconst clip = (v, n) => String(v == null ? '' : v).replace(/\\s+/g, ' ').trim().slice(0, n);\nconst words = (v) => String(v).replace(/_/g, ' ');\nconst reachable = (phone) => phone.replace(/\\D/g, '').length >= 7;\nconst skip = (reason) => ({ json: { skip: true, reason } });\nconst send = (payload) => (SIXXAB_ORG_ID ? { json: { skip: false, sixxabUrl: SIXXAB_INBOUND_URL, payload: Object.assign({ orgId: SIXXAB_ORG_ID }, payload) } } : skip('Set SIXXAB_ORG_ID in this Code node first'));\nconst INBOX_IDS = []; // Chatwoot inbox ids to log, e.g. [1, 2]; empty = every inbox\nconst CHANNELS = { 'Channel::Whatsapp': 'whatsapp', 'Channel::Email': 'email', 'Channel::WebWidget': 'chat', 'Channel::Api': 'chat' };\n\nreturn $input.all().map((item) => {\n  const b = item.json.body || {};\n  if (b.event !== 'message_created') return skip('Not a new message');\n  if (!(b.message_type === 'incoming' || b.message_type === 0)) return skip('Not from the customer');\n  if (b.private === true) return skip('Private note');\n  const conv = b.conversation || {};\n  const inbox = b.inbox || {};\n  const inboxId = Number(inbox.id != null ? inbox.id : conv.inbox_id);\n  if (INBOX_IDS.length && !INBOX_IDS.includes(inboxId)) return skip('Inbox not listed in INBOX_IDS');\n  const channel = CHANNELS[String(conv.channel || '')];\n  if (!channel) return skip('Channel not logged here: ' + clip(conv.channel, 40));\n  const sender = Object.assign({}, (conv.meta && conv.meta.sender) || {}, b.sender || {});\n  const phone = clip(sender.phone_number, 20);\n  const email = clip(sender.email, 200).toLowerCase();\n  if (!reachable(phone) && !email) return skip('No phone or email yet; logged once they share one');\n  const raw = b.created_at;\n  const parsed = typeof raw === 'number' ? new Date(raw * 1000) : new Date(String(raw || '').replace(' UTC', 'Z').replace(' ', 'T'));\n  const day = (isNaN(parsed.getTime()) ? new Date() : parsed).toISOString().slice(0, 10);\n  return send({\n    channel,\n    name: clip(sender.name, 120),\n    phone: reachable(phone) ? phone : '',\n    email,\n    message: HEALTHCARE ? '' : clip(b.content, 900),\n    ref: 'chatwoot:' + clip(conv.id != null ? conv.id : conv.display_id, 40) + ':' + day,\n  });\n});"
+      }
+    },
+    {
+      "id": "9fc9109e-c291-4071-a1a0-ffe388561576",
+      "name": "Log message?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "3e9614aa-2b60-45aa-af80-1f9b5f2c7f11",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "e9a3a916-c631-43b3-ab8d-5bf43b7c60bb",
+      "name": "Send message to SIXXAB",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        280
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.sixxabUrl }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {
+          "timeout": 8000
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "48870a12-493d-4938-aa43-8cb1915f1d30",
+      "name": "Messages: skipped",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        900,
+        120
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": true, \"logged\": false, \"reason\": $json.reason } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "647f04b2-474b-42a8-ac3c-8259acdc0565",
+      "name": "Messages: logged",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        900,
+        240
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": true, \"logged\": true } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "3cfd5218-fe4e-40d6-a0ea-b7976ad1a41a",
+      "name": "Messages: not logged",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        900,
+        360
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": false, \"logged\": false, \"reason\": \"SIXXAB did not accept it: \" + (typeof $json.error === \"string\" ? $json.error : ($json.error && $json.error.message) || \"unknown error\") } }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Calls webhook": {
+      "main": [
+        [
+          {
+            "node": "Map call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map call": {
+      "main": [
+        [
+          {
+            "node": "Log call?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log call?": {
+      "main": [
+        [
+          {
+            "node": "Calls: done",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send call to SIXXAB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send call to SIXXAB": {
+      "main": [
+        [
+          {
+            "node": "Calls: done",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Calls: done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Messages webhook": {
+      "main": [
+        [
+          {
+            "node": "Map message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map message": {
+      "main": [
+        [
+          {
+            "node": "Log message?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log message?": {
+      "main": [
+        [
+          {
+            "node": "Messages: skipped",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send message to SIXXAB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send message to SIXXAB": {
+      "main": [
+        [
+          {
+            "node": "Messages: logged",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Messages: not logged",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}
