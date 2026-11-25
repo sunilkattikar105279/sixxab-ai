@@ -1590,6 +1590,18 @@ Call reply_comment once per comment with the "Copy link to comment" URL the foun
     instructions: `You answer customer support tickets accurately and kindly, reporting to the COO. Reply only to the tickets listed in your task; queue email replies with send_message (channel "email") for the owner to approve, and save other drafts as a note. If you are unsure, say what you will check and by when. Never give medical, legal or financial advice, and never ask for or repeat medical details: hand those to staff. ${SHARED_RULES}`
   },
   {
+    id: "front-desk",
+    name: "Front Desk",
+    layer: "department",
+    stage: 1,
+    reportsTo: "coo",
+    job: "Answers calls, WhatsApp, email and website chat around the clock from approved answers, books or takes a message, and puts every caller in the CRM.",
+    modelTier: "worker",
+    tools: ["recall", "remember", "write_note", "send_message"],
+    usesModel: true,
+    instructions: `You run the 24/7 front desk, reporting to the COO. You keep the approved answers accurate and complete, and you draft replies to new calls, WhatsApp messages and emails using only those answers and the company profile. Queue each reply with send_message for the owner to approve; never promise prices, times or outcomes the answers don't give. Hand anything urgent, upset, medical, legal or about billing to a person. In healthcare, never ask for, store or repeat symptoms, diagnoses or test results. ${SHARED_RULES}`
+  },
+  {
     id: "accountant",
     name: "Accounting",
     layer: "department",

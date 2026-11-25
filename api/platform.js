@@ -139,9 +139,9 @@ function profileText(p) {
   }).filter(Boolean);
   return [PROFILE_PREFIX, ...lines].join("\n");
 }
-function parseProfile(text13) {
+function parseProfile(text14) {
   const out = {};
-  for (const line2 of text13.split("\n").slice(1)) {
+  for (const line2 of text14.split("\n").slice(1)) {
     const i = line2.indexOf(": ");
     if (i < 0) continue;
     const label5 = line2.slice(0, i);
@@ -291,8 +291,8 @@ var SupabaseStore = class {
       }
     });
     if (!res.ok) throw new Error(`Supabase ${res.status} on ${path.split("?")[0]}: ${(await res.text()).slice(0, 300)}`);
-    const text13 = await res.text();
-    return text13 ? JSON.parse(text13) : [];
+    const text14 = await res.text();
+    return text14 ? JSON.parse(text14) : [];
   }
   one(rows, what) {
     if (!rows[0]) throw new Error(`${what} not found`);
@@ -2944,16 +2944,16 @@ async function draftPosts(store2, orgId, input, by) {
   if (creative.status !== "approved") throw new Error("Approve the ad in the ad studio before drafting posts");
   const networks = [...new Set((Array.isArray(input.networks) ? input.networks : [input.networks]).filter((n) => NETWORK_IDS.includes(n)))];
   if (!networks.length) throw new Error("Pick at least one network");
-  const text13 = typeof input.text === "string" ? input.text.trim() : "";
-  if (!text13) throw new Error("Write the caption");
-  const withLink = (n, id) => input.leadLink && LINK_NETWORKS.includes(n) && !text13.includes(input.leadLink) ? `${text13}
+  const text14 = typeof input.text === "string" ? input.text.trim() : "";
+  if (!text14) throw new Error("Write the caption");
+  const withLink = (n, id) => input.leadLink && LINK_NETWORKS.includes(n) && !text14.includes(input.leadLink) ? `${text14}
 
-${postLeadLink(input.leadLink, n, id)}` : text13;
+${postLeadLink(input.leadLink, n, id)}` : text14;
   const ids = networks.map(() => newId());
   networks.forEach((n, i) => {
     if (!fits(n, creative.kind)) throw new Error(`${NETWORKS[n].label} doesn't take ${creative.kind === "video" ? "videos" : "images"} here`);
     const full = withLink(n, ids[i]);
-    if (full.length > NETWORKS[n].maxChars) throw new Error(`The caption is ${full.length} characters${full !== text13 ? " with the lead form link" : ""}; ${NETWORKS[n].label} allows ${NETWORKS[n].maxChars}`);
+    if (full.length > NETWORKS[n].maxChars) throw new Error(`The caption is ${full.length} characters${full !== text14 ? " with the lead form link" : ""}; ${NETWORKS[n].label} allows ${NETWORKS[n].maxChars}`);
   });
   for (const [i, network] of networks.entries()) {
     const id = ids[i];
@@ -3604,17 +3604,17 @@ var field = (input, name, max = 4e3) => {
   return t.slice(0, max);
 };
 function parseLinkedInComment(input) {
-  let text13 = input.trim();
+  let text14 = input.trim();
   try {
-    text13 = decodeURIComponent(text13);
+    text14 = decodeURIComponent(text14);
   } catch {
   }
-  const m = text13.match(/urn:li:comment:\((?:urn:li:)?(activity|ugcPost|share):(\d+),(\d+)\)/);
+  const m = text14.match(/urn:li:comment:\((?:urn:li:)?(activity|ugcPost|share):(\d+),(\d+)\)/);
   if (m) {
     const threadUrn2 = `urn:li:${m[1]}:${m[2]}`;
     return { threadUrn: threadUrn2, commentUrn: `urn:li:comment:(${threadUrn2},${m[3]})` };
   }
-  const d = text13.match(/urn:li:fsd_comment:\((\d+),urn:li:(activity|ugcPost|share):(\d+)\)/);
+  const d = text14.match(/urn:li:fsd_comment:\((\d+),urn:li:(activity|ugcPost|share):(\d+)\)/);
   if (!d) return null;
   const threadUrn = `urn:li:${d[2]}:${d[3]}`;
   return { threadUrn, commentUrn: `urn:li:comment:(${threadUrn},${d[1]})` };
@@ -3765,9 +3765,9 @@ function toolsFor(agent) {
 }
 var WEBHOOK_TIMEOUT_MS = 3e4;
 var RECEIPT_MAX = 500;
-function parseReceipt(text13) {
+function parseReceipt(text14) {
   try {
-    const body = JSON.parse(text13);
+    const body = JSON.parse(text14);
     if (!body || typeof body !== "object") return void 0;
     const { ok, message } = body;
     return {
@@ -3866,10 +3866,10 @@ async function requireUser(request) {
   return { userId: user.id, orgId, label: label5, store: s };
 }
 async function readJson(request, maxBytes = 64e3) {
-  const text13 = await request.text();
-  if (text13.length > maxBytes) throw new HttpError(413, "Request too large");
+  const text14 = await request.text();
+  if (text14.length > maxBytes) throw new HttpError(413, "Request too large");
   try {
-    return JSON.parse(text13 || "{}");
+    return JSON.parse(text14 || "{}");
   } catch {
     throw new HttpError(400, "Invalid JSON");
   }
@@ -4427,6 +4427,18 @@ Call reply_comment once per comment with the "Copy link to comment" URL the foun
     tools: ["recall", "remember", "write_note", "send_message"],
     usesModel: true,
     instructions: `You answer customer support tickets accurately and kindly, reporting to the COO. Reply only to the tickets listed in your task; queue email replies with send_message (channel "email") for the owner to approve, and save other drafts as a note. If you are unsure, say what you will check and by when. Never give medical, legal or financial advice, and never ask for or repeat medical details: hand those to staff. ${SHARED_RULES}`
+  },
+  {
+    id: "front-desk",
+    name: "Front Desk",
+    layer: "department",
+    stage: 1,
+    reportsTo: "coo",
+    job: "Answers calls, WhatsApp, email and website chat around the clock from approved answers, books or takes a message, and puts every caller in the CRM.",
+    modelTier: "worker",
+    tools: ["recall", "remember", "write_note", "send_message"],
+    usesModel: true,
+    instructions: `You run the 24/7 front desk, reporting to the COO. You keep the approved answers accurate and complete, and you draft replies to new calls, WhatsApp messages and emails using only those answers and the company profile. Queue each reply with send_message for the owner to approve; never promise prices, times or outcomes the answers don't give. Hand anything urgent, upset, medical, legal or about billing to a person. In healthcare, never ask for, store or repeat symptoms, diagnoses or test results. ${SHARED_RULES}`
   },
   {
     id: "accountant",
@@ -5494,10 +5506,10 @@ function computeGovernance(input) {
 
 // server/build-info.ts
 var BUILD_INFO = {
-  "builtAt": "2026-11-25T01:08:24.244Z",
-  "files": 127,
-  "lines": 15827,
-  "tests": 182,
+  "builtAt": "2026-11-25T01:42:53.876Z",
+  "files": 130,
+  "lines": 16500,
+  "tests": 196,
   "e2e": 13,
   "rlsTables": 9,
   "cspHeader": true,
@@ -5509,9 +5521,9 @@ var TIMEOUT_MS = 5e3;
 async function probe(url2, headers) {
   try {
     const res = await fetch(url2, { headers, signal: AbortSignal.timeout(TIMEOUT_MS) });
-    const text13 = await res.text();
+    const text14 = await res.text();
     try {
-      return { ok: res.ok, body: JSON.parse(text13) };
+      return { ok: res.ok, body: JSON.parse(text14) };
     } catch {
       return { ok: res.ok, body: null };
     }
@@ -6193,11 +6205,11 @@ function parsePerson(p) {
 }
 async function apolloReason(res) {
   try {
-    const text13 = await res.text();
-    let msg = text13;
+    const text14 = await res.text();
+    let msg = text14;
     try {
-      const j = JSON.parse(text13);
-      msg = str5(j.error) || str5(j.message) || text13;
+      const j = JSON.parse(text14);
+      msg = str5(j.error) || str5(j.message) || text14;
     } catch {
     }
     msg = msg.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().slice(0, 200);
@@ -6638,10 +6650,316 @@ function replyGoal(open2) {
 ${lines.join("\n")}`;
 }
 
+// core/frontdesk.ts
+var FRONT_DESK_EVENT = "frontdesk.settings";
+var FRONT_DESK_EVENTS = [FRONT_DESK_EVENT];
+var DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+var DAY_NAMES = { mon: "Monday", tue: "Tuesday", wed: "Wednesday", thu: "Thursday", fri: "Friday", sat: "Saturday", sun: "Sunday" };
+var LANGUAGES = { en: "English", es: "Spanish", hi: "Hindi", mr: "Marathi" };
+var VERTICALS = {
+  hvac: {
+    label: "HVAC and plumbing",
+    qualify: ["what needs fixing or installing", "the service address or ZIP code, to check it is in the service area", "how urgent it is", "whether they own or rent", "the best number to call back"],
+    emergencies: ["a gas smell: tell them to leave the building now and call 911 and the gas company from outside", "flooding or a burst pipe: tell them to shut off the main water valve if they safely can", "no heat or no cooling with a baby, an older person or someone unwell at home"]
+  },
+  roofing: {
+    label: "Roofing",
+    qualify: ["the property address", "the date of the storm, if there was one", "what is damaged: roof, gutters, siding or a leak inside", "whether water is coming in right now", "their insurance company and whether a claim is already filed", "the best number to call back"],
+    emergencies: ["water coming in during a storm", "a tree or debris through the roof"],
+    guard: "After the questions, ask them to send photos of the damage on WhatsApp to this same number, or by email. Never promise that insurance will pay."
+  },
+  home: {
+    label: "Other home services",
+    qualify: ["what they need done", "the service address or ZIP code", "how soon they need it", "the best number to call back"],
+    emergencies: ["anything that puts someone in danger right now"]
+  },
+  dental: {
+    label: "Dental practice",
+    healthcare: true,
+    qualify: ["whether they are a new or existing patient", "the kind of visit, from: cleaning, check-up, consultation, cosmetic or other", "the day and time that suits them", "their insurance company, only if they offer it"],
+    emergencies: ["severe swelling of the face, trouble breathing or swallowing, or heavy bleeding: tell them to call 911 now"]
+  },
+  medspa: {
+    label: "Med spa",
+    healthcare: true,
+    qualify: ["whether they are a new or existing client", "the treatment they are interested in, by name only", "the day and time that suits them"],
+    emergencies: ["a reaction after a treatment with swelling, trouble breathing or severe pain: tell them to call 911 now"]
+  },
+  clinic: {
+    label: "Clinic or hospital",
+    healthcare: true,
+    qualify: ["whether they are a new or existing patient", "which department or doctor they want to see", "the day and time that suits them"],
+    emergencies: ["any medical emergency: tell them to hang up and call 112 in India or 911 in the US now"]
+  },
+  law: {
+    label: "Law firm",
+    qualify: ["the kind of legal matter, from the practice areas the firm handles", "roughly when it happened", "where it happened", "whether they already have a lawyer for it", "their preferred language", "the best number to call back"],
+    emergencies: ["someone in danger right now: tell them to call 911"],
+    guard: "Never give legal advice or say whether they have a case. Take only the facts above; an attorney will call back."
+  },
+  agency: {
+    label: "B2B or agency",
+    qualify: ["their company and role", "what they want help with", "how big their team is", "when they want to start"],
+    emergencies: []
+  },
+  other: {
+    label: "Other",
+    qualify: ["what they need", "how soon they need it", "the best number to call back"],
+    emergencies: ["anything that puts someone in danger right now"]
+  }
+};
+var LIMITS2 = { answers: 40, question: 200, answer: 600, template: 320, promise: 80 };
+var HOURS_RE = /^([01]\d|2[0-3]):([0-5]\d)-([01]\d|2[0-4]):([0-5]\d)$/;
+var DEFAULT_TEMPLATE = "Sorry we missed your call at {business}. Reply here and we will get back to you{booking}.";
+var text12 = (v, max) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, max);
+function defaultSettings(profile) {
+  const india = /india|bharat/i.test(`${profile?.location ?? ""} ${profile?.markets ?? ""} ${profile?.currency ?? ""}`) || /inr|₹/i.test(profile?.currency ?? "");
+  return {
+    on: false,
+    vertical: defaultVertical(profile),
+    languages: india ? ["en", "hi", "mr"] : ["en"],
+    timezone: india ? "Asia/Kolkata" : "America/Chicago",
+    hours: { mon: "09:00-18:00", tue: "09:00-18:00", wed: "09:00-18:00", thu: "09:00-18:00", fri: "09:00-18:00", sat: "", sun: "" },
+    transferNumber: "",
+    onCallNumber: "",
+    callbackOpen: "within 15 minutes",
+    callbackClosed: "first thing when we open",
+    bookingUrl: "",
+    textBack: { on: false, template: DEFAULT_TEMPLATE },
+    answers: []
+  };
+}
+function defaultVertical(profile) {
+  const about = `${profile?.industry ?? ""} ${profile?.offer ?? ""} ${profile?.name ?? ""}`.toLowerCase();
+  if (/roof/.test(about)) return "roofing";
+  if (/hvac|plumb|heating|air condition|furnace/.test(about)) return "hvac";
+  if (/dental|dentist|orthodont/.test(about)) return "dental";
+  if (/med ?spa|aesthetic|botox|laser/.test(about)) return "medspa";
+  if (/law|attorney|legal|lawyer/.test(about)) return "law";
+  if (/healthcare/.test(about)) return "clinic";
+  if (/home services/.test(about)) return "home";
+  if (/technology|software|agency|consult/.test(about)) return "agency";
+  return "other";
+}
+function validTimezone(tz) {
+  if (!tz || tz.length > 64) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+function cleanHours(v, day) {
+  const s = String(v ?? "").trim().toLowerCase();
+  if (!s || s === "closed") return "";
+  if (s === "24h" || s === "00:00-24:00") return "24h";
+  const m = HOURS_RE.exec(s);
+  if (!m) throw new Error(`${DAY_NAMES[day]} hours must look like 09:00-18:00, 24h, or be left empty for closed`);
+  const open2 = Number(m[1]) * 60 + Number(m[2]);
+  const close = Number(m[3]) * 60 + Number(m[4]);
+  if (close > 1440 || close <= open2) throw new Error(`${DAY_NAMES[day]} closes before it opens`);
+  return s;
+}
+function cleanPhone(v, label5) {
+  const s = String(v ?? "").trim();
+  if (!s) return "";
+  if (!PHONE_RE.test(s) || s.replace(/\D/g, "").length < 7) throw new Error(`${label5} doesn't look like a phone number`);
+  return s;
+}
+function cleanUrl(v) {
+  const s = String(v ?? "").trim();
+  if (!s) return "";
+  let u;
+  try {
+    u = new URL(s);
+  } catch {
+    throw new Error("The booking link must be a full web address starting with https://");
+  }
+  if (u.protocol !== "https:") throw new Error("The booking link must start with https://");
+  return u.toString().slice(0, 300);
+}
+function cleanSettings(input, base) {
+  const vertical = Object.prototype.hasOwnProperty.call(VERTICALS, String(input.vertical)) ? String(input.vertical) : base.vertical;
+  const langs = Array.isArray(input.languages) ? input.languages.map(String).filter((l) => l in LANGUAGES) : base.languages;
+  const languages = [...new Set(langs)];
+  if (!languages.length) throw new Error("Pick at least one language");
+  const timezone = input.timezone === void 0 ? base.timezone : String(input.timezone).trim();
+  if (!validTimezone(timezone)) throw new Error("Pick a time zone such as America/Chicago or Asia/Kolkata");
+  const rawHours = input.hours && typeof input.hours === "object" ? input.hours : base.hours;
+  const hours = Object.fromEntries(DAYS.map((d) => [d, cleanHours(rawHours[d], d)]));
+  const tb = input.textBack && typeof input.textBack === "object" ? input.textBack : base.textBack;
+  const template = text12(tb.template, LIMITS2.template) || DEFAULT_TEMPLATE;
+  if (/https?:\/\//i.test(template)) throw new Error("Put the booking link in the booking field; the text uses it through {booking}");
+  const rawAnswers = Array.isArray(input.answers) ? input.answers : base.answers;
+  const answers = rawAnswers.map((x) => ({ q: text12(x?.q, LIMITS2.question), a: text12(x?.a, LIMITS2.answer) })).filter((x) => x.q && x.a);
+  if (answers.length > LIMITS2.answers) throw new Error(`Keep it to ${LIMITS2.answers} approved answers`);
+  const pick = (k) => input[k] === void 0 ? base[k] : input[k];
+  return {
+    on: pick("on") === true,
+    vertical,
+    languages,
+    timezone,
+    hours,
+    transferNumber: cleanPhone(pick("transferNumber"), "The transfer number"),
+    onCallNumber: cleanPhone(pick("onCallNumber"), "The on-call number"),
+    callbackOpen: text12(pick("callbackOpen"), LIMITS2.promise) || base.callbackOpen,
+    callbackClosed: text12(pick("callbackClosed"), LIMITS2.promise) || base.callbackClosed,
+    bookingUrl: cleanUrl(pick("bookingUrl")),
+    textBack: { on: tb.on === true, template },
+    answers
+  };
+}
+function localTime(timezone, at) {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: timezone, weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(at);
+  const get = (t) => parts.find((p) => p.type === t)?.value ?? "";
+  const day = get("weekday").slice(0, 3).toLowerCase();
+  return { day, minutes: Number(get("hour")) % 24 * 60 + Number(get("minute")) };
+}
+function isOpenAt(s, at) {
+  const { day, minutes } = localTime(s.timezone, at);
+  const h = s.hours[day];
+  if (!h) return false;
+  if (h === "24h") return true;
+  const m = HOURS_RE.exec(h);
+  if (!m) return false;
+  return minutes >= Number(m[1]) * 60 + Number(m[2]) && minutes < Number(m[3]) * 60 + Number(m[4]);
+}
+function hoursText(s) {
+  const lines = DAYS.map((d) => `${DAY_NAMES[d]}: ${s.hours[d] === "24h" ? "open all day" : s.hours[d] ? s.hours[d].replace("-", " to ") : "closed"}`);
+  return `${lines.join("; ")} (time zone ${s.timezone})`;
+}
+var POST_CALL_FIELDS = [
+  { name: "intent", type: "enum", values: ["new_enquiry", "booking", "existing_customer", "support", "emergency", "spam", "other"], description: "Why they called" },
+  { name: "outcome", type: "enum", values: ["booked", "callback", "transferred", "answered", "voicemail", "missed"], description: "How the call ended" },
+  { name: "caller_name", type: "text", description: "The caller's name, if they gave it" },
+  { name: "caller_email", type: "text", description: "The caller's email, if they gave it" },
+  { name: "callback_number", type: "text", description: "The number to call back, if different from the caller ID" },
+  { name: "booking_start", type: "text", description: "The booked slot start, ISO 8601 with offset, if they booked" },
+  { name: "best_time", type: "enum", values: ["Morning", "Afternoon", "Evening", "Any time"], description: "When they would like the callback, if they said" },
+  { name: "after_hours", type: "boolean", description: "True if the business was closed during the call" },
+  { name: "language", type: "enum", values: Object.keys(LANGUAGES), description: "The language the call was held in" }
+];
+function greeting(lang, business) {
+  switch (lang) {
+    case "es":
+      return `Gracias por llamar a ${business}. Soy el asistente virtual, y esta llamada se graba. \xBFEn qu\xE9 le puedo ayudar?`;
+    case "hi":
+      return `\u0928\u092E\u0938\u094D\u0924\u0947, ${business} \u092E\u0947\u0902 \u0906\u092A\u0915\u093E \u0938\u094D\u0935\u093E\u0917\u0924 \u0939\u0948\u0964 \u092E\u0948\u0902 AI \u0905\u0938\u093F\u0938\u094D\u091F\u0947\u0902\u091F \u0939\u0942\u0901, \u0914\u0930 \u092F\u0939 \u0915\u0949\u0932 \u0930\u093F\u0915\u0949\u0930\u094D\u0921 \u0939\u094B \u0930\u0939\u0940 \u0939\u0948\u0964 \u092C\u0924\u093E\u0907\u090F, \u092E\u0948\u0902 \u0906\u092A\u0915\u0940 \u0915\u0948\u0938\u0947 \u092E\u0926\u0926 \u0915\u0930\u0942\u0901?`;
+    case "mr":
+      return `\u0928\u092E\u0938\u094D\u0915\u093E\u0930, ${business} \u092E\u0927\u094D\u092F\u0947 \u0906\u092A\u0932\u0947 \u0938\u094D\u0935\u093E\u0917\u0924 \u0906\u0939\u0947. \u092E\u0940 AI \u0938\u0939\u093E\u092F\u094D\u092F\u0915 \u0906\u0939\u0947, \u0906\u0923\u093F \u0939\u093E \u0915\u0949\u0932 \u0930\u0947\u0915\u0949\u0930\u094D\u0921 \u0939\u094B\u0924 \u0906\u0939\u0947. \u0938\u093E\u0902\u0917\u093E, \u092E\u0940 \u0906\u092A\u0932\u0940 \u0915\u0936\u0940 \u092E\u0926\u0924 \u0915\u0930\u0942?`;
+    default:
+      return `Thanks for calling ${business}. This is the virtual assistant, and this call is recorded. How can I help you today?`;
+  }
+}
+function voiceScript(profile, s) {
+  const business = profile?.name?.trim() || "the business";
+  const v = VERTICALS[s.vertical] ?? VERTICALS.other;
+  const healthcare = isHealthcare(profile) || v.healthcare === true;
+  const langs = s.languages.map((l) => LANGUAGES[l]).join(", ");
+  const sections = [
+    `You are the front desk assistant for ${business}${profile?.location ? `, in ${profile.location}` : ""}. You answer phone calls day and night, help callers quickly and kindly, and make sure nobody is left without a next step. Speak naturally, in short sentences, one question at a time.`,
+    `## Start every call
+Say that you are an AI assistant and that the call is recorded, in the caller's language. You speak ${langs}; switch to the caller's language as soon as they use it.
+${s.languages.map((l) => `- ${LANGUAGES[l]}: "${greeting(l, business)}"`).join("\n")}`,
+    `## Hours
+${hoursText(s)}. When the business is open, you can transfer callers to ${s.transferNumber || "the team (no transfer number set: take a message instead)"}, and callbacks happen ${s.callbackOpen}. When it is closed, take a message or book a slot, and promise a callback ${s.callbackClosed}.`,
+    `## Steps
+1. Find out what they need: a new enquiry, a booking, a question as an existing customer, a problem to fix, or an emergency.
+2. Listen for emergencies first (below).
+3. For a new enquiry, ask these one at a time, skipping anything they already said: ${v.qualify.join("; ")}.${v.guard ? ` ${v.guard}` : ""}
+4. Offer the next step: ${s.bookingUrl ? "offer to send the booking link by text or WhatsApp, or " : ""}promise a callback ${s.callbackOpen} when open or ${s.callbackClosed} when closed.
+5. Answer questions only from the approved answers below.
+6. Before you hang up, repeat back their name, the number to call back and what happens next, then thank them.`,
+    `## Emergencies
+${v.emergencies.length ? v.emergencies.map((e) => `- ${e}.`).join("\n") : "- Anything that puts someone in danger right now: tell them to call 911 (112 in India)."}
+After the safety advice, ${s.onCallNumber ? `transfer to the on-call number ${s.onCallNumber} at any hour` : s.transferNumber ? `transfer to ${s.transferNumber} if open, and otherwise take an urgent message` : "take an urgent message"}.`,
+    `## Hand over to a person when
+- they ask for a person${s.transferNumber ? " (transfer when open; otherwise promise a callback)" : ""};
+- they are upset, or you have not understood them twice;
+- they raise billing, a refund, a cancellation or a complaint;
+- they ask for medical, legal or financial advice;
+- the call passes 10 minutes.`,
+    `## Approved answers (the only facts you may give)
+${s.answers.length ? s.answers.map((x) => `Q: ${x.q}
+A: ${x.a}`).join("\n") : "(None yet. For any question, say someone will call back with the answer.)"}
+For anything not covered here, say: "I don't want to guess on that. I'll have the team call you back." Then take a message.`,
+    `## Never
+- Never quote a price, discount or time that is not in the approved answers.
+- Never promise an outcome.
+- Never take card numbers or passwords over the phone.
+- Never pretend to be a person.`
+  ];
+  if (healthcare) sections.push(`## Healthcare rule
+This is a healthcare business. Never ask for, record or repeat symptoms, diagnoses, test results or medical history. If the caller starts to share them, say kindly: "Please don't share medical details with me. The team will go over everything when they call you." Give no medical advice. Keep the call summary to the visit type and preferred time only.`);
+  sections.push(`## After the call
+Fill in the post-call fields: intent, outcome, caller_name, caller_email, callback_number, booking_start, best_time, after_hours and language. Write a two-line summary of what they need and what happens next${healthcare ? ", with no medical details" : ""}.`);
+  return sections.join("\n\n");
+}
+function textBackMessage(s, business) {
+  return s.textBack.template.replace(/\{business\}/g, business || "our business").replace(/\{booking\}/g, s.bookingUrl ? `, or book a time here: ${s.bookingUrl}` : "").slice(0, 480);
+}
+function checklist(s, saved) {
+  const hoursSet = DAYS.some((d) => s.hours[d]);
+  return [
+    { step: "Set your hours, numbers and languages here, and save", done: saved && hoursSet },
+    { step: "Add at least 5 approved answers (hours, location, services, prices you allow, payment)", done: s.answers.length >= 5 },
+    { step: "Create a voice agent in Retell, paste the script below, and add the post-call fields", done: false },
+    { step: "Get a phone number (Retell or Twilio in the US, Plivo or Exotel in India) and attach it to the agent", done: false },
+    { step: "Connect your WhatsApp number (Meta Cloud API) and your email in Chatwoot, and add its chat box to your website", done: false },
+    { step: "Import the Front Desk workflow into n8n with your business ID (below) and the inbound key, so calls and messages land in your CRM", done: false },
+    { step: "Make a test call and send a test WhatsApp, then check the CRM", done: false }
+  ];
+}
+function answersGoal(profile, s) {
+  const have = s.answers.map((x) => `- ${x.q}`).join("\n");
+  return `Write up to 12 approved answers for the front desk of ${profile?.name || "this business"} (${VERTICALS[s.vertical]?.label ?? "business"}): the questions callers ask most, each with a short, accurate answer from the business profile only. Write [PRICE], [HOURS] or [FILL IN] wherever the profile doesn't say, and never invent prices, offers or guarantees.${isHealthcare(profile) ? " This is a healthcare business: no medical advice and no clinical claims." : ""} Save them as one note titled "Front Desk: suggested answers", as Q: and A: lines.${have ? `
+Already approved, so skip these:
+${have}` : ""}`;
+}
+function computeFrontDesk(events, profile, now = /* @__PURE__ */ new Date(), orgId = "") {
+  const last = [...events].reverse().find((e) => e.action === FRONT_DESK_EVENT);
+  const base = defaultSettings(profile);
+  let settings = base;
+  if (last) {
+    try {
+      settings = cleanSettings(last.detail.settings, base);
+    } catch {
+      settings = base;
+    }
+  }
+  const business = profile?.name?.trim() || "our business";
+  return {
+    settings,
+    saved: Boolean(last),
+    updatedAt: last?.at ?? null,
+    openNow: isOpenAt(settings, now),
+    healthcare: isHealthcare(profile) || VERTICALS[settings.vertical]?.healthcare === true,
+    script: voiceScript(profile, settings),
+    textBackPreview: textBackMessage(settings, business),
+    postCallFields: POST_CALL_FIELDS,
+    checklist: checklist(settings, Boolean(last)),
+    answersGoal: answersGoal(profile, settings),
+    orgId
+  };
+}
+async function loadFrontDesk(store2, orgId, now = /* @__PURE__ */ new Date()) {
+  const [events, profile] = await Promise.all([store2.listAuditByActions(orgId, FRONT_DESK_EVENTS), loadBusinessProfile(store2, orgId)]);
+  return computeFrontDesk(events, profile, now, orgId);
+}
+async function saveFrontDesk(store2, orgId, input, by) {
+  const current = await loadFrontDesk(store2, orgId);
+  const settings = cleanSettings(input, current.settings);
+  const changes = [settings.on !== current.settings.on ? settings.on ? "turned on" : "turned off" : "", `${settings.answers.length} approved answers`].filter(Boolean).join(", ");
+  await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: FRONT_DESK_EVENT, taskId: null, detail: { settings, summary: `Front Desk settings saved: ${changes}` } });
+  return loadFrontDesk(store2, orgId);
+}
+
 // server/routes/support.ts
 var GET7 = handle(async (request) => {
   const { orgId, store: store2 } = await requireUser(request);
-  return json({ support: await loadSupport(store2, orgId) });
+  const [support, frontDesk] = await Promise.all([loadSupport(store2, orgId), loadFrontDesk(store2, orgId)]);
+  return json({ support, frontDesk });
 });
 var POST6 = handle(async (request) => {
   const { orgId, label: label5, store: store2 } = await requireUser(request);
@@ -6655,12 +6973,14 @@ var POST6 = handle(async (request) => {
         return json({ support: await setTicketStatus(store2, orgId, id, b.status, label5) });
       case "note":
         return json({ support: await addTicketNote(store2, orgId, id, String(b.note ?? ""), label5) });
+      case "frontdesk":
+        return json({ frontDesk: await saveFrontDesk(store2, orgId, b.settings ?? {}, label5) });
       default:
         throw new HttpError(400, "Unknown action");
     }
   } catch (e) {
     if (e instanceof HttpError) throw e;
-    throw new HttpError(400, e instanceof Error ? e.message : "Could not update the ticket");
+    throw new HttpError(400, e instanceof Error ? e.message : "Could not save that");
   }
 });
 
@@ -6678,17 +6998,17 @@ var ACCOUNT_EVENTS = ["acct.entry", "acct.removed"];
 var DATE_RE2 = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 var MAX_AMOUNT = 1e11;
 var round2 = (n) => Math.round(n * 100) / 100;
-var text12 = (v, max) => String(v ?? "").trim().slice(0, max);
+var text13 = (v, max) => String(v ?? "").trim().slice(0, max);
 var record7 = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
 async function addEntry(store2, orgId, input, by, currency = "USD") {
   if (input.kind !== "income" && input.kind !== "expense") throw new Error("kind must be income or expense");
-  const date = text12(input.date, 10);
+  const date = text13(input.date, 10);
   if (!DATE_RE2.test(date)) throw new Error("date must look like 2026-11-04");
   const amount = Number(String(input.amount).replace(/[,$₹\s]/g, ""));
   if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_AMOUNT) throw new Error("amount must be more than zero");
   const cats = input.kind === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
   const category = cats.includes(input.category) ? input.category : input.kind === "income" ? "other income" : "other";
-  const entry = { id: newId(), kind: input.kind, date, amount: round2(amount), category, party: text12(input.party, 120), note: text12(input.note, 300) };
+  const entry = { id: newId(), kind: input.kind, date, amount: round2(amount), category, party: text13(input.party, 120), note: text13(input.note, 300) };
   await record7(store2, orgId, by, "acct.entry", { entry, summary: `${input.kind === "income" ? "Income" : "Expense"} recorded: ${entry.amount} ${currency} (${category})` });
   return loadAccounts(store2, orgId, currency);
 }
