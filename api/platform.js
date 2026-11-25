@@ -879,13 +879,73 @@ function scoreFromResearch(c, r, proposal) {
   return { score, reasons: reasons.slice(0, 1200) };
 }
 
+// core/channels.ts
+var INBOUND_SOURCES = ["website", "referral", "whatsapp", "walk-in", "event", "social", "ads", "phone", "email"];
+var SOURCE_LABEL = {
+  website: "Website or lead form",
+  referral: "Referral",
+  whatsapp: "WhatsApp",
+  "walk-in": "Walk-in",
+  event: "Event",
+  social: "Social post",
+  ads: "Paid ad",
+  phone: "Phone call",
+  email: "Email",
+  linkedin: "LinkedIn",
+  apollo: "Apollo",
+  "web-search": "Prospect search",
+  other: "Other or imported list"
+};
+var sourceName = (s) => SOURCE_LABEL[s] ?? s;
+var INBOUND_CHANNELS = ["call", "whatsapp", "email", "chat", "walk-in", "form"];
+var CHANNEL_LABEL = { call: "Phone call", whatsapp: "WhatsApp", email: "Email", chat: "Website chat", "walk-in": "Walk-in", form: "Lead form" };
+var CHANNEL_SOURCE = { call: "phone", whatsapp: "whatsapp", email: "email", chat: "website", "walk-in": "walk-in", form: "website" };
+var isInbound = (c) => INBOUND_SOURCES.includes(c.source);
+var DAY = 864e5;
+var OPEN = ["lead", "contacted", "qualified", "proposal"];
+function totals(list3, now) {
+  const won = list3.filter((c) => c.stage === "won");
+  const lost = list3.filter((c) => c.stage === "lost").length;
+  return {
+    leads30: list3.filter((c) => now - Date.parse(c.createdAt) <= 30 * DAY).length,
+    open: list3.filter((c) => OPEN.includes(c.stage)).length,
+    won: won.length,
+    wonValue: won.reduce((s, c) => s + (c.value || 0), 0),
+    lost,
+    winRate: won.length + lost ? Math.round(won.length / (won.length + lost) * 100) : null
+  };
+}
+function pipelineByOrigin(contacts, now = Date.now()) {
+  const inbound = contacts.filter(isInbound);
+  const outbound = contacts.filter((c) => !isInbound(c));
+  const rows = /* @__PURE__ */ new Map();
+  for (const c of inbound) {
+    const r = rows.get(c.source) ?? { source: c.source, label: sourceName(c.source), leads: 0, won: 0 };
+    r.leads++;
+    if (c.stage === "won") r.won++;
+    rows.set(c.source, r);
+  }
+  return { inbound: totals(inbound, now), outbound: totals(outbound, now), inboundBySource: [...rows.values()].sort((a, b) => b.won - a.won || b.leads - a.leads) };
+}
+function salesContext(icps, contacts, now = Date.now()) {
+  const icp = icps[0];
+  const p = pipelineByOrigin(contacts, now);
+  const lines = [];
+  if (icp) lines.push(`Sales ICP "${icp.name}": ${[icp.summary, icp.industries && `industries ${icp.industries}`, icp.locations && `where ${icp.locations}`, icp.buyer && `buyer ${icp.buyer}`, icp.pains && `pains ${icp.pains}`].filter(Boolean).join("; ").slice(0, 700)}.`);
+  if (p.inboundBySource.length) lines.push(`Inbound so far by source (leads, won): ${p.inboundBySource.slice(0, 8).map((r) => `${r.label} ${r.leads}, ${r.won}`).join("; ")}.`);
+  if (p.inbound.winRate !== null || p.outbound.winRate !== null) lines.push(`Win rate: inbound ${p.inbound.winRate ?? "n/a"}%, outbound ${p.outbound.winRate ?? "n/a"}%.`);
+  return lines.length ? `What sales knows:
+${lines.join("\n")}
+Put budget and effort where these sources already turn into customers, and speak to the ICP's pains.` : "";
+}
+
 // core/salesflow-state.ts
 var FLOW_ORG_EVENTS = ["crm.action_skip", "crm.autopilot", "crm.autofind"];
 var FLOW_DEAL_EVENTS = ["crm.onboarding", "crm.onboarding_step", "crm.account", "crm.customer_sent"];
 var FLOW_STAGES = [
   { key: "find", name: "Find", does: "Set who you sell to, then find businesses that fit: press Find 10 prospects, or switch on the weekly search.", agents: ["ICP Builder", "Prospect Generator"], gate: "You tick which prospects join the CRM." },
   { key: "research", name: "Research", does: "Research each new lead from public pages using the owner, phone and website: the business, pain points, missing email, phone and address (each with its source) and where AI agents would help.", agents: ["Business Research"], gate: "You check each found detail before it goes on the deal." },
-  { key: "qualify", name: "Qualify", does: "Score each researched lead on fit, size, ease of win and reach; answer new enquiries fast.", agents: ["Lead Scorer", "Speed-to-Lead"], gate: "First replies wait in Approvals." },
+  { key: "qualify", name: "Qualify", does: "Score each researched lead on fit, size, ease of win and reach. Inbound enquiries from marketing land here too: answer each within 5 minutes, then hand it to Outreach.", agents: ["Lead Scorer", "Speed-to-Lead"], gate: "First replies wait in Approvals; you move each enquiry to Contacted." },
   { key: "outreach", name: "Outreach", does: "Personal email, LinkedIn and call steps in your voice.", agents: ["Outreach Sequencer", "Follow-up Writer"], gate: "You send each step and mark it sent." },
   { key: "discovery", name: "Discovery", does: "Prep the call, capture MEDDIC, debrief the notes.", agents: ["Call Prepper", "Deal Qualifier"], gate: "You approve the move to Proposal." },
   { key: "proposal", name: "Proposal and close", does: "Proposal with opportunities, benefits and ROI, objection answers and the follow-up to a yes.", agents: ["Proposal Writer", "Objection Handler", "Win-Loss Analyst"], gate: "You edit and send the proposal, and mark it won or lost." },
@@ -972,13 +1032,19 @@ function computeFlowOrg(events) {
   }
   return out;
 }
-var DAY = 864e5;
-var daysSince = (iso, now) => iso ? (now - Date.parse(iso)) / DAY : Infinity;
+var DAY2 = 864e5;
+var daysSince = (iso, now) => iso ? (now - Date.parse(iso)) / DAY2 : Infinity;
 var ranBy = (c, agentName, sinceIso) => c.history.some((h) => h.by === agentName && (!sinceIso || h.at >= sinceIso));
 var label = (c) => c.company || c.name;
+var first = (c) => c.name.split(" ")[0] || "there";
+function callOpener(c, channel) {
+  return channel === "whatsapp" ? `Hi ${first(c)}, thanks for getting in touch with [business]. How can we help? We can [next step: a visit, a call or a quote]. Would [day and time] suit you?` : `Hi ${first(c)}, this is [your name] from [business], returning your enquiry. Is now a good time?
+[Ask what they need, answer what you can, and agree one next step: a visit, a call or a quote.]
+[Then press "I called them" so the CRM knows you spoke.]`;
+}
 function flowStageOf(c, now = Date.now()) {
   if (c.stage === "lost") return "closed";
-  if (c.stage === "lead") return c.sequence || c.proposal && (c.leadScore?.score ?? 0) >= WORK_NOW_SCORE ? "outreach" : c.researchReport || c.leadScore ? "qualify" : "research";
+  if (c.stage === "lead") return c.sequence || c.proposal && (c.leadScore?.score ?? 0) >= WORK_NOW_SCORE ? "outreach" : c.researchReport || c.leadScore || isInbound(c) ? "qualify" : "research";
   if (c.stage === "contacted") return "outreach";
   if (c.stage === "qualified") return "discovery";
   if (c.stage === "proposal") return "proposal";
@@ -989,6 +1055,7 @@ function flowStageOf(c, now = Date.now()) {
   if (cf.review && cf.review.health >= 70 && days >= 45) return "expand";
   return "retain";
 }
+var ENQUIRY_FRESH_DAYS = 14;
 var SKIP_DAYS = 7;
 var QUIET_DAYS = 7;
 var PROPOSAL_QUIET_DAYS = 5;
@@ -1008,7 +1075,7 @@ function nextActions(q, now = Date.now()) {
   if (pending) add({ key: "prospects", rule: "prospects", stage: "find", kind: "open", title: `Review ${pending} new prospect${pending === 1 ? "" : "s"}`, why: "The Prospect Generator found them on public pages. Tick the ones to add to New lead.", priority: 18, count: pending });
   const icp = q.icps[0];
   const lastFind = q.lastProspectSearch ? Date.parse(q.lastProspectSearch) : NaN;
-  if (icp && !pending && !(now - lastFind < FIND_EVERY_DAYS * DAY)) {
+  if (icp && !pending && !(now - lastFind < FIND_EVERY_DAYS * DAY2)) {
     const newLeads = q.contacts.filter((c) => c.stage === "lead").length;
     add({
       key: `find:${icp.id}`,
@@ -1018,13 +1085,13 @@ function nextActions(q, now = Date.now()) {
       agentId: "lead-finder",
       icp: { id: icp.id, name: icp.name },
       title: `Find ${FIND_COUNT} new prospects for ${icp.name}`,
-      why: `${Number.isNaN(lastFind) ? "No prospect search yet." : `Last search ${Math.floor((now - lastFind) / DAY)} days ago.`} The Prospect Generator searches public pages for businesses that fit, skipping ones already in the CRM. Nothing is added until you tick them. Uses a few web searches.`,
+      why: `${Number.isNaN(lastFind) ? "No prospect search yet." : `Last search ${Math.floor((now - lastFind) / DAY2)} days ago.`} The Prospect Generator searches public pages for businesses that fit, skipping ones already in the CRM. Nothing is added until you tick them. Uses a few web searches.`,
       priority: newLeads < 5 ? 19 : 45
     });
   }
   const waiting = q.contacts.filter((c) => flowStageOf(c, now) === "research").length;
   const lastImport = q.contacts.reduce((t, c) => c.researchReport?.importKey ? Math.max(t, Date.parse(c.researchReport.at) || 0) : t, 0);
-  if (waiting && now - lastImport >= RESEARCH_IMPORT_EVERY_DAYS * DAY) {
+  if (waiting && now - lastImport >= RESEARCH_IMPORT_EVERY_DAYS * DAY2) {
     add({
       key: "research_import",
       rule: "research_import",
@@ -1056,23 +1123,42 @@ function nextActions(q, now = Date.now()) {
       continue;
     }
     const base = { contactId: c.id, company: label(c), stage };
-    if (c.stage !== "won" && !c.researchReport) add({ ...base, stage: "research", key: `${c.id}:research`, rule: "research", kind: "agent", agentId: "business-research", title: `Research ${label(c)}`, why: "A sourced report on the owner and the business: pain points, missing contact details and where AI agents would help. Uses a few web searches.", priority: c.stage === "lead" ? 38 + Math.min(19, c.rank ?? 19) / 100 : 27 });
+    const inbound = isInbound(c);
+    if (inbound && c.stage === "lead") {
+      const mins = Math.max(0, Math.floor((now - Date.parse(c.createdAt)) / 6e4));
+      const when = mins < 60 ? `${mins} minute${mins === 1 ? "" : "s"} ago` : mins < 2880 ? `${Math.floor(mins / 60)} hours ago` : `${Math.floor(mins / 1440)} days ago`;
+      const from = c.sourceDetail || sourceName(c.source);
+      const fresh = mins <= ENQUIRY_FRESH_DAYS * 1440;
+      const urgency = fresh ? 1 + Math.min(1, mins / 1440) / 10 : 24;
+      const answered = !!c.lastTouch || ranBy(c, "Speed-to-Lead");
+      const voice = ["phone", "whatsapp", "walk-in"].includes(c.source) || !c.email;
+      if (!answered && voice && c.phone) {
+        const channel = c.source === "whatsapp" ? "whatsapp" : "call";
+        add({ ...base, key: `${c.id}:callback`, rule: "call_back", kind: "send", draft: { channel, subject: "", text: callOpener(c, channel), to: c.phone }, title: `${channel === "whatsapp" ? "Answer" : "Call back"} ${label(c)}`, why: `New enquiry ${when} from ${from}. ${fresh ? "Answer within 5 minutes: most enquiries go to whoever answers first." : "It was never answered."}`, priority: urgency });
+      } else if (!answered && c.email) {
+        add({ ...base, key: `${c.id}:reply`, rule: "reply", kind: "agent", agentId: "speed-to-lead", title: `Reply to ${label(c)}`, why: `New enquiry ${when} from ${from}. Speed-to-Lead drafts a short first reply with one next step; it waits in Approvals for your yes.`, priority: urgency });
+      } else if (answered) {
+        add({ ...base, key: `${c.id}:handoff`, rule: "handoff", kind: "approve", suggestStage: "contacted", title: `Hand ${label(c)} to sales?`, why: c.lastTouch ? "You answered the enquiry. Move it to Contacted and the sales flow takes over: follow-ups, discovery and the proposal." : "Speed-to-Lead drafted the first reply. Once you approve it in Approvals, move the lead to Contacted and the sales flow takes over.", priority: 9 });
+      }
+    }
+    if (c.stage !== "won" && !c.researchReport && !(inbound && !c.company)) add({ ...base, stage: "research", key: `${c.id}:research`, rule: "research", kind: "agent", agentId: "business-research", title: `Research ${label(c)}`, why: "A sourced report on the owner and the business: pain points, missing contact details and where AI agents would help. Uses a few web searches.", priority: inbound ? 42 : c.stage === "lead" ? 38 + Math.min(19, c.rank ?? 19) / 100 : 27 });
     const prop = c.proposal;
     if (prop && !prop.sentAt && c.stage !== "won") add({ ...base, key: `${c.id}:psend:${prop.id}`, rule: "proposal_send", kind: "send", draft: { channel: "email", subject: prop.subject, text: proposalMessage(prop), to: c.email }, title: `Send the proposal to ${label(c)}`, why: `Net ${fmtMoney(prop.roi.netMonthly, prop.currency)} a month for them${prop.roi.roiPct !== null ? `, first-year return ${prop.roi.roiPct}%` : ""}. Check the ROI assumptions on the customer page first.`, priority: 12 });
     if (prop?.sentAt && ["lead", "contacted", "qualified"].includes(c.stage)) add({ ...base, key: `${c.id}:pstage:${prop.id}`, rule: "proposal_stage", kind: "approve", suggestStage: "proposal", title: `Move ${label(c)} to Proposal?`, why: "You sent them the proposal.", priority: 14 });
     if (c.syncSuggestion) add({ ...base, key: `${c.id}:sync`, rule: "sync", kind: "approve", suggestStage: c.syncSuggestion.stage, title: `Move ${label(c)} to ${c.syncSuggestion.stage}?`, why: c.syncSuggestion.reason, priority: 15 });
     if (c.stage === "lead" || c.stage === "contacted") {
-      if (!c.leadScore && c.stage === "lead" && !c.researchReport) add({ ...base, key: `${c.id}:score`, rule: "score", kind: "agent", agentId: "lead-scorer", title: `Score ${label(c)}`, why: "Scoring tells you which leads to work first.", priority: 40 + Math.min(19, c.rank ?? 19) / 100 });
-      else if (c.leadScore && c.leadScore.score >= WORK_NOW_SCORE && !c.sequence && !c.proposal) add({ ...base, key: `${c.id}:sequence`, rule: "sequence", kind: "agent", agentId: "outreach-sequencer", title: `Draft outreach for ${label(c)}`, why: `Lead score ${c.leadScore.score} (${c.leadScore.grade}): worth a personal sequence.`, priority: 35 - c.leadScore.score / 100 });
+      if (!c.leadScore && c.stage === "lead" && !c.researchReport) {
+        if (!inbound) add({ ...base, key: `${c.id}:score`, rule: "score", kind: "agent", agentId: "lead-scorer", title: `Score ${label(c)}`, why: "Scoring tells you which leads to work first.", priority: 40 + Math.min(19, c.rank ?? 19) / 100 });
+      } else if (c.leadScore && c.leadScore.score >= WORK_NOW_SCORE && !c.sequence && !c.proposal) add({ ...base, key: `${c.id}:sequence`, rule: "sequence", kind: "agent", agentId: "outreach-sequencer", title: `Draft outreach for ${label(c)}`, why: `Lead score ${c.leadScore.score} (${c.leadScore.grade}): worth a personal sequence.`, priority: 35 - c.leadScore.score / 100 });
       const seq = c.sequence;
       const i = seq ? seq.steps.findIndex((s) => !s.sentAt) : -1;
       if (seq && i >= 0) {
         const st = seq.steps[i];
         const prevSent = i === 0 ? seq.at : seq.steps[i - 1].sentAt ?? seq.at;
-        const dueAt = Date.parse(prevSent) + (i === 0 ? 0 : Math.max(0, st.day - seq.steps[i - 1].day)) * DAY;
+        const dueAt = Date.parse(prevSent) + (i === 0 ? 0 : Math.max(0, st.day - seq.steps[i - 1].day)) * DAY2;
         if (dueAt <= now) {
           const to = st.channel === "email" ? c.email : st.channel === "linkedin" ? "LinkedIn" : c.phone;
-          add({ ...base, key: `${c.id}:step:${seq.id}:${i}`, rule: "send_step", kind: "send", stepIndex: i, draft: { channel: st.channel, subject: st.subject, text: st.text, to: to || "" }, title: `Send step ${i + 1} of ${seq.steps.length} to ${label(c)}`, why: `Day ${st.day} ${st.channel === "linkedin" ? "LinkedIn message" : st.channel}, drafted in your voice.`, priority: 10 - Math.min(5, (now - dueAt) / DAY) / 10, due: iso(dueAt) });
+          add({ ...base, key: `${c.id}:step:${seq.id}:${i}`, rule: "send_step", kind: "send", stepIndex: i, draft: { channel: st.channel, subject: st.subject, text: st.text, to: to || "" }, title: `Send step ${i + 1} of ${seq.steps.length} to ${label(c)}`, why: `Day ${st.day} ${st.channel === "linkedin" ? "LinkedIn message" : st.channel}, drafted in your voice.`, priority: 10 - Math.min(5, (now - dueAt) / DAY2) / 10, due: iso(dueAt) });
         }
       } else if (c.stage === "contacted" && daysSince(c.lastTouch ?? c.createdAt, now) >= QUIET_DAYS) {
         add({ ...base, key: `${c.id}:quiet:${(c.lastTouch ?? c.createdAt).slice(0, 10)}`, rule: "quiet", kind: "agent", agentId: "follow-up-writer", title: `${label(c)} has gone quiet`, why: `No touch for ${Math.floor(daysSince(c.lastTouch ?? c.createdAt, now))} days. Draft a follow-up, or mark it lost.`, priority: 25 });
@@ -1092,7 +1178,7 @@ function nextActions(q, now = Date.now()) {
         if (o.welcome && !wasSent(cf, "welcome", o.id)) add({ ...base, key: `${c.id}:welcome:${o.id}`, rule: "welcome", kind: "send", msg: "welcome", ref: o.id, draft: { channel: "email", subject: o.welcome.subject, text: o.welcome.text, to: c.email }, title: `Send the welcome email to ${label(c)}`, why: "First impression after the yes. Drafted from the deal record.", priority: 12 });
         const won = Date.parse(cf.wonAt ?? o.at);
         const n = o.steps.findIndex((s) => !s.doneAt && s.owner !== "customer");
-        if (n >= 0 && won + o.steps[n].day * DAY <= now) add({ ...base, key: `${c.id}:ostep:${o.id}:${n}`, rule: "onboard_task", kind: "task", stepIndex: n, ref: o.id, title: o.steps[n].title, why: `Onboarding day ${o.steps[n].day} for ${label(c)}${o.steps[n].owner === "agent" ? " (an agent can draft it; you confirm)" : ""}.`, priority: 20, due: iso(won + o.steps[n].day * DAY) });
+        if (n >= 0 && won + o.steps[n].day * DAY2 <= now) add({ ...base, key: `${c.id}:ostep:${o.id}:${n}`, rule: "onboard_task", kind: "task", stepIndex: n, ref: o.id, title: o.steps[n].title, why: `Onboarding day ${o.steps[n].day} for ${label(c)}${o.steps[n].owner === "agent" ? " (an agent can draft it; you confirm)" : ""}.`, priority: 20, due: iso(won + o.steps[n].day * DAY2) });
       }
       const r = cf.review;
       const reviewDue = r ? daysSince(r.at, now) >= REVIEW_EVERY_DAYS : !!o && o.steps.every((s) => s.doneAt) || daysSince(cf.wonAt, now) >= 21;
@@ -1100,7 +1186,7 @@ function nextActions(q, now = Date.now()) {
       if (r) {
         if (r.checkIn && !wasSent(cf, "checkin", r.id)) add({ ...base, key: `${c.id}:checkin:${r.id}`, rule: "checkin", kind: "send", msg: "checkin", ref: r.id, draft: { channel: "email", subject: r.checkIn.subject, text: r.checkIn.text, to: c.email }, title: `Check in with ${label(c)}`, why: `Health ${r.health} (${r.band.replace("_", " ")}). ${r.risks ? `Risk: ${r.risks.slice(0, 120)}` : "Keep the relationship warm."}`, priority: r.band === "at_risk" ? 11 : 14 });
         if (r.renewalDate) {
-          const until = (Date.parse(r.renewalDate) - now) / DAY;
+          const until = (Date.parse(r.renewalDate) - now) / DAY2;
           if (until >= -7 && until <= RENEWAL_WINDOW_DAYS) add({ ...base, key: `${c.id}:renewal:${r.renewalDate}`, rule: "renewal", kind: "open", title: `${label(c)} renews ${until < 0 ? "now" : `in ${Math.ceil(until)} days`}`, why: r.renewalPlan || "Plan the renewal conversation before the date.", priority: 17, due: new Date(Date.parse(r.renewalDate)).toISOString() });
         }
         if (r.referral && !wasSent(cf, "referral", r.id)) add({ ...base, key: `${c.id}:referral:${r.id}`, rule: "referral", kind: "send", msg: "referral", ref: r.id, draft: { channel: "email", subject: r.referral.subject, text: r.referral.text, to: c.email }, title: `Ask ${label(c)} for a referral`, why: `Health ${r.health}: a happy customer is the best source of the next one.${r.upsell.length ? ` Upsell idea: ${r.upsell[0].slice(0, 100)}` : ""}`, priority: 30 });
@@ -1124,7 +1210,7 @@ function flowCounts(q, now = Date.now()) {
 
 // core/crm.ts
 var DEAL_STAGES = ["lead", "contacted", "qualified", "proposal", "won", "lost"];
-var SOURCES = ["website", "referral", "linkedin", "whatsapp", "walk-in", "event", "apollo", "web-search", "social", "ads", "other"];
+var SOURCES = ["website", "referral", "linkedin", "whatsapp", "walk-in", "event", "apollo", "web-search", "social", "ads", "phone", "email", "other"];
 var DEAL_TIERS = ["High", "Medium", "Low"];
 var EMPTY_PROFILE = { rank: null, niche: "", city: "", website: "", size: "", title: "", dealTier: "", ease: "", whyFit: "", pitch: "", sourceDetail: "", checkFirst: "", painPoints: "", offer: "", angle: "", research: "", address: "" };
 var NOTE_KINDS = ["note", "call", "email", "meeting", "research"];
@@ -1133,7 +1219,7 @@ var HISTORY_MAX = 100;
 var CRM_EVENTS = ["crm.contact", "crm.stage", "crm.touch", "crm.note", "crm.qualify", "crm.removed", ...LEADGEN_ORG_EVENTS, ...LEADGEN_DEAL_EVENTS, ...FLOW_ORG_EVENTS, ...FLOW_DEAL_EVENTS, ...RESEARCH_DEAL_EVENTS];
 var STALE_DAYS2 = 7;
 var NEW_LEAD_HOURS = 48;
-var OPEN = ["lead", "contacted", "qualified", "proposal"];
+var OPEN2 = ["lead", "contacted", "qualified", "proposal"];
 var text4 = (v, max) => String(v ?? "").trim().slice(0, max);
 var record = (store2, orgId, by, action, detail) => store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action, taskId: null, detail });
 function clean(i) {
@@ -1194,10 +1280,11 @@ async function setDealStage(store2, orgId, id, stage, by) {
   await record(store2, orgId, by, "crm.stage", { contactId: id, stage, summary: `${c.name}: ${stage}` });
   return loadCrm(store2, orgId);
 }
-async function logTouch(store2, orgId, id, note, by) {
+async function logTouch(store2, orgId, id, note, by, kind) {
   const c = (await loadCrm(store2, orgId)).contacts.find((x) => x.id === id);
   if (!c) throw new Error("Contact not found");
-  await record(store2, orgId, by, "crm.touch", { contactId: id, note: text4(note, 500), summary: `Touched base with ${c.name}` });
+  const k = TOUCH_KINDS.includes(String(kind)) ? String(kind) : void 0;
+  await record(store2, orgId, by, "crm.touch", { contactId: id, note: text4(note, 500), ...k ? { kind: k } : {}, summary: `Touched base with ${c.name}` });
   return loadCrm(store2, orgId);
 }
 async function addNote(store2, orgId, id, kind, note, by) {
@@ -1442,7 +1529,7 @@ function computeCrm(events, now = Date.now()) {
   const byRank = (a, b) => a.rank != null && b.rank != null ? a.rank - b.rank : 0;
   const contacts = [...map.values()].sort((a, b) => DEAL_STAGES.indexOf(a.stage) - DEAL_STAGES.indexOf(b.stage) || byRank(a, b) || b.updatedAt.localeCompare(a.updatedAt));
   const pipeline = Object.fromEntries(DEAL_STAGES.map((s) => [s, contacts.filter((c) => c.stage === s).length]));
-  const open2 = contacts.filter((c) => OPEN.includes(c.stage));
+  const open2 = contacts.filter((c) => OPEN2.includes(c.stage));
   const won = contacts.filter((c) => c.stage === "won");
   const closed = won.length + pipeline.lost;
   const fresh = contacts.filter((c) => c.stage === "lead" && c.email && !c.lastTouch && now - Date.parse(c.createdAt) <= NEW_LEAD_HOURS * 36e5);
@@ -2491,7 +2578,7 @@ function computeMarketing(events, profile, inrPerUsd = 85) {
   const last = payments.at(-1);
   let subscription = null;
   if (last) {
-    const first = payments.find((p) => p.subscriptionId === last.subscriptionId && p.provider === last.provider) ?? last;
+    const first2 = payments.find((p) => p.subscriptionId === last.subscriptionId && p.provider === last.provider) ?? last;
     const plan = getMarketingPlan(last.planId);
     subscription = {
       planId: last.planId,
@@ -2500,7 +2587,7 @@ function computeMarketing(events, profile, inrPerUsd = 85) {
       subscriptionId: last.subscriptionId,
       mode: last.mode,
       status: cancelled.has(`${last.provider}:${last.subscriptionId}`) ? "cancelled" : "active",
-      startedAt: first.at,
+      startedAt: first2.at,
       lastPaidAt: last.at,
       amount: last.amount,
       currency: last.currency
@@ -2539,7 +2626,7 @@ function assessorGoal(a) {
     "Save the result with save_assessment_check, with a short summary of the top gaps."
   ].join("\n");
 }
-function cmoPlanGoal(m) {
+function cmoPlanGoal(m, sales = "") {
   const a = m.answers;
   const plan = getMarketingPlan(m.subscription?.planId ?? m.recommended.planId);
   return [
@@ -2555,6 +2642,7 @@ function cmoPlanGoal(m) {
     line("Brand voice", a.voice),
     `Cost-per-lead ceiling: ${m.cpl.ceiling ?? "unknown"} (${m.cpl.formula}).`,
     `Draft to improve on: ${m.plan30.weeks.map((w) => `week ${w.week} ${w.focus}: ${w.actions.join("; ")}`).join(" | ")}.`,
+    ...sales ? [sales] : [],
     "Save the plan with save_marketing_plan: a summary, the channels, four weeks each with a focus and 3 to 5 actions, and the KPIs.",
     "In this task do not draft posts, emails or ads and do not spend; only save the plan."
   ].join("\n");
@@ -2564,20 +2652,20 @@ async function syncAgencySales(store2, adminOrgId, orgIds, names, by) {
   const todo = orgIds.filter((id) => id !== adminOrgId && !synced.has(id));
   const firsts = await Promise.all(todo.map(async (orgId) => ({ orgId, first: (await store2.listAuditByActions(orgId, ["marketing.payment"]))[0]?.detail })));
   let added = 0;
-  for (const { orgId, first } of firsts) {
-    if (!first) continue;
-    const plan = getMarketingPlan(first.planId);
+  for (const { orgId, first: first2 } of firsts) {
+    if (!first2) continue;
+    const plan = getMarketingPlan(first2.planId);
     const name = await names(orgId) ?? "Marketing customer";
-    const test = first.mode === "test";
+    const test = first2.mode === "test";
     const contactId4 = await addNewContact(store2, adminOrgId, {
       name: `${name}${test ? " (test payment)" : ""}`,
       company: name,
-      email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(first.payer ?? "") ? first.payer : "",
+      email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(first2.payer ?? "") ? first2.payer : "",
       source: "website",
       sourceDetail: `Marketing ${plan?.name ?? ""} plan checkout`.replace("  ", " "),
-      value: first.amount,
+      value: first2.amount,
       nextStep: "Plan onboarding",
-      notes: `Paid for the Marketing ${plan?.name ?? first.planId} plan by ${PROVIDER_LABEL[first.provider] ?? first.provider}${test ? " in test mode; remove this deal when you are done testing" : ""}.`
+      notes: `Paid for the Marketing ${plan?.name ?? first2.planId} plan by ${PROVIDER_LABEL[first2.provider] ?? first2.provider}${test ? " in test mode; remove this deal when you are done testing" : ""}.`
     }, by, `Marketing customer added: ${name}`);
     await setDealStage(store2, adminOrgId, contactId4, "won", by);
     await store2.audit({ id: newId(), orgId: adminOrgId, at: nowIso(), actor: by, action: "marketing.synced", taskId: null, detail: { customerOrgId: orgId, contactId: contactId4, summary: `${name} added to the CRM as a won deal` } });
@@ -2909,8 +2997,8 @@ async function sendAyrshare(env2, link, p, when, fetchImpl) {
   const errors = entry?.errors ?? r.errors;
   const status = String(entry?.status ?? r.status ?? "");
   if (!res.ok || status === "error") throw new Error(`Ayrshare: ${errors?.[0]?.message ?? `error ${res.status}`}`);
-  const first = (entry?.postIds ?? [])[0];
-  return { providerId: String(entry?.id ?? r.id ?? ""), postUrl: typeof first?.postUrl === "string" && first.postUrl.startsWith("https://") ? first.postUrl : "", scheduledFor: when };
+  const first2 = (entry?.postIds ?? [])[0];
+  return { providerId: String(entry?.id ?? r.id ?? ""), postUrl: typeof first2?.postUrl === "string" && first2.postUrl.startsWith("https://") ? first2.postUrl : "", scheduledFor: when };
 }
 function postizSettings(network, identifier, p) {
   const title = (p.headline || p.text).slice(0, 100).padEnd(2, ".");
@@ -3015,7 +3103,11 @@ var LEAD_SOURCES = {
   site: "Your website",
   email: "Email",
   qr: "QR code",
-  direct: "Direct link"
+  direct: "Direct link",
+  call: "Phone call",
+  whatsapp: "WhatsApp",
+  chat: "Website chat",
+  "walk-in": "Walk-in"
 };
 var sourceLabel = (s) => LEAD_SOURCES[s] ?? "Direct link";
 var LIMITS = { perHour: 30, perDay: 200 };
@@ -3084,7 +3176,9 @@ function computeLeads(events) {
       paid: d.paid === true,
       postId: String(d.postId ?? ""),
       contactId: String(d.contactId ?? ""),
-      repeat: d.repeat === true
+      repeat: d.repeat === true,
+      channel: String(d.channel ?? "form"),
+      ref: String(d.ref ?? "")
     });
   }
   return { form: form2, leads: leads.reverse() };
@@ -3133,58 +3227,122 @@ function checkLead(i, healthcare) {
   const s = text7(i.s, 20).toLowerCase();
   return { ok: true, lead: { name, email, phone, message, source: s in LEAD_SOURCES ? s : "direct", paid: i.m === "paid", postRef: /^[0-9a-f]{8}$/i.test(text7(i.p, 8)) ? text7(i.p, 8).toLowerCase() : "" } };
 }
-async function captureLead(store2, orgId, state, lead, posts, now = /* @__PURE__ */ new Date()) {
-  const t = now.getTime();
-  const lastHour = state.leads.filter((l) => t - Date.parse(l.at) < 36e5).length;
-  const lastDay = state.leads.filter((l) => t - Date.parse(l.at) < 864e5).length;
-  if (lastHour >= LIMITS.perHour || lastDay >= LIMITS.perDay) throw new LeadLimitError("Too many enquiries just now");
-  const post = lead.postRef ? posts.find((p) => p.id.replace(/-/g, "").toLowerCase().startsWith(lead.postRef)) : void 0;
-  const src = sourceLabel(post?.network ?? lead.source);
-  const what = post ? `${src} ${lead.paid ? "ad" : "post"}${post.headline ? `: ${post.headline}` : ""}` : `${src}${lead.paid ? " ad" : ""} lead form`;
+var capped = (state, t) => state.leads.filter((l) => t - Date.parse(l.at) < 36e5).length >= LIMITS.perHour || state.leads.filter((l) => t - Date.parse(l.at) < 864e5).length >= LIMITS.perDay;
+async function recordEnquiry(store2, orgId, e) {
   const crm = await loadCrm(store2, orgId);
-  const match = crm.contacts.find((c) => lead.email && c.email.toLowerCase() === lead.email || lead.phone && digits(c.phone).length >= 7 && digits(c.phone) === digits(lead.phone));
+  const match = crm.contacts.find((c) => e.email && c.email.toLowerCase() === e.email || e.phone && digits(c.phone).length >= 7 && digits(c.phone) === digits(e.phone));
   let contactId4;
   if (match) {
     contactId4 = match.id;
-    await store2.audit({ id: newId(), orgId, at: nowIso(), actor: LEAD_ACTOR, action: "crm.note", taskId: null, detail: {
+    await store2.audit({ id: newId(), orgId, at: nowIso(), actor: e.by, action: "crm.note", taskId: null, detail: {
       contactId: contactId4,
       kind: "note",
-      note: `Asked again through the ${what}.${lead.message ? ` They wrote: ${lead.message}` : ""}`,
+      note: `Asked again through the ${e.what}.${e.message ? ` They wrote: ${e.message}` : ""}`,
       summary: `Note on ${match.name}`
     } });
   } else {
-    const network = post?.network ?? lead.source;
     contactId4 = await addNewContact(store2, orgId, {
-      name: lead.name,
-      email: lead.email,
-      phone: lead.phone,
-      notes: lead.message,
-      source: lead.paid ? "ads" : NETWORK_IDS.includes(network) ? "social" : network === "site" ? "website" : "other",
-      sourceDetail: what.slice(0, 200),
+      name: e.name,
+      email: e.email,
+      phone: e.phone,
+      notes: e.message,
+      source: e.contactSource,
+      sourceDetail: e.what.slice(0, 200),
       nextStep: "Reply within 5 minutes"
-    }, LEAD_ACTOR, `New lead from the ${what.slice(0, 120)}`);
+    }, e.by, `New lead from the ${e.what.slice(0, 120)}`);
   }
-  await store2.audit({ id: newId(), orgId, at: nowIso(), actor: LEAD_ACTOR, action: LEAD_EVENT, taskId: null, detail: {
+  await store2.audit({ id: newId(), orgId, at: nowIso(), actor: e.by, action: LEAD_EVENT, taskId: null, detail: {
     id: newId(),
-    formId: state.form?.id ?? "",
-    source: post?.network ?? lead.source,
-    paid: lead.paid,
-    postId: post?.id ?? "",
+    formId: e.formId,
+    source: e.leadSource,
+    paid: e.paid,
+    postId: e.postId,
     contactId: contactId4,
     repeat: Boolean(match),
-    summary: `${match ? "Repeat enquiry" : "New lead"} from the ${what.slice(0, 120)}`
+    channel: e.channel,
+    ...e.ref ? { ref: e.ref } : {},
+    summary: `${match ? "Repeat enquiry" : "New lead"} from the ${e.what.slice(0, 120)}`
   } });
   return { contactId: contactId4, repeat: Boolean(match) };
 }
+async function captureLead(store2, orgId, state, lead, posts, now = /* @__PURE__ */ new Date()) {
+  if (capped(state, now.getTime())) throw new LeadLimitError("Too many enquiries just now");
+  const post = lead.postRef ? posts.find((p) => p.id.replace(/-/g, "").toLowerCase().startsWith(lead.postRef)) : void 0;
+  const src = sourceLabel(post?.network ?? lead.source);
+  const what = post ? `${src} ${lead.paid ? "ad" : "post"}${post.headline ? `: ${post.headline}` : ""}` : `${src}${lead.paid ? " ad" : ""} lead form`;
+  const network = post?.network ?? lead.source;
+  const contactSource = lead.paid || network === "meta" ? "ads" : NETWORK_IDS.includes(network) ? "social" : network === "email" ? "email" : "website";
+  return recordEnquiry(store2, orgId, {
+    name: lead.name,
+    email: lead.email,
+    phone: lead.phone,
+    message: lead.message,
+    contactSource,
+    what,
+    leadSource: network,
+    paid: lead.paid,
+    postId: post?.id ?? "",
+    formId: state.form?.id ?? "",
+    channel: "form",
+    ref: "",
+    by: LEAD_ACTOR
+  });
+}
+var INBOUND_ACTOR = "Inbound attendant";
+function checkInbound(i, healthcare) {
+  const channel = INBOUND_CHANNELS.find((c) => c === String(i.channel ?? "").toLowerCase());
+  if (!channel) return { ok: false, error: `channel must be one of: ${INBOUND_CHANNELS.join(", ")}` };
+  const email = text7(i.email, 200).toLowerCase();
+  const phone = text7(i.phone, 20);
+  if (email && !EMAIL_RE2.test(email)) return { ok: false, error: "That email address does not look right." };
+  if (phone && !PHONE_RE.test(phone)) return { ok: false, error: "That phone number does not look right." };
+  if ((channel === "call" || channel === "whatsapp") && !phone) return { ok: false, error: "A call or WhatsApp enquiry needs the phone number." };
+  if (channel === "email" && !email) return { ok: false, error: "An email enquiry needs the email address." };
+  if (!email && !phone) return { ok: false, error: "Add an email address or a phone number so they can be reached." };
+  const name = text7(i.name, 120) || `${CHANNEL_LABEL[channel]} ${phone || email}`.slice(0, 120);
+  const when = CALL_TIMES.includes(String(i.when)) ? `Best time to call: ${i.when}` : "";
+  const said = String(i.message ?? "").trim().slice(0, 900);
+  const message = healthcare ? when : [said, i.when !== "Any time" ? when : ""].filter(Boolean).join("\n");
+  const ref = text7(i.ref, 120).replace(/[^\w.:@+-]/g, "");
+  return { ok: true, lead: { channel, name, email, phone, message, ref } };
+}
+async function captureInbound(store2, orgId, state, lead, opts = {}) {
+  if (lead.ref) {
+    const seen = state.leads.find((l) => l.ref === lead.ref && l.channel === lead.channel);
+    if (seen) return { contactId: seen.contactId, repeat: seen.repeat, duplicate: true };
+  }
+  if (opts.capped && capped(state, (opts.now ?? /* @__PURE__ */ new Date()).getTime())) throw new LeadLimitError("Too many enquiries just now");
+  const by = opts.by ?? INBOUND_ACTOR;
+  const what = `${CHANNEL_LABEL[lead.channel].toLowerCase()} enquiry`;
+  const r = await recordEnquiry(store2, orgId, {
+    name: lead.name,
+    email: lead.email,
+    phone: lead.phone,
+    message: lead.message,
+    contactSource: CHANNEL_SOURCE[lead.channel],
+    what,
+    leadSource: lead.channel === "form" ? "site" : lead.channel,
+    paid: false,
+    postId: "",
+    formId: "",
+    channel: lead.channel,
+    ref: lead.ref,
+    by
+  });
+  if (lead.channel === "walk-in" && !r.repeat) {
+    await store2.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: "crm.touch", taskId: null, detail: { contactId: r.contactId, kind: "meeting", note: "Spoke in person when they walked in", summary: `Touched base with ${lead.name}` } });
+  }
+  return { ...r, duplicate: false };
+}
 function weeklyLeads(leads, wonIds, now, weeks = 8) {
-  const DAY4 = 864e5;
+  const DAY6 = 864e5;
   const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-  const monday = today - (now.getUTCDay() + 6) % 7 * DAY4;
-  const rows = Array.from({ length: weeks }, (_, i) => ({ start: new Date(monday - (weeks - 1 - i) * 7 * DAY4).toISOString().slice(0, 10), leads: 0, won: 0 }));
-  const first = monday - (weeks - 1) * 7 * DAY4;
+  const monday = today - (now.getUTCDay() + 6) % 7 * DAY6;
+  const rows = Array.from({ length: weeks }, (_, i) => ({ start: new Date(monday - (weeks - 1 - i) * 7 * DAY6).toISOString().slice(0, 10), leads: 0, won: 0 }));
+  const first2 = monday - (weeks - 1) * 7 * DAY6;
   for (const l of leads) {
     if (l.repeat) continue;
-    const i = Math.floor((Date.parse(l.at) - first) / (7 * DAY4));
+    const i = Math.floor((Date.parse(l.at) - first2) / (7 * DAY6));
     if (i < 0 || i >= weeks) continue;
     rows[i].leads++;
     if (wonIds.has(l.contactId)) rows[i].won++;
@@ -3195,12 +3353,12 @@ var REACHED = ["qualified", "proposal", "won"];
 function computeDashboard(o) {
   const now = o.now ?? /* @__PURE__ */ new Date();
   const t = now.getTime();
-  const DAY4 = 864e5;
+  const DAY6 = 864e5;
   const fresh = o.leads.leads.filter((l) => !l.repeat);
-  const in30 = fresh.filter((l) => t - Date.parse(l.at) < 30 * DAY4);
+  const in30 = fresh.filter((l) => t - Date.parse(l.at) < 30 * DAY6);
   const prev30 = fresh.filter((l) => {
     const a = t - Date.parse(l.at);
-    return a >= 30 * DAY4 && a < 60 * DAY4;
+    return a >= 30 * DAY6 && a < 60 * DAY6;
   });
   const monthStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
   const byId = new Map(o.crm.contacts.map((c) => [c.id, c]));
@@ -3295,6 +3453,7 @@ function adsGoal(o) {
     `Channels in their marketing plan: ${o.channels.join(", ") || "none yet"}.`,
     `Approved ads you may use (by id):
 ${ads}`,
+    ...o.sales ? [o.sales] : [],
     "Use one to three campaigns: put most of the budget where their customers already look, give each campaign enough per day to learn (at least a few leads a week at the ceiling), and say in one line why. Prefer the leads objective; use calls for businesses people phone. Name the audience by place, age range and interests in plain words. Never promise results. You only plan: nothing is launched or paid."
   ].join("\n");
 }
@@ -5239,7 +5398,7 @@ function computeAgentProof(events, counts, agents = AGENTS) {
 // core/governance.ts
 var EXTERNAL = ["publish_post", "reply_comment", "send_message", "send_email_campaign", "spend_money"];
 var STAGE_KEYS = ["startup", "struggle", "scale", "success", "significance", "sixxab"];
-var DAY2 = 24 * 3600 * 1e3;
+var DAY3 = 24 * 3600 * 1e3;
 var r2 = (n) => Math.round(n * 100) / 100;
 function allocate(items, amount) {
   const total = items.reduce((s, i) => s + i.usage, 0);
@@ -5263,7 +5422,7 @@ function statusChecks(c, failed24h) {
 }
 function computeGovernance(input) {
   const now = input.now.getTime();
-  const within = (e, days) => now - Date.parse(e.at) <= days * DAY2;
+  const within = (e, days) => now - Date.parse(e.at) <= days * DAY3;
   const all = input.orgs.flatMap((o) => o.events30d);
   const rate2 = input.inrPerUsd && input.inrPerUsd > 0 ? input.inrPerUsd : DEFAULT_INR_PER_USD;
   const toUsd2 = (amount, currency) => currency === "INR" ? amount / rate2 : amount;
@@ -5335,10 +5494,10 @@ function computeGovernance(input) {
 
 // server/build-info.ts
 var BUILD_INFO = {
-  "builtAt": "2026-11-24T20:38:44.817Z",
-  "files": 120,
-  "lines": 15138,
-  "tests": 174,
+  "builtAt": "2026-11-25T01:08:24.244Z",
+  "files": 127,
+  "lines": 15827,
+  "tests": 182,
   "e2e": 13,
   "rlsTables": 9,
   "cspHeader": true,
@@ -5409,14 +5568,14 @@ var EVENTS2 = [
   "settings.automation",
   "billing.plan"
 ];
-var DAY3 = 24 * 3600 * 1e3;
+var DAY4 = 24 * 3600 * 1e3;
 async function loadFixedCosts(store2, adminOrgId) {
   const last = (await store2.listAuditByActions(adminOrgId, ["settings.techcost"])).at(-1);
   const costs = last?.detail.costs ?? {};
   return Object.fromEntries(Object.entries(costs).map(([k, v]) => [k, Number(v)]).filter(([, v]) => Number.isFinite(v)));
 }
 async function orgSnapshot(store2, orgId, now) {
-  const since7 = new Date(now - 7 * DAY3).toISOString();
+  const since7 = new Date(now - 7 * DAY4).toISOString();
   const [profile, events, tasks, approvals, proofEvents] = await Promise.all([
     loadBusinessProfile(store2, orgId),
     store2.listAuditByActions(orgId, EVENTS2),
@@ -5437,7 +5596,7 @@ async function orgSnapshot(store2, orgId, now) {
     stepsTotal: j.steps.length,
     pendingApprovals: approvals.map((a) => a.createdAt),
     tasks7d: tasks.map((t) => ({ status: t.status })),
-    events30d: events.filter((e) => now - Date.parse(e.at) <= 30 * DAY3),
+    events30d: events.filter((e) => now - Date.parse(e.at) <= 30 * DAY4),
     proofEvents,
     plan: lastPlan ? { name: String(lastPlan.detail.name), monthlyFee: Number(lastPlan.detail.monthlyFee), currency: String(lastPlan.detail.currency) } : null
   };
@@ -5869,7 +6028,7 @@ function computeRaise(events) {
   const cap = round3?.cap ?? 0;
   const pre = round3?.preMoney ?? 0;
   const dilution = round3?.instrument === "priced" ? pre ? committed / (pre + committed) : null : !cap ? null : round3?.instrument === "safe-post" ? committed / cap : committed / (cap + committed);
-  const totals = {
+  const totals2 = {
     target,
     committed,
     funded,
@@ -5878,7 +6037,7 @@ function computeRaise(events) {
     dilutionPct: dilution === null ? null : Math.round(dilution * 1e4) / 100,
     postMoney: round3?.instrument === "priced" && pre ? pre + target : null
   };
-  const state = { round: round3, investors: list3, campaign, steps: [], pipeline, totals };
+  const state = { round: round3, investors: list3, campaign, steps: [], pipeline, totals: totals2 };
   const context = raiseForPrompt(state);
   const preorderContext = raiseForPrompt({ ...state, round: null }).replace(/^Raise: No round[^\n]*\n?/, "") || "No pre-order campaign is recorded yet.";
   state.steps = RAISE_STEPS.map((s) => {
@@ -6286,7 +6445,15 @@ var POST5 = handle(async (request) => {
       case "stage":
         return json({ crm: await setDealStage(store2, orgId, id, b.stage, label5) });
       case "touch":
-        return json({ crm: await logTouch(store2, orgId, id, String(b.note ?? ""), label5) });
+        await logTouch(store2, orgId, id, String(b.note ?? ""), label5, b.kind);
+        return json({ crm: await crmView(store2, orgId) });
+      case "inbound": {
+        const checked = checkInbound({ ...b.enquiry ?? {}, ref: void 0 }, isHealthcare(await loadBusinessProfile(store2, orgId)));
+        if (!checked.ok) throw new HttpError(400, checked.error);
+        const r = await captureInbound(store2, orgId, await loadLeads(store2, orgId), checked.lead, { by: label5 });
+        if (b.spoke && checked.lead.channel !== "walk-in") await logTouch(store2, orgId, r.contactId, `Spoke with them about their ${checked.lead.channel === "call" ? "call" : "enquiry"}`, label5, checked.lead.channel === "call" ? "call" : void 0);
+        return json({ ...r, crm: await crmView(store2, orgId) });
+      }
       case "note":
         return json({ crm: await addNote(store2, orgId, id, String(b.kind ?? "note"), String(b.note ?? ""), label5) });
       case "qualify":
@@ -6652,6 +6819,206 @@ __export(marketing_exports, {
   agencyCustomers: () => agencyCustomers
 });
 
+// core/marketingflow.ts
+var DAY5 = 864e5;
+function unanswered(contacts) {
+  return contacts.filter((c) => isInbound(c) && c.stage === "lead" && !c.lastTouch && !c.history.some((h) => h.by === "Speed-to-Lead"));
+}
+function marketingFlow(i, now = Date.now()) {
+  const m = i.marketing;
+  const d = i.dashboard;
+  const sub = m.subscription?.status === "active" ? m.subscription : null;
+  const approved = i.creatives.creatives.filter((c) => c.status === "approved");
+  const drafts = i.posts.filter((p) => p.status === "draft").length;
+  const sent = i.posts.filter((p) => p.status === "sent").length;
+  const waitingList = unanswered(i.contacts);
+  const fresh = waitingList.filter((c) => now - Date.parse(c.createdAt) <= ENQUIRY_FRESH_DAYS * DAY5).length;
+  const inbound = i.contacts.filter(isInbound);
+  const handedOff = inbound.filter((c) => c.stage !== "lead").length;
+  const actions = [];
+  const add = (a) => actions.push(a);
+  if (waitingList.length) add({ key: "respond", stage: "respond", kind: "crm", count: waitingList.length, title: `Answer ${waitingList.length} new enquir${waitingList.length === 1 ? "y" : "ies"}`, why: `${fresh ? `${fresh} came in the last ${ENQUIRY_FRESH_DAYS} days. ` : ""}Each one waits in the CRM's sales flow with a call-back or a reply drafted by Speed-to-Lead. Answer, then hand it to sales.`, priority: 1 });
+  if (m.answered < 6 || !m.savedAt) add({ key: "assess", stage: "assess", kind: "open", target: "mk-assess", title: "Finish the marketing assessment", why: `${m.answered} of ${m.total} answered. Every agent plans from these answers: offer, best customer, budget and voice.`, priority: 5 });
+  else if (!m.validation && i.goals.assessor) add({ key: "validate", stage: "assess", kind: "agent", agentId: "business-assessor", goal: "assessor", title: "Check your online presence", why: "The Business Assessor looks at your website, Google profile, social pages and reviews on public pages, and confirms the readiness score. Uses a few web searches.", priority: 12 });
+  if (m.savedAt && !m.tailored && i.goals.cmo) add({ key: "plan", stage: "plan", kind: "agent", agentId: "cmo", goal: "cmo", title: "Have the CMO agent tailor the 30-day plan", why: "Built from your answers, the cost-per-lead ceiling and what sales knows about who buys.", priority: 14 });
+  if (!sub && m.savedAt) add({ key: "pick", stage: "plan", kind: "open", target: "mk-plans", title: "Pick a marketing plan", why: "The plan sets how many images and videos the studio makes each month. Nothing is charged until you finish a checkout.", priority: 16 });
+  if (i.creatives.awaiting) add({ key: "approve_ads", stage: "create", kind: "open", target: "mk-studio", count: i.creatives.awaiting, title: `Approve ${i.creatives.awaiting} new ad${i.creatives.awaiting === 1 ? "" : "s"}`, why: "The studio finished them. Approving an ad does not post it.", priority: 8 });
+  else if (sub && i.goals.creatives) {
+    const al = i.creatives.allowance;
+    const left = Math.max(0, al.images - al.usedImages) + Math.max(0, al.videos - al.usedVideos);
+    if (left) add({ key: "brief_ads", stage: "create", kind: "agent", agentId: "ad-creative-producer", goal: "creatives", count: left, title: "Brief this week's ads", why: `${left} ad${left === 1 ? "" : "s"} left in this month's plan. The Ad Creative Producer writes image and video briefs from the plan and queues them for the studio.`, priority: 22 });
+  }
+  if (drafts) add({ key: "publish", stage: "publish", kind: "open", target: "mk-publish", count: drafts, title: `Publish ${drafts} post${drafts === 1 ? "" : "s"}`, why: "Drafted from your approved ads, each with a tracked link to your lead form. Each goes out only when you press Publish.", priority: 10 });
+  else if (approved.length && i.goals.publishing) add({ key: "draft_posts", stage: "publish", kind: "agent", agentId: "social-publisher", goal: "publishing", title: "Draft posts from your approved ads", why: "One post per network for each approved ad that has none yet.", priority: 20 });
+  if (approved.length && i.publishConnected && !i.linked) add({ key: "link_social", stage: "publish", kind: "open", target: "mk-publish", title: "Link your social accounts", why: "Posts can go out once your Facebook, Instagram, LinkedIn or other accounts are linked to the publishing service.", priority: 24 });
+  if (i.goals.ads && !i.adsPlan) add({ key: "ads_plan", stage: "promote", kind: "agent", agentId: "ads-manager", goal: "ads", title: "Plan this month's paid ads", why: "The Ads Manager splits your ad budget across one to three campaigns, under the cost-per-lead ceiling. You launch and pay in the ad platform yourself.", priority: 26 });
+  if (!i.leadForm) add({ key: "lead_form", stage: "capture", kind: "open", target: "mk-leadform", title: "Set up your lead form", why: "It opens the first time this tab loads. Every post and ad links to it.", priority: 6 });
+  else if (!i.leadForm.on) add({ key: "lead_form", stage: "capture", kind: "open", target: "mk-leadform", title: "Turn your lead form back on", why: 'It is off, so links in your posts and ads show "not available".', priority: 6 });
+  else if (!d.leads30 && sent === 0) add({ key: "share_form", stage: "capture", kind: "open", target: "mk-leadform", title: "Share your lead form link", why: "Put it in your bios, on your website and on a printed QR code, so enquiries land in the CRM with their source.", priority: 30 });
+  if (d.cpl !== null && d.ceiling !== null && d.cpl > d.ceiling && i.goals.cmo) add({ key: "replan", stage: "measure", kind: "agent", agentId: "cmo", goal: "cmo", title: "Cost per lead is over the ceiling: re-plan", why: `Each lead cost ${Math.round(d.cpl)} ${d.currency} this month against a ceiling of ${Math.round(d.ceiling)}. The CMO agent re-plans toward the sources that win.`, priority: 11 });
+  const pct = (n, of) => of ? `${Math.round(n / of * 100)}%` : "\u2014";
+  const stats = {
+    assess: { value: `${m.readiness.score}/100`, note: m.validation ? "checked online" : "readiness" },
+    plan: { value: sub ? sub.planName : "\u2014", note: sub ? m.tailored ? "plan tailored" : "plan active" : "no plan yet" },
+    create: { value: String(approved.length), note: i.creatives.awaiting ? `${i.creatives.awaiting} to approve` : "ads approved" },
+    publish: { value: String(sent), note: drafts ? `${drafts} to publish` : "posts published" },
+    promote: { value: i.adsPlan ? String(i.adsPlan.campaigns.length) : "\u2014", note: i.adsPlan ? "campaigns planned" : "no ads plan" },
+    capture: { value: String(d.leads30), note: "leads in 30 days" },
+    respond: { value: String(waitingList.length), note: waitingList.length ? "to answer" : `${pct(handedOff, inbound.length)} handed to sales` },
+    measure: { value: d.cpl === null ? "\u2014" : String(Math.round(d.cpl)), note: d.cpl === null ? "cost per lead" : `${d.currency} per lead` }
+  };
+  return { stats, actions: actions.sort((a, b) => a.priority - b.priority), origin: pipelineByOrigin(i.contacts, now), waiting: waitingList.length };
+}
+
+// core/golive.ts
+var GOLIVE_ENV = ["STRIPE_WEBHOOK_SECRET", "PAYPAL_WEBHOOK_ID", "RAZORPAY_WEBHOOK_SECRET", "N8N_WEBHOOK_URL", "N8N_WEBHOOK_SECRET", "STUDIO_KEY", "INBOUND_KEY"];
+function goLiveEnv(env2) {
+  const has3 = (k) => Boolean(env2[k]?.trim());
+  return { ...Object.fromEntries(GOLIVE_ENV.map((k) => [k, has3(k)])), paymentsLive: env2.PAYMENTS_LIVE?.trim().toLowerCase() === "yes" };
+}
+var WEBHOOK = (origin, provider) => `${origin}/api/payments?provider=${provider}`;
+function goLiveChecklist(i) {
+  const p = i.pay;
+  const anyPay = p.stripe.connected || p.paypal.connected || p.razorpay.connected;
+  const allKeys = anyPay && i.publish.connected;
+  const items = [
+    {
+      key: "stripe",
+      group: "Payments",
+      owner: "you",
+      status: p.stripe.connected && i.env.STRIPE_WEBHOOK_SECRET ? "done" : "todo",
+      title: "Connect Stripe for cards, Apple Pay and Google Pay",
+      how: `Add STRIPE_SECRET_KEY (a test key, sk_test_, first) and STRIPE_WEBHOOK_SECRET in Vercel. Webhook: ${WEBHOOK(i.origin, "stripe")}. Apple Pay and Google Pay show in Stripe Checkout once you turn them on under Payment methods in Stripe.`
+    },
+    {
+      key: "paypal",
+      group: "Payments",
+      owner: "you",
+      status: p.paypal.connected && i.env.PAYPAL_WEBHOOK_ID ? "done" : "todo",
+      title: "Connect PayPal",
+      how: `Add PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET and PAYPAL_WEBHOOK_ID in Vercel; PAYPAL_ENV=sandbox while testing. Webhook: ${WEBHOOK(i.origin, "paypal")}.`
+    },
+    {
+      key: "razorpay",
+      group: "Payments",
+      owner: "you",
+      status: p.razorpay.connected && i.env.RAZORPAY_WEBHOOK_SECRET ? "done" : "todo",
+      title: "Connect Razorpay for UPI and Indian cards",
+      how: `Open the Razorpay account yourself, then add RAZORPAY_KEY_ID (rzp_test_ first), RAZORPAY_KEY_SECRET and RAZORPAY_WEBHOOK_SECRET in Vercel. Webhook: ${WEBHOOK(i.origin, "razorpay")} with the subscription activated, authenticated, charged, cancelled, completed and expired events. Live payments need Razorpay's KYC first.`
+    },
+    {
+      key: "policies",
+      group: "Payments",
+      owner: "you",
+      status: "decide",
+      title: "Decide the refund and cancellation terms",
+      how: "Your terms page says paid plans are 12-month contracts, but marketing plans bill monthly. Payment providers, Razorpay above all, ask for a refund and cancellation policy before going live. Decide the terms you want and the policy page is added to the site."
+    },
+    {
+      key: "test_checkout",
+      group: "Payments",
+      owner: "you",
+      status: i.testPaid ? "done" : "todo",
+      title: "Run one test checkout end to end",
+      how: "After a test key is in: pick a plan in the Marketing tab, pay with a provider test card or UPI test ID, and check the plan shows as active. No real money moves in test mode."
+    },
+    {
+      key: "live",
+      group: "Payments",
+      owner: "you",
+      status: i.env.paymentsLive ? "done" : "todo",
+      title: "Switch payments to live",
+      how: "Only after a test checkout works: swap in the live keys and set PAYMENTS_LIVE=yes in Vercel. Until then live keys are refused, so nobody can be charged by mistake."
+    },
+    {
+      key: "postiz",
+      group: "Publishing",
+      owner: "you",
+      status: i.publish.connected ? "done" : "todo",
+      title: "Connect Postiz for social publishing",
+      how: "Add POSTIZ_API_KEY and POSTIZ_URL (an https address ending in /public/v1) in Vercel."
+    },
+    {
+      key: "social",
+      group: "Publishing",
+      owner: "you",
+      status: i.linkedNetworks ? "done" : "todo",
+      title: "Link your social accounts in Postiz",
+      how: "Connect Facebook, Instagram, LinkedIn and the rest inside Postiz, then pick them under Social publishing. Each post still goes out only when you press Publish."
+    },
+    {
+      key: "studio",
+      group: "Ad studio",
+      owner: "you",
+      status: i.env.STUDIO_KEY ? "done" : "optional",
+      title: "Studio key for unattended ad runs (optional)",
+      how: "Only if you want the studio to run on a schedule: a STUDIO_KEY of 32+ random characters in Vercel. Ask Claude first; without it, ads are made from the admin view."
+    },
+    {
+      key: "viewmax",
+      group: "Ad studio",
+      owner: "you",
+      status: "decide",
+      title: "Confirm what a Viewmax credit costs you",
+      how: "Each image or video uses Viewmax credits. The price per credit sets the margin on each plan."
+    },
+    {
+      key: "setup_fee",
+      group: "Pricing",
+      owner: "you",
+      status: "decide",
+      title: "Decide on an Agency plan setup fee",
+      how: "Prices are confirmed: $79, $249 and $999 a month, and \u20B92,999, \u20B99,999 and \u20B939,999 (Nov 24). Decide whether Agency also has a one-time setup fee."
+    },
+    {
+      key: "email",
+      group: "Leads",
+      owner: "you",
+      status: i.env.N8N_WEBHOOK_URL && i.env.N8N_WEBHOOK_SECRET ? "done" : "todo",
+      title: "Email sending through n8n",
+      how: "Approved emails go out through your n8n workflow (N8N_WEBHOOK_URL and N8N_WEBHOOK_SECRET)."
+    },
+    {
+      key: "lead_form",
+      group: "Leads",
+      owner: "you",
+      status: i.leadFormOn ? "done" : "todo",
+      title: "Lead form on",
+      how: "Every post and ad links to it; enquiries land in the CRM with their source."
+    },
+    {
+      key: "inbound",
+      group: "Leads",
+      owner: "you",
+      status: i.env.INBOUND_KEY ? "done" : "optional",
+      title: "Inbound key for the 24/7 attendant (when it is ready)",
+      how: `When the call, WhatsApp or email attendant is set up: an INBOUND_KEY of 32+ random characters in Vercel, and the attendant posts each enquiry to ${i.origin}/api/inbound. Until then that address stays closed.`
+    },
+    {
+      key: "redeploy",
+      group: "Build",
+      owner: "claude",
+      status: allKeys ? "done" : "todo",
+      title: "Redeploy and check each provider once your keys are in",
+      how: "Vercel reads new settings only on a new deployment. Claude redeploys, then checks each checkout opens and each webhook answers, in test mode."
+    },
+    {
+      key: "webhooks",
+      group: "Build",
+      owner: "claude",
+      status: i.testPaid ? "done" : "todo",
+      title: "Confirm the payment webhooks record a test payment",
+      how: "After your test checkout: check the payment, the active plan and the won deal in your CRM all appear."
+    }
+  ];
+  return {
+    items,
+    done: items.filter((x) => x.status === "done").length,
+    yours: items.filter((x) => x.owner === "you" && x.status !== "done" && x.status !== "optional").length,
+    ours: items.filter((x) => x.owner === "claude" && x.status !== "done").length
+  };
+}
+
 // core/payments.ts
 var val = (v) => v && v.trim() ? v.trim() : "";
 var liveOn = (env2) => val(env2.PAYMENTS_LIVE).toLowerCase() === "yes";
@@ -7013,10 +7380,10 @@ async function handleRazorpayEvent(store2, env2, event, orgIds) {
     return await recordRazorpay(store2, env2, s, orgId, { ref: s.id, kind: "first", payment }, "razorpay") ? "recorded" : "not charged yet";
   }
   if (event.event === "subscription.charged") {
-    const first = (s.paid_count ?? 0) <= 1;
-    if (!first && !payment?.id) return "ignored: charge without a payment";
-    const ok = await recordRazorpay(store2, env2, s, orgId, { ref: first ? s.id : String(payment?.id), kind: first ? "first" : "renewal", payment }, "razorpay");
-    return !ok ? "not charged yet" : first ? "recorded" : "recorded renewal";
+    const first2 = (s.paid_count ?? 0) <= 1;
+    if (!first2 && !payment?.id) return "ignored: charge without a payment";
+    const ok = await recordRazorpay(store2, env2, s, orgId, { ref: first2 ? s.id : String(payment?.id), kind: first2 ? "first" : "renewal", payment }, "razorpay");
+    return !ok ? "not charged yet" : first2 ? "recorded" : "recorded renewal";
   }
   if (["subscription.cancelled", "subscription.completed", "subscription.expired"].includes(event.event)) {
     await recordCancellation(store2, orgId, "razorpay", s.id, "razorpay");
@@ -7090,7 +7457,7 @@ async function aboutBusiness(store2, orgId) {
   const m = await loadMarketing(store2, orgId, profile, rate());
   return { business: profile?.name ?? "Unnamed business", voice: m.answers.voice ?? "", avoid: m.answers.avoid ?? "" };
 }
-async function view(store2, orgId, label5) {
+async function view(store2, orgId, label5, origin = "https://sixxab.ai") {
   const profile = await loadBusinessProfile(store2, orgId);
   const marketing = await loadMarketing(store2, orgId, profile, rate());
   const admin = isAdmin(label5, process.env.ADMIN_EMAILS);
@@ -7120,14 +7487,46 @@ async function view(store2, orgId, label5) {
     target: marketing.cpl.leadsTarget,
     spend
   });
+  const sales = salesContext(crm.icps, crm.contacts);
+  const goals = {
+    assessor: assessorGoal(marketing.answers),
+    cmo: cmoPlanGoal(marketing, sales),
+    creatives: creativesGoal({ business: profile?.name ?? "", offer: a.services ?? "", bestCustomer: a.bestCustomer ?? "", voice: a.voice ?? "", avoid: a.avoid ?? "", channels: plan.channels, weekFocus: plan.weeks[0]?.focus ?? "", allowance: creatives.allowance }),
+    publishing: publishingGoal({ business: profile?.name ?? "", voice: a.voice ?? "", avoid: a.avoid ?? "", creatives: creatives.creatives, posts: publishing.posts, networks: linked.length ? linked : channelNetworks(plan.channels) }),
+    ads: adsGoal({ business: profile?.name ?? "", offer: a.services ?? "", bestCustomer: a.bestCustomer ?? "", area: a.location ?? "", currency: marketing.currency, budget: spend.ads, ceiling: marketing.cpl.ceiling, leadsTarget: marketing.cpl.leadsTarget, channels: plan.channels, approved, sales })
+  };
+  const payments = paymentSetup(payEnv());
+  const flow = marketingFlow({
+    marketing,
+    creatives,
+    posts: publishing.posts,
+    linked: linked.length,
+    publishConnected: setup.connected,
+    leadForm: leads.form,
+    adsPlan,
+    dashboard,
+    contacts: crm.contacts,
+    goals
+  });
+  const golive = admin ? goLiveChecklist({
+    pay: payments,
+    publish: setup,
+    env: goLiveEnv(process.env),
+    origin,
+    leadFormOn: Boolean(leads.form?.on),
+    linkedNetworks: linked.length,
+    testPaid: marketing.payments.some((p) => p.mode === "test") || Boolean(agency?.test)
+  }) : null;
   return {
     marketing,
     plans: MARKETING_PLANS,
     sections: ASSESSMENT_SECTIONS,
-    payments: paymentSetup(payEnv()),
+    payments,
     pendingRazorpay: pending,
     inrPerUsd: rate(),
     creatives,
+    flow,
+    golive,
     publishing,
     publishSetup: setup,
     publishLink: publicLink(link),
@@ -7136,13 +7535,7 @@ async function view(store2, orgId, label5) {
     leadForm: leads.form ? { id: leads.form.id, on: leads.form.on, url: formUrl(leads.form) } : null,
     adsPlan,
     adPlatforms: AD_PLATFORMS,
-    goals: {
-      assessor: assessorGoal(marketing.answers),
-      cmo: cmoPlanGoal(marketing),
-      creatives: creativesGoal({ business: profile?.name ?? "", offer: a.services ?? "", bestCustomer: a.bestCustomer ?? "", voice: a.voice ?? "", avoid: a.avoid ?? "", channels: plan.channels, weekFocus: plan.weeks[0]?.focus ?? "", allowance: creatives.allowance }),
-      publishing: publishingGoal({ business: profile?.name ?? "", voice: a.voice ?? "", avoid: a.avoid ?? "", creatives: creatives.creatives, posts: publishing.posts, networks: linked.length ? linked : channelNetworks(plan.channels) }),
-      ads: adsGoal({ business: profile?.name ?? "", offer: a.services ?? "", bestCustomer: a.bestCustomer ?? "", area: a.location ?? "", currency: marketing.currency, budget: spend.ads, ceiling: marketing.cpl.ceiling, leadsTarget: marketing.cpl.leadsTarget, channels: plan.channels, approved })
-    },
+    goals,
     admin,
     agency,
     studio: admin ? await studioQueue(store2, await store2.listOrgIds(), (id) => aboutBusiness(store2, id)) : null,
@@ -7180,7 +7573,7 @@ var GET9 = handle(async (request) => {
   }
   const { orgId, label: label5, store: store2 } = await requireUser(request);
   await ensureLeadForm(store2, orgId, siteOrigin(request), label5).catch((e) => console.error("lead form", e));
-  return json(await view(store2, orgId, label5));
+  return json(await view(store2, orgId, label5, new URL(request.url).origin));
 });
 function siteOrigin(request) {
   try {
@@ -7209,33 +7602,33 @@ var POST8 = handle(async (request) => {
       const m = await loadMarketing(store2, orgId, null, rate());
       const planId = m.subscription?.status === "active" ? m.subscription.planId : null;
       await requestCreative(store2, orgId, b.creative ?? {}, await loadCreatives(store2, orgId, planId, isAdmin(label5, process.env.ADMIN_EMAILS)), label5);
-      return json(await view(store2, orgId, label5));
+      return json(await view(store2, orgId, label5, new URL(request.url).origin));
     }
     if (b.action === "decide_creative") {
       await decideCreative(store2, orgId, String(b.id ?? ""), b.decision, b.note, label5);
-      return json(await view(store2, orgId, label5));
+      return json(await view(store2, orgId, label5, new URL(request.url).origin));
     }
     if (b.action === "studio_save" || b.action === "studio_fail") {
       if (!isAdmin(label5, process.env.ADMIN_EMAILS)) throw new HttpError(403, "Only the SIXXAB admin can save studio results");
       await studioWrite(store2, b, label5, b.action === "studio_save");
-      return json(await view(store2, orgId, label5));
+      return json(await view(store2, orgId, label5, new URL(request.url).origin));
     }
     if (b.action === "draft_posts") {
       const { form: form2 } = await loadLeads(store2, orgId);
       await draftPosts(store2, orgId, { creativeId: b.creativeId, networks: b.networks, text: b.text, leadLink: b.leadLink && form2?.on ? formUrl(form2) : void 0 }, label5);
-      return json(await view(store2, orgId, label5));
+      return json(await view(store2, orgId, label5, new URL(request.url).origin));
     }
     if (b.action === "lead_form") {
       await changeLeadForm(store2, orgId, b.change, siteOrigin(request), label5);
-      return json(await view(store2, orgId, label5));
+      return json(await view(store2, orgId, label5, new URL(request.url).origin));
     }
     if (b.action === "discard_post") {
       await discardPost(store2, orgId, String(b.id ?? ""), label5);
-      return json(await view(store2, orgId, label5));
+      return json(await view(store2, orgId, label5, new URL(request.url).origin));
     }
     if (b.action === "publish_draft") {
       const post = await publishDraft(store2, orgId, String(b.id ?? ""), b.when, pubEnv(), label5);
-      return json({ post, ...await view(store2, orgId, label5) });
+      return json({ post, ...await view(store2, orgId, label5, new URL(request.url).origin) });
     }
     if (b.action === "publishing_link" || b.action === "publishing_channels") {
       if (!isAdmin(label5, process.env.ADMIN_EMAILS)) throw new HttpError(403, "Only the SIXXAB admin can link social accounts");
@@ -7243,11 +7636,11 @@ var POST8 = handle(async (request) => {
       const target = String(b.orgId ?? "");
       if (!(await store2.listOrgIds()).includes(target)) throw new HttpError(404, "No such business");
       await setPublishLink(store2, target, b.link, label5);
-      return json(await view(store2, orgId, label5));
+      return json(await view(store2, orgId, label5, new URL(request.url).origin));
     }
     if (b.action === "save") {
       await saveAssessment(store2, orgId, b.answers, label5);
-      return json(await view(store2, orgId, label5));
+      return json(await view(store2, orgId, label5, new URL(request.url).origin));
     }
     if (b.action === "checkout") {
       const plan = getMarketingPlan(b.planId);
@@ -7276,7 +7669,7 @@ var POST8 = handle(async (request) => {
       const paid = b.provider === "stripe" ? await confirmStripeSession(store2, payEnv(), orgId, ref, label5) : b.provider === "paypal" ? await confirmPaypalSubscription(store2, payEnv(), orgId, ref, label5) : b.provider === "razorpay" ? await confirmRazorpaySubscription(store2, payEnv(), orgId, ref, label5) : (() => {
         throw new HttpError(400, "Unknown payment provider");
       })();
-      return json({ paid, ...await view(store2, orgId, label5) });
+      return json({ paid, ...await view(store2, orgId, label5, new URL(request.url).origin) });
     }
   } catch (e) {
     if (e instanceof HttpError) throw e;
@@ -7419,8 +7812,46 @@ async function submitForm(request, s, now = Date.now()) {
 var GET11 = handle((request) => showForm(request, store()));
 var POST10 = handle((request) => submitForm(request, store()));
 
+// server/routes/inbound.ts
+var inbound_exports = {};
+__export(inbound_exports, {
+  POST: () => POST11,
+  inboundKeyOk: () => inboundKeyOk,
+  receiveInbound: () => receiveInbound
+});
+var UUID_RE2 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+async function inboundKeyOk(given, want) {
+  const w = want?.trim() ?? "";
+  if (w.length < 32) throw new HttpError(503, "Inbound capture isn't connected yet");
+  const enc2 = new TextEncoder();
+  const [x, y] = await Promise.all([crypto.subtle.digest("SHA-256", enc2.encode(given)), crypto.subtle.digest("SHA-256", enc2.encode(w))]);
+  const u = new Uint8Array(x), v = new Uint8Array(y);
+  let d = 0;
+  for (let i = 0; i < u.length; i++) d |= u[i] ^ v[i];
+  return d === 0;
+}
+async function receiveInbound(request, s, orgIds, key, now = /* @__PURE__ */ new Date()) {
+  if (!await inboundKeyOk(request.headers.get("x-inbound-key") ?? "", key)) throw new HttpError(401, "Wrong inbound key");
+  const b = await readJson(request, 16e3);
+  const orgId = String(b.orgId ?? "");
+  if (!UUID_RE2.test(orgId) || !(await orgIds()).includes(orgId)) throw new HttpError(404, "No such business");
+  const checked = checkInbound(b, isHealthcare(await loadBusinessProfile(s, orgId)));
+  if (!checked.ok) throw new HttpError(400, checked.error);
+  try {
+    const r = await captureInbound(s, orgId, await loadLeads(s, orgId), checked.lead, { capped: true, now });
+    return json({ ok: true, ...r });
+  } catch (e) {
+    if (e instanceof LeadLimitError) throw new HttpError(429, "Too many enquiries for this business just now");
+    throw e;
+  }
+}
+var POST11 = handle((request) => {
+  const s = store();
+  return receiveInbound(request, s, () => s.listOrgIds(), process.env.INBOUND_KEY);
+});
+
 // server/api/platform.ts
-var ROUTES = { admin: admin_exports, billing: billing_exports, governance: governance_exports, me: me_exports, raise: raise_exports, crm: crm_exports, support: support_exports, accounts: accounts_exports, marketing: marketing_exports, payments: payments_exports, leads: leads_exports };
+var ROUTES = { admin: admin_exports, billing: billing_exports, governance: governance_exports, me: me_exports, raise: raise_exports, crm: crm_exports, support: support_exports, accounts: accounts_exports, marketing: marketing_exports, payments: payments_exports, leads: leads_exports, inbound: inbound_exports };
 function dispatch(method) {
   return async (request) => {
     const url2 = new URL(request.url);
@@ -7433,8 +7864,8 @@ function dispatch(method) {
   };
 }
 var GET12 = dispatch("GET");
-var POST11 = dispatch("POST");
+var POST12 = dispatch("POST");
 export {
   GET12 as GET,
-  POST11 as POST
+  POST12 as POST
 };

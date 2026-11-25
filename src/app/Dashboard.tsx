@@ -30,10 +30,11 @@ export default function Dashboard() {
   const [session, setSession] = useState<Session | null>(null);
   const [checked, setChecked] = useState(false);
   // Coming back from a marketing checkout (?marketing=…) opens the Marketing tab, which records the payment. The
-  // marketing app sends ?tab=approvals to open the approvals here.
+  // marketing app sends ?tab=approvals or ?tab=crm to open those tabs here.
   const [tab, setTab] = useState<Tab>(() => {
     const q = new URLSearchParams(location.search);
-    return q.has('marketing') ? 'marketing' : q.get('tab') === 'approvals' ? 'approvals' : 'journey';
+    const t = q.get('tab');
+    return q.has('marketing') ? 'marketing' : t === 'approvals' ? 'approvals' : t === 'crm' ? 'crm' : t === 'marketing' ? 'marketing' : 'journey';
   });
   const [pendingCount, setPendingCount] = useState(0);
   const [admin, setAdmin] = useState(false);
@@ -79,7 +80,7 @@ export default function Dashboard() {
       <main className="app-main">
         {tab === 'journey' && <Journey goApprovals={() => setTab('approvals')} />}
         {tab === 'crm' && <Crm goApprovals={() => setTab('approvals')} />}
-        {tab === 'marketing' && <Marketing goApprovals={() => setTab('approvals')} />}
+        {tab === 'marketing' && <Marketing goApprovals={() => setTab('approvals')} goCrm={() => { setTab('crm'); window.scrollTo?.({ top: 0 }); }} />}
         {tab === 'support' && <Support goApprovals={() => setTab('approvals')} />}
         {tab === 'accounts' && <Accounts goApprovals={() => setTab('approvals')} />}
         {tab === 'raise' && <Raise goApprovals={() => setTab('approvals')} />}

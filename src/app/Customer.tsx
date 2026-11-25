@@ -34,7 +34,7 @@ export const STAGES = ['lead', 'contacted', 'qualified', 'proposal', 'won', 'los
 const STAGE_LABEL: Record<string, string> = { lead: 'New lead', contacted: 'Contacted', qualified: 'Discovery call', proposal: 'Proposal sent', won: 'Won', lost: 'Lost' };
 export const stageName = (s: string) => STAGE_LABEL[s] ?? s;
 export const webHref = (w: string) => (/^https?:\/\//i.test(w) ? w : `https://${w}`);
-const SOURCES = ['website', 'referral', 'linkedin', 'whatsapp', 'walk-in', 'event', 'apollo', 'web-search', 'social', 'ads', 'other'];
+const SOURCES = ['website', 'referral', 'linkedin', 'whatsapp', 'walk-in', 'event', 'apollo', 'web-search', 'social', 'ads', 'phone', 'email', 'other'];
 const KIND_LABEL: Record<string, string> = { note: 'Note', call: 'Call', email: 'Email', meeting: 'Meeting', research: 'Research', stage: 'Stage', update: 'Update', qualify: 'Qualified', touch: 'Touch', score: 'Lead score', sequence: 'Outreach', objection: 'Objection', sync: 'CRM Sync', agent: 'Agent', onboarding: 'Onboarding', health: 'Account health' };
 const when = (iso: string) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }); };
 

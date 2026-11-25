@@ -3,6 +3,7 @@
 // (tailored by the CMO agent), and picks a plan: in USD at a Stripe or PayPal checkout, or in INR on Razorpay (UPI AutoPay,
 // cards, netbanking). Ads wait for the owner's yes in the ad studio, and each social post goes out only when the owner
 // presses Publish on it. The same component is the whole of the standalone marketing app at /marketing.
+// The marketing flow leads the tab: the inbound stages and their next actions, with enquiries handed to sales in the CRM.
 import React, { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/auth';
 import type { Answers, MarketingPlan, MarketingState, Question } from '../../core/marketing';
@@ -14,6 +15,10 @@ import { AgentRun, money } from './AgentRun';
 import { AdStudio } from './AdStudio';
 import { Publishing } from './Publishing';
 import { Results, type LeadFormView } from './Results';
+import { MarketingFlow } from './MarketingFlow';
+import { GoLive } from './GoLive';
+import type { MktFlow } from '../../core/marketingflow';
+import type { GoLiveItem } from '../../core/golive';
 import type { Dashboard } from '../../core/leads';
 import type { AdsPlan } from '../../core/ads';
 import type { CreativesState, StudioJob } from '../../core/creatives';
@@ -32,6 +37,7 @@ interface View {
   publishing: PublishingState; publishSetup: PublishSetup; publishLink: PublicLink | null; linked: Network[];
   publishAdmin: { orgId: string; name: string; link: PublicLink | null }[] | null;
   dashboard: Dashboard; leadForm: LeadFormView | null; adsPlan: AdsPlan | null; adPlatforms: Record<string, { label: string; source: string; tool: string }>;
+  flow?: MktFlow; golive?: { items: GoLiveItem[]; yours: number; ours: number; done: number } | null;
 }
 
 const CHECKOUT_HOSTS = /^https:\/\/(checkout\.stripe\.com|(www\.)?(sandbox\.)?paypal\.com|rzp\.io|([a-z0-9-]+\.)?razorpay\.com)\//;
@@ -39,7 +45,7 @@ type Provider = 'stripe' | 'paypal' | 'razorpay';
 const PAID_BY: Record<string, string> = { stripe: 'Card', paypal: 'PayPal', razorpay: 'Razorpay' };
 const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 
-export function Marketing({ goApprovals, app = 'workspace' }: { goApprovals: () => void; app?: 'workspace' | 'marketing' }) {
+export function Marketing({ goApprovals, goCrm = () => location.assign('/app?tab=crm'), app = 'workspace' }: { goApprovals: () => void; goCrm?: () => void; app?: 'workspace' | 'marketing' }) {
   const { data, error, reload } = useLoad<View>('/api/marketing');
   const [answers, setAnswers] = useState<Answers | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -131,6 +137,8 @@ export function Marketing({ goApprovals, app = 'workspace' }: { goApprovals: () 
         <p className="muted small">Nothing is posted or spent from this tab without your yes: each post goes out only when you press Publish, and agents only draft and plan.</p>
       </section>
 
+      {data.flow && <MarketingFlow flow={data.flow} goals={data.goals} currency={m.currency} goCrm={goCrm} goApprovals={goApprovals} reload={reload} />}
+
       <Results dashboard={data.dashboard} leadForm={data.leadForm} adsPlan={data.adsPlan} platforms={data.adPlatforms} creatives={data.creatives.creatives}
         adsGoal={data.goals.ads} adBudget={data.dashboard.spend.ads} reload={reload} goApprovals={goApprovals} />
 
@@ -211,6 +219,8 @@ export function Marketing({ goApprovals, app = 'workspace' }: { goApprovals: () 
 
       <AdStudio creatives={data.creatives} goal={data.goals.creatives} admin={data.admin} studio={data.studio} reload={reload} goApprovals={goApprovals} />
       <Publishing publishing={data.publishing} setup={data.publishSetup} linked={data.linked} creatives={data.creatives.creatives} goal={data.goals.publishing} admin={data.publishAdmin} reload={reload} goApprovals={goApprovals} leadFormUrl={data.leadForm?.on ? data.leadForm.url : null} />
+
+      {data.admin && data.golive && <GoLive golive={data.golive} />}
 
       {data.admin && data.agency && (
         <Fold id="mk-agency" title="Agency customers" hint={`${data.agency.customers.length} paying · ${money(data.agency.monthlyLiveTotalUsd ?? data.agency.monthlyLiveUsd)} a month live`}>

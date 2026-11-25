@@ -9,7 +9,7 @@ import { EMAIL_RE, PHONE_RE } from './research-map.js';
 import { applyFlowEvent, computeFlowOrg, EMPTY_CUSTOMER, FLOW_DEAL_EVENTS, FLOW_ORG_EVENTS, flowCounts, nextActions, type CustomerFlow, type FlowOrg, type FlowStage, type NextAction } from './salesflow-state.js';
 
 export const DEAL_STAGES = ['lead', 'contacted', 'qualified', 'proposal', 'won', 'lost'] as const;
-export const SOURCES = ['website', 'referral', 'linkedin', 'whatsapp', 'walk-in', 'event', 'apollo', 'web-search', 'social', 'ads', 'other'] as const;
+export const SOURCES = ['website', 'referral', 'linkedin', 'whatsapp', 'walk-in', 'event', 'apollo', 'web-search', 'social', 'ads', 'phone', 'email', 'other'] as const;
 export type DealStage = (typeof DEAL_STAGES)[number];
 
 export const DEAL_TIERS = ['High', 'Medium', 'Low'] as const;
@@ -133,10 +133,11 @@ export async function setDealStage(store: Store, orgId: string, id: string, stag
 }
 
 /** Records a touch (call, meeting, message) so follow-ups know when you last spoke. */
-export async function logTouch(store: Store, orgId: string, id: string, note: string, by: string): Promise<CrmState> {
+export async function logTouch(store: Store, orgId: string, id: string, note: string, by: string, kind?: string): Promise<CrmState> {
   const c = (await loadCrm(store, orgId)).contacts.find((x) => x.id === id);
   if (!c) throw new Error('Contact not found');
-  await record(store, orgId, by, 'crm.touch', { contactId: id, note: text(note, 500), summary: `Touched base with ${c.name}` });
+  const k = TOUCH_KINDS.includes(String(kind)) ? String(kind) : undefined;
+  await record(store, orgId, by, 'crm.touch', { contactId: id, note: text(note, 500), ...(k ? { kind: k } : {}), summary: `Touched base with ${c.name}` });
   return loadCrm(store, orgId);
 }
 

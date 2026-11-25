@@ -7,6 +7,7 @@ import { addNewContact, loadCrm, type CrmState, type DealStage } from './crm.js'
 import { EMAIL_RE, PHONE_RE } from './research-map.js';
 import { NETWORKS, NETWORK_IDS, type Network, type SocialPost } from './publishing.js';
 import type { Creative } from './creatives.js';
+import { CHANNEL_LABEL, CHANNEL_SOURCE, INBOUND_CHANNELS, type InboundChannel } from './channels.js';
 
 export const FORM_EVENT = 'leads.form';
 export const LEAD_EVENT = 'lead.captured';
@@ -17,6 +18,7 @@ export const LEAD_ACTOR = 'Lead form';
 export const LEAD_SOURCES: Record<string, string> = {
   ...Object.fromEntries(NETWORK_IDS.map((n) => [n, NETWORKS[n].label])),
   meta: 'Meta ads', site: 'Your website', email: 'Email', qr: 'QR code', direct: 'Direct link',
+  call: 'Phone call', whatsapp: 'WhatsApp', chat: 'Website chat', 'walk-in': 'Walk-in',
 };
 export const sourceLabel = (s: string) => LEAD_SOURCES[s] ?? 'Direct link';
 
@@ -24,7 +26,8 @@ export const sourceLabel = (s: string) => LEAD_SOURCES[s] ?? 'Direct link';
 export const LIMITS = { perHour: 30, perDay: 200 };
 
 export interface LeadForm { id: string; on: boolean; origin: string; since: string }
-export interface Lead { id: string; at: string; formId: string; source: string; paid: boolean; postId: string; contactId: string; repeat: boolean }
+/** channel: how it arrived (the lead form, or a call, WhatsApp, email, chat or walk-in logged by the attendant or the owner). */
+export interface Lead { id: string; at: string; formId: string; source: string; paid: boolean; postId: string; contactId: string; repeat: boolean; channel: string; ref: string }
 export interface LeadsState { form: LeadForm | null; leads: Lead[] }
 
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
@@ -86,7 +89,7 @@ export function computeLeads(events: { action: string; at: string; detail: Recor
     }
     if (e.action === LEAD_EVENT) leads.push({
       id: String(d.id ?? ''), at: e.at, formId: String(d.formId ?? ''), source: String(d.source ?? 'direct'), paid: d.paid === true,
-      postId: String(d.postId ?? ''), contactId: String(d.contactId ?? ''), repeat: d.repeat === true,
+      postId: String(d.postId ?? ''), contactId: String(d.contactId ?? ''), repeat: d.repeat === true, channel: String(d.channel ?? 'form'), ref: String(d.ref ?? ''),
     });
   }
   return { form, leads: leads.reverse() };
@@ -150,43 +153,111 @@ export function checkLead(i: LeadInput, healthcare: boolean): { ok: true; lead: 
   return { ok: true, lead: { name, email, phone, message, source: s in LEAD_SOURCES ? s : 'direct', paid: i.m === 'paid', postRef: /^[0-9a-f]{8}$/i.test(text(i.p, 8)) ? text(i.p, 8).toLowerCase() : '' } };
 }
 
+/** One enquiry, whichever way it came in, ready to record. */
+interface Entry {
+  name: string; email: string; phone: string; message: string; contactSource: string; what: string;
+  leadSource: string; paid: boolean; postId: string; formId: string; channel: string; ref: string; by: string;
+}
+
+const capped = (state: LeadsState, t: number) =>
+  state.leads.filter((l) => t - Date.parse(l.at) < 3_600_000).length >= LIMITS.perHour || state.leads.filter((l) => t - Date.parse(l.at) < 86_400_000).length >= LIMITS.perDay;
+
+/** Writes an enquiry: a new deal at the lead stage, or a note on the deal that already has this email or phone. */
+async function recordEnquiry(store: Store, orgId: string, e: Entry): Promise<{ contactId: string; repeat: boolean }> {
+  const crm = await loadCrm(store, orgId);
+  const match = crm.contacts.find((c) => (e.email && c.email.toLowerCase() === e.email) || (e.phone && digits(c.phone).length >= 7 && digits(c.phone) === digits(e.phone)));
+  let contactId: string;
+  if (match) {
+    contactId = match.id;
+    await store.audit({ id: newId(), orgId, at: nowIso(), actor: e.by, action: 'crm.note', taskId: null, detail: {
+      contactId, kind: 'note', note: `Asked again through the ${e.what}.${e.message ? ` They wrote: ${e.message}` : ''}`, summary: `Note on ${match.name}`,
+    } });
+  } else {
+    contactId = await addNewContact(store, orgId, {
+      name: e.name, email: e.email, phone: e.phone, notes: e.message, source: e.contactSource, sourceDetail: e.what.slice(0, 200), nextStep: 'Reply within 5 minutes',
+    }, e.by, `New lead from the ${e.what.slice(0, 120)}`);
+  }
+  await store.audit({ id: newId(), orgId, at: nowIso(), actor: e.by, action: LEAD_EVENT, taskId: null, detail: {
+    id: newId(), formId: e.formId, source: e.leadSource, paid: e.paid, postId: e.postId, contactId, repeat: Boolean(match), channel: e.channel, ...(e.ref ? { ref: e.ref } : {}),
+    summary: `${match ? 'Repeat enquiry' : 'New lead'} from the ${e.what.slice(0, 120)}`,
+  } });
+  return { contactId, repeat: Boolean(match) };
+}
+
 /**
- * Records one enquiry: a new CRM deal at the lead stage, or a note on the deal that already has this email or phone.
+ * Records one lead-form enquiry: a new CRM deal at the lead stage, or a note on the deal that already has this email or phone.
  * The caller has checked the entry with checkLead and found the form open. Throws LeadLimitError past the caps.
  */
 export async function captureLead(
   store: Store, orgId: string, state: LeadsState, lead: Extract<ReturnType<typeof checkLead>, { ok: true }>['lead'],
   posts: SocialPost[], now = new Date(),
 ): Promise<{ contactId: string; repeat: boolean }> {
-  const t = now.getTime();
-  const lastHour = state.leads.filter((l) => t - Date.parse(l.at) < 3_600_000).length;
-  const lastDay = state.leads.filter((l) => t - Date.parse(l.at) < 86_400_000).length;
-  if (lastHour >= LIMITS.perHour || lastDay >= LIMITS.perDay) throw new LeadLimitError('Too many enquiries just now');
-
+  if (capped(state, now.getTime())) throw new LeadLimitError('Too many enquiries just now');
   const post = lead.postRef ? posts.find((p) => p.id.replace(/-/g, '').toLowerCase().startsWith(lead.postRef)) : undefined;
   const src = sourceLabel(post?.network ?? lead.source);
   const what = post ? `${src} ${lead.paid ? 'ad' : 'post'}${post.headline ? `: ${post.headline}` : ''}` : `${src}${lead.paid ? ' ad' : ''} lead form`;
-  const crm = await loadCrm(store, orgId);
-  const match = crm.contacts.find((c) => (lead.email && c.email.toLowerCase() === lead.email) || (lead.phone && digits(c.phone).length >= 7 && digits(c.phone) === digits(lead.phone)));
-  let contactId: string;
-  if (match) {
-    contactId = match.id;
-    await store.audit({ id: newId(), orgId, at: nowIso(), actor: LEAD_ACTOR, action: 'crm.note', taskId: null, detail: {
-      contactId, kind: 'note', note: `Asked again through the ${what}.${lead.message ? ` They wrote: ${lead.message}` : ''}`, summary: `Note on ${match.name}`,
-    } });
-  } else {
-    const network = (post?.network ?? lead.source) as string;
-    contactId = await addNewContact(store, orgId, {
-      name: lead.name, email: lead.email, phone: lead.phone, notes: lead.message,
-      source: lead.paid ? 'ads' : NETWORK_IDS.includes(network as Network) ? 'social' : network === 'site' ? 'website' : 'other',
-      sourceDetail: what.slice(0, 200), nextStep: 'Reply within 5 minutes',
-    }, LEAD_ACTOR, `New lead from the ${what.slice(0, 120)}`);
+  const network = (post?.network ?? lead.source) as string;
+  const contactSource = lead.paid || network === 'meta' ? 'ads' : NETWORK_IDS.includes(network as Network) ? 'social' : network === 'email' ? 'email' : 'website';
+  return recordEnquiry(store, orgId, {
+    name: lead.name, email: lead.email, phone: lead.phone, message: lead.message, contactSource, what, leadSource: network, paid: lead.paid,
+    postId: post?.id ?? '', formId: state.form?.id ?? '', channel: 'form', ref: '', by: LEAD_ACTOR,
+  });
+}
+
+// ---------- calls, WhatsApp, email, chat and walk-ins ----------
+
+/** Who recorded an enquiry that didn't come through the form: the 24/7 attendant (through the inbound webhook) or the owner. */
+export const INBOUND_ACTOR = 'Inbound attendant';
+
+export interface InboundInput { channel?: unknown; name?: unknown; email?: unknown; phone?: unknown; message?: unknown; when?: unknown; ref?: unknown }
+export type InboundLead = { channel: InboundChannel; name: string; email: string; phone: string; message: string; ref: string };
+
+/**
+ * Checks an enquiry from a call, WhatsApp, email, chat or walk-in. A phone call or WhatsApp needs a phone number, an email
+ * needs an address; a name may be missing (a caller who didn't say it). A healthcare business keeps no free text, only a
+ * good time to call, so no symptoms reach the CRM.
+ */
+export function checkInbound(i: InboundInput, healthcare: boolean): { ok: true; lead: InboundLead } | { ok: false; error: string } {
+  const channel = INBOUND_CHANNELS.find((c) => c === String(i.channel ?? '').toLowerCase());
+  if (!channel) return { ok: false, error: `channel must be one of: ${INBOUND_CHANNELS.join(', ')}` };
+  const email = text(i.email, 200).toLowerCase();
+  const phone = text(i.phone, 20);
+  if (email && !EMAIL_RE.test(email)) return { ok: false, error: 'That email address does not look right.' };
+  if (phone && !PHONE_RE.test(phone)) return { ok: false, error: 'That phone number does not look right.' };
+  if ((channel === 'call' || channel === 'whatsapp') && !phone) return { ok: false, error: 'A call or WhatsApp enquiry needs the phone number.' };
+  if (channel === 'email' && !email) return { ok: false, error: 'An email enquiry needs the email address.' };
+  if (!email && !phone) return { ok: false, error: 'Add an email address or a phone number so they can be reached.' };
+  const name = text(i.name, 120) || `${CHANNEL_LABEL[channel]} ${phone || email}`.slice(0, 120);
+  const when = CALL_TIMES.includes(String(i.when)) ? `Best time to call: ${i.when}` : '';
+  const said = String(i.message ?? '').trim().slice(0, 900);
+  const message = healthcare ? when : [said, i.when !== 'Any time' ? when : ''].filter(Boolean).join('\n');
+  const ref = text(i.ref, 120).replace(/[^\w.:@+-]/g, '');
+  return { ok: true, lead: { channel, name, email, phone, message, ref } };
+}
+
+/**
+ * Records an enquiry from a call, WhatsApp, email, chat or walk-in, into the same CRM and the same results as the lead form.
+ * The same ref twice (a webhook retried) records it once. A walk-in counts as answered, since they spoke in person.
+ * capped: true for the webhook, so a flood can't bury the CRM; the owner's own entries are not capped.
+ */
+export async function captureInbound(
+  store: Store, orgId: string, state: LeadsState, lead: InboundLead, opts: { by?: string; capped?: boolean; now?: Date } = {},
+): Promise<{ contactId: string; repeat: boolean; duplicate: boolean }> {
+  if (lead.ref) {
+    const seen = state.leads.find((l) => l.ref === lead.ref && l.channel === lead.channel);
+    if (seen) return { contactId: seen.contactId, repeat: seen.repeat, duplicate: true };
   }
-  await store.audit({ id: newId(), orgId, at: nowIso(), actor: LEAD_ACTOR, action: LEAD_EVENT, taskId: null, detail: {
-    id: newId(), formId: state.form?.id ?? '', source: post?.network ?? lead.source, paid: lead.paid, postId: post?.id ?? '', contactId, repeat: Boolean(match),
-    summary: `${match ? 'Repeat enquiry' : 'New lead'} from the ${what.slice(0, 120)}`,
-  } });
-  return { contactId, repeat: Boolean(match) };
+  if (opts.capped && capped(state, (opts.now ?? new Date()).getTime())) throw new LeadLimitError('Too many enquiries just now');
+  const by = opts.by ?? INBOUND_ACTOR;
+  const what = `${CHANNEL_LABEL[lead.channel].toLowerCase()} enquiry`;
+  const r = await recordEnquiry(store, orgId, {
+    name: lead.name, email: lead.email, phone: lead.phone, message: lead.message, contactSource: CHANNEL_SOURCE[lead.channel], what,
+    leadSource: lead.channel === 'form' ? 'site' : lead.channel, paid: false, postId: '', formId: '', channel: lead.channel, ref: lead.ref, by,
+  });
+  if (lead.channel === 'walk-in' && !r.repeat) {
+    await store.audit({ id: newId(), orgId, at: nowIso(), actor: by, action: 'crm.touch', taskId: null, detail: { contactId: r.contactId, kind: 'meeting', note: 'Spoke in person when they walked in', summary: `Touched base with ${lead.name}` } });
+  }
+  return { ...r, duplicate: false };
 }
 
 // ---------- results dashboard ----------

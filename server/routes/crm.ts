@@ -1,10 +1,13 @@
 // CRM for the signed-in business. GET /api/crm → contacts, pipeline, totals and the follow-up goal.
 // POST /api/crm { action: contact | stage | touch | note | qualify | remove | import | import_research | icp_* | prospects_decide | sequence_sent | sync_*, ... }
+// POST /api/crm { action: 'inbound', enquiry: { channel, name, email, phone, message, when } } → the owner logs a call, WhatsApp,
+//   email or walk-in enquiry; it lands as a lead the same way the attendant's webhook (/api/inbound) and the lead form do.
 import { addNote, importApolloPeople, importContacts, loadCrm, logTouch, qualifyDeal, removeContact, setContactEmail, setDealStage, upsertContact, type ContactInput, type DealStage } from '../../core/crm.js';
 import { apolloEnrich, apolloSearch, type ApolloFilters, type ApolloPerson } from '../../core/apollo.js';
 import { isAdmin } from '../../core/automation.js';
 import { syncAgencySales } from '../../core/marketing.js';
-import { loadBusinessProfile } from '../../core/profile.js';
+import { isHealthcare, loadBusinessProfile } from '../../core/profile.js';
+import { captureInbound, checkInbound, loadLeads, type InboundInput } from '../../core/leads.js';
 import { decideProspects, dismissSync, markStepSent, removeIcp, saveIcp, saveIcpNotes } from '../../core/leadgen.js';
 import { markCustomerSent, markOnboardingStep, setAutofind, setAutopilot, skipAction } from '../../core/salesflow.js';
 import { editProposal, markProposalSent, useResearchField } from '../../core/research.js';
@@ -38,7 +41,7 @@ export const GET = handle(async (request) => {
 interface Body {
   action?: string; contact?: ContactInput; contactId?: string; stage?: DealStage; note?: string; kind?: string; csv?: string; meddic?: unknown; callNotes?: string; filters?: ApolloFilters; people?: ApolloPerson[];
   icp?: Record<string, unknown>; icpId?: string; notes?: string; batchId?: string; add?: string[]; dismiss?: string[]; index?: number;
-  key?: string; on?: boolean; edit?: Record<string, unknown>; json?: string; deals?: unknown; fill?: unknown;
+  key?: string; on?: boolean; edit?: Record<string, unknown>; json?: string; deals?: unknown; fill?: unknown; enquiry?: InboundInput; spoke?: boolean;
 }
 
 /** The import preview's choices, kept only when they have the right shape: report number to customer id, and to row keys. */
@@ -63,7 +66,15 @@ export const POST = handle(async (request) => {
     switch (b.action) {
       case 'contact': return json({ crm: await upsertContact(store, orgId, b.contact ?? ({} as ContactInput), label) });
       case 'stage': return json({ crm: await setDealStage(store, orgId, id, b.stage as DealStage, label) });
-      case 'touch': return json({ crm: await logTouch(store, orgId, id, String(b.note ?? ''), label) });
+      case 'touch': await logTouch(store, orgId, id, String(b.note ?? ''), label, b.kind); return json({ crm: await crmView(store, orgId) });
+      case 'inbound': {
+        const checked = checkInbound({ ...(b.enquiry ?? {}), ref: undefined }, isHealthcare(await loadBusinessProfile(store, orgId)));
+        if (!checked.ok) throw new HttpError(400, checked.error);
+        const r = await captureInbound(store, orgId, await loadLeads(store, orgId), checked.lead, { by: label });
+        // The owner took the call or answered the message already: log it, so the flow offers the hand-off to sales next.
+        if (b.spoke && checked.lead.channel !== 'walk-in') await logTouch(store, orgId, r.contactId, `Spoke with them about their ${checked.lead.channel === 'call' ? 'call' : 'enquiry'}`, label, checked.lead.channel === 'call' ? 'call' : undefined);
+        return json({ ...r, crm: await crmView(store, orgId) });
+      }
       case 'note': return json({ crm: await addNote(store, orgId, id, String(b.kind ?? 'note'), String(b.note ?? ''), label) });
       case 'qualify': return json({ crm: await qualifyDeal(store, orgId, id, b.meddic, String(b.callNotes ?? ''), label) });
       case 'remove': return json({ crm: await removeContact(store, orgId, id, label) });

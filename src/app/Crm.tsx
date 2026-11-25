@@ -99,7 +99,41 @@ export function Board({ contacts, busy, move, open, reload }: { contacts: Contac
     </div>
   );
 }
-const SOURCES = ['website', 'referral', 'linkedin', 'whatsapp', 'walk-in', 'event', 'social', 'ads', 'other'];
+const SOURCES = ['website', 'referral', 'linkedin', 'whatsapp', 'walk-in', 'event', 'social', 'ads', 'phone', 'email', 'other'];
+const ENQUIRY_CHANNELS: [string, string][] = [['call', 'Phone call'], ['whatsapp', 'WhatsApp'], ['email', 'Email'], ['walk-in', 'Walk-in'], ['chat', 'Website chat']];
+const NO_ENQUIRY = { channel: 'call', name: '', phone: '', email: '', message: '', when: 'Any time', spoke: false };
+
+/**
+ * Log an enquiry that came by phone, WhatsApp, email, chat or in person. It lands as a new lead with its source, exactly as
+ * the lead form and the 24/7 attendant's webhook do, and the sales flow then asks for a call-back or a reply. Nothing is sent.
+ */
+function LogEnquiry({ busy, post }: { busy: boolean; post: (k: string, b: Record<string, unknown>) => Promise<boolean> }) {
+  const [e, setE] = useState(NO_ENQUIRY);
+  const [done, setDone] = useState('');
+  const set = (k: keyof typeof NO_ENQUIRY) => (ev: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setE({ ...e, [k]: ev.target.type === 'checkbox' ? (ev.target as HTMLInputElement).checked : ev.target.value });
+  async function save(ev: React.FormEvent) {
+    ev.preventDefault();
+    setDone('');
+    const ok = await post('inbound', { action: 'inbound', spoke: e.spoke, enquiry: { channel: e.channel, name: e.name, phone: e.phone, email: e.email, message: e.message, when: e.when } });
+    if (ok) { setDone(`Saved ${e.name || 'the enquiry'} as a new lead. It is at the top of the sales flow.`); setE({ ...NO_ENQUIRY, channel: e.channel }); }
+  }
+  return (
+    <Fold id="log-enquiry" title="Log an enquiry" hint="a call, WhatsApp, email or walk-in">
+      <p className="muted small">For enquiries that didn't come through your lead form. It joins the CRM as a new lead with its source, and the sales flow asks you to call back or reply. The 24/7 attendant adds enquiries the same way once it is connected.</p>
+      <form className="grid2" onSubmit={save}>
+        <label className="field"><span>How they got in touch</span><select value={e.channel} onChange={set('channel')}>{ENQUIRY_CHANNELS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
+        <label className="field"><span>Name</span><input value={e.name} maxLength={120} onChange={set('name')} placeholder="If they gave it" /></label>
+        <label className="field"><span>Phone</span><input type="tel" value={e.phone} maxLength={20} onChange={set('phone')} placeholder="With the country code, e.g. +91" /></label>
+        <label className="field"><span>Email</span><input type="email" value={e.email} maxLength={200} onChange={set('email')} /></label>
+        <label className="field mk-wide"><span>What they asked <span className="muted small">· for a clinic, leave out medical details: only the best time to call is kept</span></span><textarea rows={2} value={e.message} maxLength={1000} onChange={set('message')} /></label>
+        <label className="field"><span>Best time to call</span><select value={e.when} onChange={set('when')}>{['Morning', 'Afternoon', 'Evening', 'Any time'].map((t) => <option key={t}>{t}</option>)}</select></label>
+        {e.channel !== 'walk-in' && <label className="check small"><input type="checkbox" checked={e.spoke} onChange={set('spoke')} /> I already spoke with them</label>}
+        <div className="row-end mk-wide"><button type="submit" className="btn-primary" disabled={busy}>Save the enquiry</button></div>
+      </form>
+      {done && <p className="notice" role="status">{done}</p>}
+    </Fold>
+  );
+}
 const EMPTY = { name: '', company: '', email: '', phone: '', source: 'website', value: '', nextStep: '' };
 const since = (iso: string | null) => (iso ? `${Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 864e5))}d ago` : 'never');
 
@@ -177,6 +211,7 @@ export function Crm({ goApprovals }: { goApprovals: () => void }) {
     <div className="stack">
       <SalesFlow crm={crm} busy={!!busy} post={post} reload={reload} goApprovals={goApprovals} open={openCustomer} admin={data.admin} />
       {msg && <p className="error" role="alert">{msg}</p>}
+      <LogEnquiry busy={!!busy} post={post} />
 
       <Fold id="import" title="Import leads and research" hint={impact.researched ? `${impact.researched} researched · ${impact.workNow} moved on to Outreach` : 'Excel, CSV or a research file'}>
         {impact.researched > 0 && (

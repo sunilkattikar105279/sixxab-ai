@@ -423,13 +423,33 @@ var PHONE_RE = /^\+?[\d\s()-]{7,20}$/;
 // core/research-score.ts
 var WORK_NOW_SCORE = 60;
 
+// core/channels.ts
+var INBOUND_SOURCES = ["website", "referral", "whatsapp", "walk-in", "event", "social", "ads", "phone", "email"];
+var SOURCE_LABEL = {
+  website: "Website or lead form",
+  referral: "Referral",
+  whatsapp: "WhatsApp",
+  "walk-in": "Walk-in",
+  event: "Event",
+  social: "Social post",
+  ads: "Paid ad",
+  phone: "Phone call",
+  email: "Email",
+  linkedin: "LinkedIn",
+  apollo: "Apollo",
+  "web-search": "Prospect search",
+  other: "Other or imported list"
+};
+var sourceName = (s) => SOURCE_LABEL[s] ?? s;
+var isInbound = (c) => INBOUND_SOURCES.includes(c.source);
+
 // core/salesflow-state.ts
 var FLOW_ORG_EVENTS = ["crm.action_skip", "crm.autopilot", "crm.autofind"];
 var FLOW_DEAL_EVENTS = ["crm.onboarding", "crm.onboarding_step", "crm.account", "crm.customer_sent"];
 var FLOW_STAGES = [
   { key: "find", name: "Find", does: "Set who you sell to, then find businesses that fit: press Find 10 prospects, or switch on the weekly search.", agents: ["ICP Builder", "Prospect Generator"], gate: "You tick which prospects join the CRM." },
   { key: "research", name: "Research", does: "Research each new lead from public pages using the owner, phone and website: the business, pain points, missing email, phone and address (each with its source) and where AI agents would help.", agents: ["Business Research"], gate: "You check each found detail before it goes on the deal." },
-  { key: "qualify", name: "Qualify", does: "Score each researched lead on fit, size, ease of win and reach; answer new enquiries fast.", agents: ["Lead Scorer", "Speed-to-Lead"], gate: "First replies wait in Approvals." },
+  { key: "qualify", name: "Qualify", does: "Score each researched lead on fit, size, ease of win and reach. Inbound enquiries from marketing land here too: answer each within 5 minutes, then hand it to Outreach.", agents: ["Lead Scorer", "Speed-to-Lead"], gate: "First replies wait in Approvals; you move each enquiry to Contacted." },
   { key: "outreach", name: "Outreach", does: "Personal email, LinkedIn and call steps in your voice.", agents: ["Outreach Sequencer", "Follow-up Writer"], gate: "You send each step and mark it sent." },
   { key: "discovery", name: "Discovery", does: "Prep the call, capture MEDDIC, debrief the notes.", agents: ["Call Prepper", "Deal Qualifier"], gate: "You approve the move to Proposal." },
   { key: "proposal", name: "Proposal and close", does: "Proposal with opportunities, benefits and ROI, objection answers and the follow-up to a yes.", agents: ["Proposal Writer", "Objection Handler", "Win-Loss Analyst"], gate: "You edit and send the proposal, and mark it won or lost." },
@@ -520,9 +540,15 @@ var DAY = 864e5;
 var daysSince = (iso, now) => iso ? (now - Date.parse(iso)) / DAY : Infinity;
 var ranBy = (c, agentName, sinceIso) => c.history.some((h) => h.by === agentName && (!sinceIso || h.at >= sinceIso));
 var label = (c) => c.company || c.name;
+var first = (c) => c.name.split(" ")[0] || "there";
+function callOpener(c, channel) {
+  return channel === "whatsapp" ? `Hi ${first(c)}, thanks for getting in touch with [business]. How can we help? We can [next step: a visit, a call or a quote]. Would [day and time] suit you?` : `Hi ${first(c)}, this is [your name] from [business], returning your enquiry. Is now a good time?
+[Ask what they need, answer what you can, and agree one next step: a visit, a call or a quote.]
+[Then press "I called them" so the CRM knows you spoke.]`;
+}
 function flowStageOf(c, now = Date.now()) {
   if (c.stage === "lost") return "closed";
-  if (c.stage === "lead") return c.sequence || c.proposal && (c.leadScore?.score ?? 0) >= WORK_NOW_SCORE ? "outreach" : c.researchReport || c.leadScore ? "qualify" : "research";
+  if (c.stage === "lead") return c.sequence || c.proposal && (c.leadScore?.score ?? 0) >= WORK_NOW_SCORE ? "outreach" : c.researchReport || c.leadScore || isInbound(c) ? "qualify" : "research";
   if (c.stage === "contacted") return "outreach";
   if (c.stage === "qualified") return "discovery";
   if (c.stage === "proposal") return "proposal";
@@ -533,7 +559,8 @@ function flowStageOf(c, now = Date.now()) {
   if (cf.review && cf.review.health >= 70 && days >= 45) return "expand";
   return "retain";
 }
-var AUTO_RULES = ["score", "sequence", "onboard", "review"];
+var AUTO_RULES = ["reply", "score", "sequence", "onboard", "review"];
+var ENQUIRY_FRESH_DAYS = 14;
 var QUIET_DAYS = 7;
 var PROPOSAL_QUIET_DAYS = 5;
 var REVIEW_EVERY_DAYS = 30;
@@ -600,14 +627,33 @@ function nextActions(q, now = Date.now()) {
       continue;
     }
     const base = { contactId: c.id, company: label(c), stage };
-    if (c.stage !== "won" && !c.researchReport) add({ ...base, stage: "research", key: `${c.id}:research`, rule: "research", kind: "agent", agentId: "business-research", title: `Research ${label(c)}`, why: "A sourced report on the owner and the business: pain points, missing contact details and where AI agents would help. Uses a few web searches.", priority: c.stage === "lead" ? 38 + Math.min(19, c.rank ?? 19) / 100 : 27 });
+    const inbound = isInbound(c);
+    if (inbound && c.stage === "lead") {
+      const mins = Math.max(0, Math.floor((now - Date.parse(c.createdAt)) / 6e4));
+      const when = mins < 60 ? `${mins} minute${mins === 1 ? "" : "s"} ago` : mins < 2880 ? `${Math.floor(mins / 60)} hours ago` : `${Math.floor(mins / 1440)} days ago`;
+      const from = c.sourceDetail || sourceName(c.source);
+      const fresh = mins <= ENQUIRY_FRESH_DAYS * 1440;
+      const urgency = fresh ? 1 + Math.min(1, mins / 1440) / 10 : 24;
+      const answered = !!c.lastTouch || ranBy(c, "Speed-to-Lead");
+      const voice = ["phone", "whatsapp", "walk-in"].includes(c.source) || !c.email;
+      if (!answered && voice && c.phone) {
+        const channel = c.source === "whatsapp" ? "whatsapp" : "call";
+        add({ ...base, key: `${c.id}:callback`, rule: "call_back", kind: "send", draft: { channel, subject: "", text: callOpener(c, channel), to: c.phone }, title: `${channel === "whatsapp" ? "Answer" : "Call back"} ${label(c)}`, why: `New enquiry ${when} from ${from}. ${fresh ? "Answer within 5 minutes: most enquiries go to whoever answers first." : "It was never answered."}`, priority: urgency });
+      } else if (!answered && c.email) {
+        add({ ...base, key: `${c.id}:reply`, rule: "reply", kind: "agent", agentId: "speed-to-lead", title: `Reply to ${label(c)}`, why: `New enquiry ${when} from ${from}. Speed-to-Lead drafts a short first reply with one next step; it waits in Approvals for your yes.`, priority: urgency });
+      } else if (answered) {
+        add({ ...base, key: `${c.id}:handoff`, rule: "handoff", kind: "approve", suggestStage: "contacted", title: `Hand ${label(c)} to sales?`, why: c.lastTouch ? "You answered the enquiry. Move it to Contacted and the sales flow takes over: follow-ups, discovery and the proposal." : "Speed-to-Lead drafted the first reply. Once you approve it in Approvals, move the lead to Contacted and the sales flow takes over.", priority: 9 });
+      }
+    }
+    if (c.stage !== "won" && !c.researchReport && !(inbound && !c.company)) add({ ...base, stage: "research", key: `${c.id}:research`, rule: "research", kind: "agent", agentId: "business-research", title: `Research ${label(c)}`, why: "A sourced report on the owner and the business: pain points, missing contact details and where AI agents would help. Uses a few web searches.", priority: inbound ? 42 : c.stage === "lead" ? 38 + Math.min(19, c.rank ?? 19) / 100 : 27 });
     const prop = c.proposal;
     if (prop && !prop.sentAt && c.stage !== "won") add({ ...base, key: `${c.id}:psend:${prop.id}`, rule: "proposal_send", kind: "send", draft: { channel: "email", subject: prop.subject, text: proposalMessage(prop), to: c.email }, title: `Send the proposal to ${label(c)}`, why: `Net ${fmtMoney(prop.roi.netMonthly, prop.currency)} a month for them${prop.roi.roiPct !== null ? `, first-year return ${prop.roi.roiPct}%` : ""}. Check the ROI assumptions on the customer page first.`, priority: 12 });
     if (prop?.sentAt && ["lead", "contacted", "qualified"].includes(c.stage)) add({ ...base, key: `${c.id}:pstage:${prop.id}`, rule: "proposal_stage", kind: "approve", suggestStage: "proposal", title: `Move ${label(c)} to Proposal?`, why: "You sent them the proposal.", priority: 14 });
     if (c.syncSuggestion) add({ ...base, key: `${c.id}:sync`, rule: "sync", kind: "approve", suggestStage: c.syncSuggestion.stage, title: `Move ${label(c)} to ${c.syncSuggestion.stage}?`, why: c.syncSuggestion.reason, priority: 15 });
     if (c.stage === "lead" || c.stage === "contacted") {
-      if (!c.leadScore && c.stage === "lead" && !c.researchReport) add({ ...base, key: `${c.id}:score`, rule: "score", kind: "agent", agentId: "lead-scorer", title: `Score ${label(c)}`, why: "Scoring tells you which leads to work first.", priority: 40 + Math.min(19, c.rank ?? 19) / 100 });
-      else if (c.leadScore && c.leadScore.score >= WORK_NOW_SCORE && !c.sequence && !c.proposal) add({ ...base, key: `${c.id}:sequence`, rule: "sequence", kind: "agent", agentId: "outreach-sequencer", title: `Draft outreach for ${label(c)}`, why: `Lead score ${c.leadScore.score} (${c.leadScore.grade}): worth a personal sequence.`, priority: 35 - c.leadScore.score / 100 });
+      if (!c.leadScore && c.stage === "lead" && !c.researchReport) {
+        if (!inbound) add({ ...base, key: `${c.id}:score`, rule: "score", kind: "agent", agentId: "lead-scorer", title: `Score ${label(c)}`, why: "Scoring tells you which leads to work first.", priority: 40 + Math.min(19, c.rank ?? 19) / 100 });
+      } else if (c.leadScore && c.leadScore.score >= WORK_NOW_SCORE && !c.sequence && !c.proposal) add({ ...base, key: `${c.id}:sequence`, rule: "sequence", kind: "agent", agentId: "outreach-sequencer", title: `Draft outreach for ${label(c)}`, why: `Lead score ${c.leadScore.score} (${c.leadScore.grade}): worth a personal sequence.`, priority: 35 - c.leadScore.score / 100 });
       const seq = c.sequence;
       const i = seq ? seq.steps.findIndex((s) => !s.sentAt) : -1;
       if (seq && i >= 0) {
@@ -668,7 +714,7 @@ function flowCounts(q, now = Date.now()) {
 
 // core/crm.ts
 var DEAL_STAGES = ["lead", "contacted", "qualified", "proposal", "won", "lost"];
-var SOURCES = ["website", "referral", "linkedin", "whatsapp", "walk-in", "event", "apollo", "web-search", "social", "ads", "other"];
+var SOURCES = ["website", "referral", "linkedin", "whatsapp", "walk-in", "event", "apollo", "web-search", "social", "ads", "phone", "email", "other"];
 var DEAL_TIERS = ["High", "Medium", "Low"];
 var EMPTY_PROFILE = { rank: null, niche: "", city: "", website: "", size: "", title: "", dealTier: "", ease: "", whyFit: "", pitch: "", sourceDetail: "", checkFirst: "", painPoints: "", offer: "", angle: "", research: "", address: "" };
 var HISTORY_MAX = 100;
@@ -1056,8 +1102,14 @@ function onboardingGoal(id) {
 function accountReviewGoal(id) {
   return `Review the health of this customer (deal id ${id}). Read the deal with read_crm view "deal" (contactId ${id}): its history, notes, onboarding progress and any earlier review. Then call save_account_review once with: a health score from 0 to 100 and the reasons (onboarding progress, how recently and how warmly they replied, results or problems in the notes, open issues); the risks; a short check-in message from the owner in the first person that asks one useful question; the renewal date only if the record states one, and a renewal plan; up to three upsell or cross-sell ideas tied to what they bought and their pains; and, only when health is 70 or more, a short referral ask. Base every point on the record and say what is unknown. These are drafts; nothing is sent.`;
 }
-function autoGoal(a) {
+function replyGoal(c) {
+  if (!c.email) return "";
+  return `A new enquiry has not heard from us yet. Write one short first reply and queue it with send_message (channel "email", to ${c.email}): thank them by first name, answer what they asked only from known facts, and offer one clear next step such as a call, a visit or a booking link from memory. Under 90 words, warm and plain. Do not ask for more personal details than the next step needs. The owner approves it before it goes.
+- ${c.name}${c.company ? ` (${c.company})` : ""}, came from ${c.sourceDetail || c.source}${c.notes ? `, wrote: ${c.notes.slice(0, 400)}` : ""}`;
+}
+function autoGoal(a, c) {
   const id = a.contactId ?? "";
+  if (a.rule === "reply") return c ? replyGoal(c) : "";
   return a.rule === "score" ? scoreGoal([id]) : a.rule === "sequence" ? sequenceGoal([id]) : a.rule === "onboard" ? onboardingGoal(id) : a.rule === "review" ? accountReviewGoal(id) : "";
 }
 
@@ -2380,7 +2432,7 @@ function computeMarketing(events, profile, inrPerUsd = 85) {
   const last = payments.at(-1);
   let subscription = null;
   if (last) {
-    const first = payments.find((p) => p.subscriptionId === last.subscriptionId && p.provider === last.provider) ?? last;
+    const first2 = payments.find((p) => p.subscriptionId === last.subscriptionId && p.provider === last.provider) ?? last;
     const plan = getMarketingPlan(last.planId);
     subscription = {
       planId: last.planId,
@@ -2389,7 +2441,7 @@ function computeMarketing(events, profile, inrPerUsd = 85) {
       subscriptionId: last.subscriptionId,
       mode: last.mode,
       status: cancelled.has(`${last.provider}:${last.subscriptionId}`) ? "cancelled" : "active",
-      startedAt: first.at,
+      startedAt: first2.at,
       lastPaidAt: last.at,
       amount: last.amount,
       currency: last.currency
@@ -2549,7 +2601,11 @@ var LEAD_SOURCES = {
   site: "Your website",
   email: "Email",
   qr: "QR code",
-  direct: "Direct link"
+  direct: "Direct link",
+  call: "Phone call",
+  whatsapp: "WhatsApp",
+  chat: "Website chat",
+  "walk-in": "Walk-in"
 };
 var formUrl = (f) => `${f.origin}/l/${f.id}`;
 function computeLeads(events) {
@@ -2570,7 +2626,9 @@ function computeLeads(events) {
       paid: d.paid === true,
       postId: String(d.postId ?? ""),
       contactId: String(d.contactId ?? ""),
-      repeat: d.repeat === true
+      repeat: d.repeat === true,
+      channel: String(d.channel ?? "form"),
+      ref: String(d.ref ?? "")
     });
   }
   return { form, leads: leads.reverse() };
@@ -3726,7 +3784,7 @@ async function runAutopilot(deps, orgId, max = 3, force = false) {
   const ran = [];
   for (const a of todo) {
     const agent = getAgent(a.agentId);
-    const goal = autoGoal(a);
+    const goal = autoGoal(a, crm.contacts.find((c) => c.id === a.contactId));
     if (!agent || !goal) continue;
     try {
       const task = await createTask(store2, orgId, agent.id, goal);

@@ -1,6 +1,7 @@
 // Sales flow at the top of the CRM tab: the nine stages from finding a lead to keeping the customer, and
 // one queue of next actions. Agents prepare each action on their own; the owner sends, approves or skips.
 // Nothing here sends anything: messages are copied (or opened in the owner's email) and marked sent.
+// Inbound enquiries from marketing join at Qualify: a call-back or a Speed-to-Lead reply first, then the hand-off to Contacted.
 import React, { useState } from 'react';
 import { api } from '../lib/auth';
 import { Spinner } from './ui';
@@ -9,7 +10,9 @@ import { AgentRun } from './AgentRun';
 import { CopyButton } from './DealAgents';
 import { stageName, type Contact } from './Customer';
 import { scoreGoal, sequenceGoal } from '../../core/leadgen';
-import { accountReviewGoal, findGoal, onboardingGoal } from '../../core/salesflow';
+import { accountReviewGoal, findGoal, onboardingGoal, replyGoal } from '../../core/salesflow';
+import { pipelineByOrigin } from '../../core/channels';
+import { OriginStrip, Definitions } from './OriginStrip';
 import { proposalDraftGoal, researchGoal } from '../../core/research';
 import { callPrepGoal, followUpGoal, winLossGoal } from '../../core/gtm';
 import { AUTO_RULES, FIND_COUNT, FLOW_STAGES, type FlowOrg, type FlowStage, type NextAction } from '../../core/salesflow-state';
@@ -23,8 +26,12 @@ const STAGE_OF = Object.fromEntries(FLOW_STAGES.map((s) => [s.key, s])) as Recor
 const AGENT_LABEL: Record<string, string> = {
   'lead-finder': `Find ${FIND_COUNT} prospects`, 'business-research': 'Research it', 'lead-scorer': 'Score it', 'outreach-sequencer': 'Draft the outreach', 'onboarding-manager': 'Plan onboarding', 'customer-success': 'Run the health check',
   'call-prepper': 'Prep the call', 'follow-up-writer': 'Draft the follow-up', 'proposal-writer': 'Draft the proposal', 'win-loss': 'Review the loss',
+  'speed-to-lead': 'Draft the first reply',
 };
-const CHANNEL: Record<string, string> = { email: 'Email', linkedin: 'LinkedIn', call: 'Call', text: 'Text message' };
+const CHANNEL: Record<string, string> = { email: 'Email', linkedin: 'LinkedIn', call: 'Call', text: 'Text message', whatsapp: 'WhatsApp' };
+/** A WhatsApp link only for a number with its country code (a + or 11 digits and more), so it never opens the wrong person. */
+const waLink = (phone: string) => { const d = phone.replace(/\D/g, ''); return phone.trim().startsWith('+') || d.length >= 11 ? `https://wa.me/${d}` : ''; };
+const telLink = (phone: string) => `tel:${phone.replace(/[^\d+]/g, '')}`;
 
 /** The prompt each agent action runs on, built from the deal (the same goals the server's autopilot uses). */
 export function goalFor(a: NextAction, c?: Contact): string {
@@ -40,6 +47,7 @@ export function goalFor(a: NextAction, c?: Contact): string {
     case 'research': return researchGoal(c.id);
     case 'proposal': return proposalDraftGoal(c.id);
     case 'winloss': return winLossGoal(c);
+    case 'reply': return replyGoal(c);
     default: return '';
   }
 }
@@ -51,11 +59,15 @@ function SendDraft({ a, busy, post }: { a: NextAction; busy: boolean; post: Post
   const d = a.draft!;
   const [body, setBody] = useState(d.text);
   const email = d.channel === 'email' && d.to.includes('@');
-  const markSent = () => post(a.key, a.rule === 'send_step' ? { action: 'sequence_sent', contactId: a.contactId, index: a.stepIndex } : a.rule === 'proposal_send' ? { action: 'proposal_sent', contactId: a.contactId } : { action: 'customer_sent', contactId: a.contactId, kind: a.msg });
+  const voice = a.rule === 'call_back';
+  const wa = d.channel === 'whatsapp' && d.to ? waLink(d.to) : '';
+  const markSent = () => post(a.key, voice
+    ? { action: 'touch', contactId: a.contactId, kind: d.channel === 'call' ? 'call' : undefined, note: d.channel === 'call' ? 'Called them back about their enquiry' : 'Answered their enquiry on WhatsApp' }
+    : a.rule === 'send_step' ? { action: 'sequence_sent', contactId: a.contactId, index: a.stepIndex } : a.rule === 'proposal_send' ? { action: 'proposal_sent', contactId: a.contactId } : { action: 'customer_sent', contactId: a.contactId, kind: a.msg });
   return (
     <div className="stack-xs">
       <details>
-        <summary className="small">{CHANNEL[d.channel] ?? d.channel}{d.to ? ` to ${d.to}` : ''}: read or edit the draft</summary>
+        <summary className="small">{CHANNEL[d.channel] ?? d.channel}{d.to ? ` to ${d.to}` : ''}: {voice ? 'what to say' : 'read or edit the draft'}</summary>
         {d.subject && <p className="small"><span className="muted">Subject: </span>{d.subject}</p>}
         <textarea aria-label="Draft message" rows={7} value={body} onChange={(e) => setBody(e.target.value)} />
         <p className="muted small">Edits here are copied with the message; the saved draft stays as the agent wrote it.</p>
@@ -63,7 +75,9 @@ function SendDraft({ a, busy, post }: { a: NextAction; busy: boolean; post: Post
       <div className="row-end">
         <CopyButton text={d.subject ? `Subject: ${d.subject}\n\n${body}` : body} />
         {email && <a className="btn-mini" href={mailto(d.to, d.subject, body)}>Open in email</a>}
-        <button type="button" className="btn-primary" disabled={busy} onClick={markSent}>I sent it</button>
+        {d.channel === 'call' && d.to && <a className="btn-mini" href={telLink(d.to)}>Call {d.to}</a>}
+        {wa && <a className="btn-mini" href={`${wa}?text=${encodeURIComponent(body.slice(0, 900))}`} target="_blank" rel="noopener noreferrer">Open WhatsApp</a>}
+        <button type="button" className="btn-primary" disabled={busy} onClick={markSent}>{voice ? (d.channel === 'call' ? 'I called them' : 'I answered') : 'I sent it'}</button>
       </div>
     </div>
   );
@@ -123,6 +137,7 @@ export function SalesFlow({ crm, busy, post, reload, goApprovals, open, admin }:
   const icp = crm.icps?.[0];
   const goto = reveal;
   const lastSearch = crm.lastProspectSearch ? Math.floor((Date.now() - Date.parse(crm.lastProspectSearch)) / 864e5) : null;
+  const origin = pipelineByOrigin(crm.contacts ?? []);
 
   async function prepareNow() {
     setAuto({ running: true, done: 0, total: autoTodo.length });
@@ -165,11 +180,17 @@ export function SalesFlow({ crm, busy, post, reload, goApprovals, open, admin }:
       {list.length > shown.length && <div className="row-end"><button type="button" className="btn-ghost" onClick={() => setAll(true)}>Show all {list.length}</button></div>}
 
       <details className="head-group">
+        <summary>Inbound and outbound <span className="muted small">{origin.inbound.leads30} inbound · {origin.outbound.leads30} outbound in 30 days</span></summary>
+        <OriginStrip origin={origin} />
+        <p className="muted small">Marketing's enquiries (lead form, calls, WhatsApp, email, chat, walk-ins) join this flow at Qualify. Answer each one, then move it to Contacted and it follows the same steps as every other deal. The Marketing tab plans from what wins here.</p>
+      </details>
+
+      <details className="head-group">
         <summary>Autopilot and weekly search <span className="muted small">autopilot {on ? 'on' : 'off'} · weekly search {findOn ? 'on' : 'off'}</span></summary>
         <div className="flow-auto">
           <div className="stack-xs">
             <strong>Autopilot {on ? 'is on' : 'is off'}</strong>
-            <p className="muted small">Each morning it prepares up to 3 drafts from the top of this queue: lead scores, outreach drafts, onboarding plans and health checks. It never sends a message or moves a deal; those stay with you.</p>
+            <p className="muted small">Each morning it prepares up to 3 drafts from the top of this queue: first replies to new enquiries, lead scores, outreach drafts, onboarding plans and health checks. It never sends a message or moves a deal; replies wait in Approvals and the rest stays with you.</p>
             {auto && <p className={auto.error ? 'error' : 'muted small'} role="status">{auto.error ? `Stopped after ${auto.done} of ${auto.total}: ${auto.error}` : auto.running ? `Preparing ${auto.done + 1} of ${auto.total}…` : `Prepared ${auto.done} draft${auto.done === 1 ? '' : 's'}. They are in the queue above.`}</p>}
           </div>
           <div className="row-end">
@@ -198,7 +219,8 @@ export function SalesFlow({ crm, busy, post, reload, goApprovals, open, admin }:
         <ol className="flow-how">
           {FLOW_STAGES.map((s) => <li key={s.key} className="small"><strong>{s.name}:</strong> {s.does} <span className="muted">Agents: {s.agents.join(', ')}. {s.gate}</span></li>)}
         </ol>
-        <p className="muted small">Every agent action is logged in the deal's history. Agents work only from what the record says and mark what they don't know.</p>
+        <p className="muted small">Inbound enquiries skip Find and Research: the customer came to you, so they start at Qualify with a reply. Every agent action is logged in the deal's history. Agents work only from what the record says and mark what they don't know.</p>
+        <Definitions />
         {admin && <p className="small"><a href={PROCESS_DOC} target="_blank" rel="noopener noreferrer">Read the full sales process</a> <span className="muted">(your Claude Doc, visible to admins only)</span></p>}
       </details>
     </Fold>

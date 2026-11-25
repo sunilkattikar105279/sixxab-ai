@@ -455,7 +455,8 @@ export function assessorGoal(a: Answers): string {
 }
 
 /** The CMO agent's task: tailor the 30-day plan. It saves a plan; it drafts no posts and spends nothing here. */
-export function cmoPlanGoal(m: MarketingState): string {
+/** sales: what sales knows (the ICP and which inbound sources win), from salesContext in channels.ts. */
+export function cmoPlanGoal(m: MarketingState, sales = ''): string {
   const a = m.answers;
   const plan = getMarketingPlan(m.subscription?.planId ?? m.recommended.planId)!;
   return [
@@ -465,6 +466,7 @@ export function cmoPlanGoal(m: MarketingState): string {
     line('Monthly ad budget', a.adBudget), line('Leads wanted a month', a.leadsWanted), line('Claims to avoid', a.avoid), line('Brand voice', a.voice),
     `Cost-per-lead ceiling: ${m.cpl.ceiling ?? 'unknown'} (${m.cpl.formula}).`,
     `Draft to improve on: ${m.plan30.weeks.map((w) => `week ${w.week} ${w.focus}: ${w.actions.join('; ')}`).join(' | ')}.`,
+    ...(sales ? [sales] : []),
     'Save the plan with save_marketing_plan: a summary, the channels, four weeks each with a focus and 3 to 5 actions, and the KPIs.',
     'In this task do not draft posts, emails or ads and do not spend; only save the plan.',
   ].join('\n');

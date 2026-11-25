@@ -59,6 +59,8 @@ export async function loadAdsPlan(store: Store, orgId: string): Promise<AdsPlan 
 export function adsGoal(o: {
   business: string; offer: string; bestCustomer: string; area: string; currency: string; budget: number; ceiling: number | null;
   leadsTarget: number | null; channels: string[]; approved: Creative[];
+  /** What sales knows: the ICP and which inbound sources win (salesContext in channels.ts). */
+  sales?: string;
 }): string {
   if (!(o.budget > 0)) return '';
   if (!o.approved.length) return '';
@@ -69,6 +71,7 @@ export function adsGoal(o: {
     `Monthly ad budget: ${o.budget} ${o.currency}. The plan's total must not go over it. Most a lead can cost and still pay: ${o.ceiling ?? 'unknown'} ${o.currency}.${o.leadsTarget ? ` Leads wanted a month: ${o.leadsTarget}.` : ''}`,
     `Channels in their marketing plan: ${o.channels.join(', ') || 'none yet'}.`,
     `Approved ads you may use (by id):\n${ads}`,
+    ...(o.sales ? [o.sales] : []),
     'Use one to three campaigns: put most of the budget where their customers already look, give each campaign enough per day to learn (at least a few leads a week at the ceiling), and say in one line why. Prefer the leads objective; use calls for businesses people phone. Name the audience by place, age range and interests in plain words. Never promise results. You only plan: nothing is launched or paid.',
   ].join('\n');
 }

@@ -24,6 +24,9 @@ import {
 import { changeLeadForm, cleanOrigin, computeDashboard, ensureLeadForm, formUrl, loadLeads } from '../../core/leads.js';
 import { adsGoal, AD_PLATFORMS, loadAdsPlan } from '../../core/ads.js';
 import { loadCrm } from '../../core/crm.js';
+import { salesContext } from '../../core/channels.js';
+import { marketingFlow } from '../../core/marketingflow.js';
+import { goLiveChecklist, goLiveEnv } from '../../core/golive.js';
 import { creativesGoal, decideCreative, failCreative, loadCreatives, markAdminStudio, requestCreative, saveCreativeResult, studioQueue } from '../../core/creatives.js';
 import {
   channelNetworks, discardPost, draftPosts, linkedNetworks, listPostizChannels, loadPublishing, loadPublishLink, publicLink, publishDraft, publishingGoal,
@@ -95,7 +98,7 @@ async function aboutBusiness(store: SupabaseStore, orgId: string) {
   return { business: profile?.name ?? 'Unnamed business', voice: m.answers.voice ?? '', avoid: m.answers.avoid ?? '' };
 }
 
-async function view(store: SupabaseStore, orgId: string, label: string) {
+async function view(store: SupabaseStore, orgId: string, label: string, origin = 'https://sixxab.ai') {
   const profile = await loadBusinessProfile(store, orgId);
   const marketing = await loadMarketing(store, orgId, profile, rate());
   const admin = isAdmin(label, process.env.ADMIN_EMAILS);
@@ -119,17 +122,30 @@ async function view(store: SupabaseStore, orgId: string, label: string) {
     leads, crm, creatives: creatives.creatives, posts: publishing.posts, currency: marketing.currency,
     ceiling: marketing.cpl.ceiling, target: marketing.cpl.leadsTarget, spend,
   });
+  const sales = salesContext(crm.icps, crm.contacts);
+  const goals = {
+    assessor: assessorGoal(marketing.answers), cmo: cmoPlanGoal(marketing, sales),
+    creatives: creativesGoal({ business: profile?.name ?? '', offer: a.services ?? '', bestCustomer: a.bestCustomer ?? '', voice: a.voice ?? '', avoid: a.avoid ?? '', channels: plan.channels, weekFocus: plan.weeks[0]?.focus ?? '', allowance: creatives.allowance }),
+    publishing: publishingGoal({ business: profile?.name ?? '', voice: a.voice ?? '', avoid: a.avoid ?? '', creatives: creatives.creatives, posts: publishing.posts, networks: linked.length ? linked : channelNetworks(plan.channels) }),
+    ads: adsGoal({ business: profile?.name ?? '', offer: a.services ?? '', bestCustomer: a.bestCustomer ?? '', area: a.location ?? '', currency: marketing.currency, budget: spend.ads, ceiling: marketing.cpl.ceiling, leadsTarget: marketing.cpl.leadsTarget, channels: plan.channels, approved, sales }),
+  };
+  const payments = paymentSetup(payEnv());
+  // The marketing flow's stages and queue, and inbound against outbound from the same CRM the sales flow works.
+  const flow = marketingFlow({
+    marketing, creatives, posts: publishing.posts, linked: linked.length, publishConnected: setup.connected, leadForm: leads.form, adsPlan, dashboard, contacts: crm.contacts, goals,
+  });
+  // Admins see the go-live checklist: built from which settings exist (true or false only), never their values.
+  const golive = admin ? goLiveChecklist({
+    pay: payments, publish: setup, env: goLiveEnv(process.env), origin, leadFormOn: Boolean(leads.form?.on), linkedNetworks: linked.length,
+    testPaid: marketing.payments.some((p) => p.mode === 'test') || Boolean(agency?.test),
+  }) : null;
   return {
-    marketing, plans: MARKETING_PLANS, sections: ASSESSMENT_SECTIONS, payments: paymentSetup(payEnv()), pendingRazorpay: pending, inrPerUsd: rate(), creatives,
+    marketing, plans: MARKETING_PLANS, sections: ASSESSMENT_SECTIONS, payments, pendingRazorpay: pending, inrPerUsd: rate(), creatives,
+    flow, golive,
     publishing, publishSetup: setup, publishLink: publicLink(link), linked,
     dashboard, leadForm: leads.form ? { id: leads.form.id, on: leads.form.on, url: formUrl(leads.form) } : null,
     adsPlan, adPlatforms: AD_PLATFORMS,
-    goals: {
-      assessor: assessorGoal(marketing.answers), cmo: cmoPlanGoal(marketing),
-      creatives: creativesGoal({ business: profile?.name ?? '', offer: a.services ?? '', bestCustomer: a.bestCustomer ?? '', voice: a.voice ?? '', avoid: a.avoid ?? '', channels: plan.channels, weekFocus: plan.weeks[0]?.focus ?? '', allowance: creatives.allowance }),
-      publishing: publishingGoal({ business: profile?.name ?? '', voice: a.voice ?? '', avoid: a.avoid ?? '', creatives: creatives.creatives, posts: publishing.posts, networks: linked.length ? linked : channelNetworks(plan.channels) }),
-      ads: adsGoal({ business: profile?.name ?? '', offer: a.services ?? '', bestCustomer: a.bestCustomer ?? '', area: a.location ?? '', currency: marketing.currency, budget: spend.ads, ceiling: marketing.cpl.ceiling, leadsTarget: marketing.cpl.leadsTarget, channels: plan.channels, approved }),
-    },
+    goals,
     admin, agency,
     studio: admin ? await studioQueue(store, await store.listOrgIds(), (id) => aboutBusiness(store, id)) : null,
     publishAdmin: admin ? await Promise.all([{ orgId, name: `${profile?.name ?? 'Your workspace'} (yours)` }, ...(agency?.customers ?? [])].map(async (c) => ({ orgId: c.orgId, name: c.name, link: publicLink(await loadPublishLink(store, c.orgId)) }))) : null,
@@ -174,7 +190,7 @@ export const GET = handle(async (request) => {
   const { orgId, label, store } = await requireUser(request);
   // The lead form is made the first time the Marketing tab opens, at this site's address.
   await ensureLeadForm(store, orgId, siteOrigin(request), label).catch((e) => console.error('lead form', e));
-  return json(await view(store, orgId, label));
+  return json(await view(store, orgId, label, new URL(request.url).origin));
 });
 
 /** This site's address (https), for lead form links. */
@@ -207,34 +223,34 @@ export const POST = handle(async (request) => {
       const m = await loadMarketing(store, orgId, null, rate());
       const planId = m.subscription?.status === 'active' ? m.subscription.planId : null;
       await requestCreative(store, orgId, b.creative ?? {}, await loadCreatives(store, orgId, planId, isAdmin(label, process.env.ADMIN_EMAILS)), label);
-      return json(await view(store, orgId, label));
+      return json(await view(store, orgId, label, new URL(request.url).origin));
     }
     if (b.action === 'decide_creative') {
       await decideCreative(store, orgId, String(b.id ?? ''), b.decision, b.note, label);
-      return json(await view(store, orgId, label));
+      return json(await view(store, orgId, label, new URL(request.url).origin));
     }
     if (b.action === 'studio_save' || b.action === 'studio_fail') {
       if (!isAdmin(label, process.env.ADMIN_EMAILS)) throw new HttpError(403, 'Only the SIXXAB admin can save studio results');
       await studioWrite(store, b, label, b.action === 'studio_save');
-      return json(await view(store, orgId, label));
+      return json(await view(store, orgId, label, new URL(request.url).origin));
     }
     if (b.action === 'draft_posts') {
       const { form } = await loadLeads(store, orgId);
       await draftPosts(store, orgId, { creativeId: b.creativeId, networks: b.networks, text: b.text, leadLink: b.leadLink && form?.on ? formUrl(form) : undefined }, label);
-      return json(await view(store, orgId, label));
+      return json(await view(store, orgId, label, new URL(request.url).origin));
     }
     if (b.action === 'lead_form') {
       await changeLeadForm(store, orgId, b.change, siteOrigin(request), label);
-      return json(await view(store, orgId, label));
+      return json(await view(store, orgId, label, new URL(request.url).origin));
     }
     if (b.action === 'discard_post') {
       await discardPost(store, orgId, String(b.id ?? ''), label);
-      return json(await view(store, orgId, label));
+      return json(await view(store, orgId, label, new URL(request.url).origin));
     }
     if (b.action === 'publish_draft') {
       // The signed-in owner pressed Publish on this one draft: that press is their yes for this post.
       const post = await publishDraft(store, orgId, String(b.id ?? ''), b.when, pubEnv(), label);
-      return json({ post, ...(await view(store, orgId, label)) });
+      return json({ post, ...(await view(store, orgId, label, new URL(request.url).origin)) });
     }
     if (b.action === 'publishing_link' || b.action === 'publishing_channels') {
       if (!isAdmin(label, process.env.ADMIN_EMAILS)) throw new HttpError(403, 'Only the SIXXAB admin can link social accounts');
@@ -242,11 +258,11 @@ export const POST = handle(async (request) => {
       const target = String(b.orgId ?? '');
       if (!(await store.listOrgIds()).includes(target)) throw new HttpError(404, 'No such business');
       await setPublishLink(store, target, b.link, label);
-      return json(await view(store, orgId, label));
+      return json(await view(store, orgId, label, new URL(request.url).origin));
     }
     if (b.action === 'save') {
       await saveAssessment(store, orgId, b.answers, label);
-      return json(await view(store, orgId, label));
+      return json(await view(store, orgId, label, new URL(request.url).origin));
     }
     if (b.action === 'checkout') {
       const plan = getMarketingPlan(b.planId);
@@ -276,7 +292,7 @@ export const POST = handle(async (request) => {
         : b.provider === 'paypal' ? await confirmPaypalSubscription(store, payEnv(), orgId, ref, label)
           : b.provider === 'razorpay' ? await confirmRazorpaySubscription(store, payEnv(), orgId, ref, label)
             : (() => { throw new HttpError(400, 'Unknown payment provider'); })();
-      return json({ paid, ...(await view(store, orgId, label)) });
+      return json({ paid, ...(await view(store, orgId, label, new URL(request.url).origin)) });
     }
   } catch (e) {
     if (e instanceof HttpError) throw e;

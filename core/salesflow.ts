@@ -85,8 +85,19 @@ export function accountReviewGoal(id: string): string {
   return `Review the health of this customer (deal id ${id}). Read the deal with read_crm view "deal" (contactId ${id}): its history, notes, onboarding progress and any earlier review. Then call save_account_review once with: a health score from 0 to 100 and the reasons (onboarding progress, how recently and how warmly they replied, results or problems in the notes, open issues); the risks; a short check-in message from the owner in the first person that asks one useful question; the renewal date only if the record states one, and a renewal plan; up to three upsell or cross-sell ideas tied to what they bought and their pains; and, only when health is 70 or more, a short referral ask. Base every point on the record and say what is unknown. These are drafts; nothing is sent.`;
 }
 
+/**
+ * Speed-to-Lead's goal for one inbound enquiry. The agent has no CRM tool, so the goal carries what it needs: the person's
+ * first name, email, where they came from and what they wrote. The reply waits in Approvals.
+ */
+export function replyGoal(c: Pick<Contact, 'name' | 'company' | 'email' | 'source' | 'sourceDetail' | 'notes'>): string {
+  if (!c.email) return '';
+  return `A new enquiry has not heard from us yet. Write one short first reply and queue it with send_message (channel "email", to ${c.email}): thank them by first name, answer what they asked only from known facts, and offer one clear next step such as a call, a visit or a booking link from memory. Under 90 words, warm and plain. Do not ask for more personal details than the next step needs. The owner approves it before it goes.
+- ${c.name}${c.company ? ` (${c.company})` : ''}, came from ${c.sourceDetail || c.source}${c.notes ? `, wrote: ${c.notes.slice(0, 400)}` : ''}`;
+}
+
 /** The goal an action's agent runs on, for the autopilot (the app builds the same goals in the browser). */
-export function autoGoal(a: NextAction): string {
+export function autoGoal(a: NextAction, c?: Contact): string {
   const id = a.contactId ?? '';
+  if (a.rule === 'reply') return c ? replyGoal(c) : '';
   return a.rule === 'score' ? scoreGoal([id]) : a.rule === 'sequence' ? sequenceGoal([id]) : a.rule === 'onboard' ? onboardingGoal(id) : a.rule === 'review' ? accountReviewGoal(id) : '';
 }

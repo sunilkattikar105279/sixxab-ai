@@ -8,6 +8,7 @@ import type { Contact } from './crm.js';
 import type { Icp, ProspectBatch } from './leadgen-state.js';
 import { text } from './leadgen-state.js';
 import { WORK_NOW_SCORE } from './research-score.js';
+import { isInbound, sourceName } from './channels.js';
 
 /** Org-level events: the owner skipping an action for a while, the autopilot switch and the weekly prospect search. */
 export const FLOW_ORG_EVENTS = ['crm.action_skip', 'crm.autopilot', 'crm.autofind'];
@@ -17,7 +18,7 @@ export const FLOW_DEAL_EVENTS = ['crm.onboarding', 'crm.onboarding_step', 'crm.a
 export const FLOW_STAGES = [
   { key: 'find', name: 'Find', does: 'Set who you sell to, then find businesses that fit: press Find 10 prospects, or switch on the weekly search.', agents: ['ICP Builder', 'Prospect Generator'], gate: 'You tick which prospects join the CRM.' },
   { key: 'research', name: 'Research', does: 'Research each new lead from public pages using the owner, phone and website: the business, pain points, missing email, phone and address (each with its source) and where AI agents would help.', agents: ['Business Research'], gate: 'You check each found detail before it goes on the deal.' },
-  { key: 'qualify', name: 'Qualify', does: 'Score each researched lead on fit, size, ease of win and reach; answer new enquiries fast.', agents: ['Lead Scorer', 'Speed-to-Lead'], gate: 'First replies wait in Approvals.' },
+  { key: 'qualify', name: 'Qualify', does: 'Score each researched lead on fit, size, ease of win and reach. Inbound enquiries from marketing land here too: answer each within 5 minutes, then hand it to Outreach.', agents: ['Lead Scorer', 'Speed-to-Lead'], gate: 'First replies wait in Approvals; you move each enquiry to Contacted.' },
   { key: 'outreach', name: 'Outreach', does: 'Personal email, LinkedIn and call steps in your voice.', agents: ['Outreach Sequencer', 'Follow-up Writer'], gate: 'You send each step and mark it sent.' },
   { key: 'discovery', name: 'Discovery', does: 'Prep the call, capture MEDDIC, debrief the notes.', agents: ['Call Prepper', 'Deal Qualifier'], gate: 'You approve the move to Proposal.' },
   { key: 'proposal', name: 'Proposal and close', does: 'Proposal with opportunities, benefits and ROI, objection answers and the follow-up to a yes.', agents: ['Proposal Writer', 'Objection Handler', 'Win-Loss Analyst'], gate: 'You edit and send the proposal, and mark it won or lost.' },
@@ -134,11 +135,20 @@ const DAY = 864e5;
 const daysSince = (iso: string | null | undefined, now: number) => (iso ? (now - Date.parse(iso)) / DAY : Infinity);
 const ranBy = (c: Contact, agentName: string, sinceIso?: string | null) => c.history.some((h) => h.by === agentName && (!sinceIso || h.at >= sinceIso));
 const label = (c: Contact) => c.company || c.name;
+const first = (c: Contact) => c.name.split(' ')[0] || 'there';
+
+/** What the owner says when they call or message an enquiry back. Placeholders in brackets; no promises. */
+export function callOpener(c: Contact, channel: 'call' | 'whatsapp'): string {
+  return channel === 'whatsapp'
+    ? `Hi ${first(c)}, thanks for getting in touch with [business]. How can we help? We can [next step: a visit, a call or a quote]. Would [day and time] suit you?`
+    : `Hi ${first(c)}, this is [your name] from [business], returning your enquiry. Is now a good time?\n[Ask what they need, answer what you can, and agree one next step: a visit, a call or a quote.]\n[Then press "I called them" so the CRM knows you spoke.]`;
+}
 
 export function flowStageOf(c: Contact, now = Date.now()): FlowStage | 'closed' {
   if (c.stage === 'lost') return 'closed';
   // A lead worth working now with a proposal draft is past Qualify: the proposal is its outreach.
-  if (c.stage === 'lead') return c.sequence || (c.proposal && (c.leadScore?.score ?? 0) >= WORK_NOW_SCORE) ? 'outreach' : c.researchReport || c.leadScore ? 'qualify' : 'research';
+  // An inbound enquiry skips Research: the customer came to us, so the first job is to answer them.
+  if (c.stage === 'lead') return c.sequence || (c.proposal && (c.leadScore?.score ?? 0) >= WORK_NOW_SCORE) ? 'outreach' : c.researchReport || c.leadScore || isInbound(c) ? 'qualify' : 'research';
   if (c.stage === 'contacted') return 'outreach';
   if (c.stage === 'qualified') return 'discovery';
   if (c.stage === 'proposal') return 'proposal';
@@ -152,7 +162,8 @@ export function flowStageOf(c: Contact, now = Date.now()): FlowStage | 'closed' 
 
 export type Rule =
   | 'icp' | 'find' | 'prospects' | 'approvals' | 'score' | 'sequence' | 'send_step' | 'sync' | 'quiet' | 'discovery' | 'advance'
-  | 'research' | 'research_import' | 'research_advance' | 'proposal' | 'proposal_send' | 'proposal_stage' | 'proposal_quiet' | 'winloss' | 'onboard' | 'welcome' | 'onboard_task' | 'review' | 'checkin' | 'renewal' | 'referral';
+  | 'research' | 'research_import' | 'research_advance' | 'proposal' | 'proposal_send' | 'proposal_stage' | 'proposal_quiet' | 'winloss' | 'onboard' | 'welcome' | 'onboard_task' | 'review' | 'checkin' | 'renewal' | 'referral'
+  | 'reply' | 'call_back' | 'handoff';
 export type ActionKind = 'agent' | 'send' | 'approve' | 'task' | 'open';
 
 export interface NextAction {
@@ -165,8 +176,13 @@ export interface NextAction {
   stepIndex?: number; msg?: CustomerMsg; ref?: string; suggestStage?: string; count?: number;
 }
 
-/** Agent work that only saves a draft or a record onto the deal, so the autopilot may run it on its own. */
-export const AUTO_RULES: Rule[] = ['score', 'sequence', 'onboard', 'review'];
+/**
+ * Agent work that only saves a draft or a record onto the deal, so the autopilot may run it on its own. A first reply to an
+ * enquiry is a draft too: Speed-to-Lead queues it in Approvals and nothing goes out until the owner approves it.
+ */
+export const AUTO_RULES: Rule[] = ['reply', 'score', 'sequence', 'onboard', 'review'];
+/** Inbound enquiries this old or newer are answered first; older ones that were never answered still get a reply action, lower down. */
+export const ENQUIRY_FRESH_DAYS = 14;
 export const SKIP_DAYS = 7;
 const QUIET_DAYS = 7;
 const PROPOSAL_QUIET_DAYS = 5;
@@ -233,7 +249,28 @@ export function nextActions(q: QueueInput, now = Date.now()): NextAction[] {
       continue;
     }
     const base = { contactId: c.id, company: label(c), stage };
-    if (c.stage !== 'won' && !c.researchReport) add({ ...base, stage: 'research', key: `${c.id}:research`, rule: 'research', kind: 'agent', agentId: 'business-research', title: `Research ${label(c)}`, why: 'A sourced report on the owner and the business: pain points, missing contact details and where AI agents would help. Uses a few web searches.', priority: c.stage === 'lead' ? 38 + Math.min(19, c.rank ?? 19) / 100 : 27 });
+    const inbound = isInbound(c);
+    if (inbound && c.stage === 'lead') {
+      // Marketing's hand-off to sales: answer the enquiry fast (a call or WhatsApp for people who rang or have no email, an
+      // email reply drafted by Speed-to-Lead otherwise), then move it to Contacted, where the sales flow takes over.
+      const mins = Math.max(0, Math.floor((now - Date.parse(c.createdAt)) / 60000));
+      const when = mins < 60 ? `${mins} minute${mins === 1 ? '' : 's'} ago` : mins < 2880 ? `${Math.floor(mins / 60)} hours ago` : `${Math.floor(mins / 1440)} days ago`;
+      const from = c.sourceDetail || sourceName(c.source);
+      const fresh = mins <= ENQUIRY_FRESH_DAYS * 1440;
+      const urgency = fresh ? 1 + Math.min(1, mins / 1440) / 10 : 24;
+      const answered = !!c.lastTouch || ranBy(c, 'Speed-to-Lead');
+      const voice = ['phone', 'whatsapp', 'walk-in'].includes(c.source) || !c.email;
+      if (!answered && voice && c.phone) {
+        const channel = c.source === 'whatsapp' ? 'whatsapp' : 'call';
+        add({ ...base, key: `${c.id}:callback`, rule: 'call_back', kind: 'send', draft: { channel, subject: '', text: callOpener(c, channel), to: c.phone }, title: `${channel === 'whatsapp' ? 'Answer' : 'Call back'} ${label(c)}`, why: `New enquiry ${when} from ${from}. ${fresh ? 'Answer within 5 minutes: most enquiries go to whoever answers first.' : 'It was never answered.'}`, priority: urgency });
+      } else if (!answered && c.email) {
+        add({ ...base, key: `${c.id}:reply`, rule: 'reply', kind: 'agent', agentId: 'speed-to-lead', title: `Reply to ${label(c)}`, why: `New enquiry ${when} from ${from}. Speed-to-Lead drafts a short first reply with one next step; it waits in Approvals for your yes.`, priority: urgency });
+      } else if (answered) {
+        add({ ...base, key: `${c.id}:handoff`, rule: 'handoff', kind: 'approve', suggestStage: 'contacted', title: `Hand ${label(c)} to sales?`, why: c.lastTouch ? 'You answered the enquiry. Move it to Contacted and the sales flow takes over: follow-ups, discovery and the proposal.' : 'Speed-to-Lead drafted the first reply. Once you approve it in Approvals, move the lead to Contacted and the sales flow takes over.', priority: 9 });
+      }
+    }
+    // A person who enquired needs no business research; an enquiry from a business gets it after the first reply.
+    if (c.stage !== 'won' && !c.researchReport && !(inbound && !c.company)) add({ ...base, stage: 'research', key: `${c.id}:research`, rule: 'research', kind: 'agent', agentId: 'business-research', title: `Research ${label(c)}`, why: 'A sourced report on the owner and the business: pain points, missing contact details and where AI agents would help. Uses a few web searches.', priority: inbound ? 42 : c.stage === 'lead' ? 38 + Math.min(19, c.rank ?? 19) / 100 : 27 });
     const prop = c.proposal;
     if (prop && !prop.sentAt && c.stage !== 'won') add({ ...base, key: `${c.id}:psend:${prop.id}`, rule: 'proposal_send', kind: 'send', draft: { channel: 'email', subject: prop.subject, text: proposalMessage(prop), to: c.email }, title: `Send the proposal to ${label(c)}`, why: `Net ${fmtMoney(prop.roi.netMonthly, prop.currency)} a month for them${prop.roi.roiPct !== null ? `, first-year return ${prop.roi.roiPct}%` : ''}. Check the ROI assumptions on the customer page first.`, priority: 12 });
     if (prop?.sentAt && ['lead', 'contacted', 'qualified'].includes(c.stage)) add({ ...base, key: `${c.id}:pstage:${prop.id}`, rule: 'proposal_stage', kind: 'approve', suggestStage: 'proposal', title: `Move ${label(c)} to Proposal?`, why: 'You sent them the proposal.', priority: 14 });
@@ -241,7 +278,8 @@ export function nextActions(q: QueueInput, now = Date.now()): NextAction[] {
 
     if (c.stage === 'lead' || c.stage === 'contacted') {
       // A researched lead is scored from its research instead (Move them on), so no Lead Scorer run is needed.
-      if (!c.leadScore && c.stage === 'lead' && !c.researchReport) add({ ...base, key: `${c.id}:score`, rule: 'score', kind: 'agent', agentId: 'lead-scorer', title: `Score ${label(c)}`, why: 'Scoring tells you which leads to work first.', priority: 40 + Math.min(19, c.rank ?? 19) / 100 });
+      // An inbound enquiry is answered rather than scored: it already chose you.
+      if (!c.leadScore && c.stage === 'lead' && !c.researchReport) { if (!inbound) add({ ...base, key: `${c.id}:score`, rule: 'score', kind: 'agent', agentId: 'lead-scorer', title: `Score ${label(c)}`, why: 'Scoring tells you which leads to work first.', priority: 40 + Math.min(19, c.rank ?? 19) / 100 }); }
       // A proposal draft already is the outreach, so no Outreach Sequencer run is needed.
       else if (c.leadScore && c.leadScore.score >= WORK_NOW_SCORE && !c.sequence && !c.proposal) add({ ...base, key: `${c.id}:sequence`, rule: 'sequence', kind: 'agent', agentId: 'outreach-sequencer', title: `Draft outreach for ${label(c)}`, why: `Lead score ${c.leadScore.score} (${c.leadScore.grade}): worth a personal sequence.`, priority: 35 - c.leadScore.score / 100 });
       const seq = c.sequence;

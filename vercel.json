@@ -7,7 +7,7 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "rewrites": [
-    { "source": "/api/:route(me|admin|governance|billing|raise|crm|support|accounts|marketing|payments)", "destination": "/api/platform?route=:route" },
+    { "source": "/api/:route(me|admin|governance|billing|raise|crm|support|accounts|marketing|payments|inbound)", "destination": "/api/platform?route=:route" },
     { "source": "/l/:form([A-Za-z0-9_-]+)", "destination": "/api/platform?route=leads&form=:form" },
     { "source": "/app/:path*", "destination": "/app/index.html" },
     { "source": "/marketing/:path*", "destination": "/marketing/index.html" }

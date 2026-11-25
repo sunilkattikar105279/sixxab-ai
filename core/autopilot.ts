@@ -10,7 +10,8 @@ import { createTask, runTask, type RuntimeDeps } from './runtime.js';
 
 /**
  * Autopilot: runs the agents for the most urgent actions that only save drafts or records onto a deal
- * (scores, outreach drafts, onboarding plans, account reviews). Nothing is sent and no stage changes.
+ * (first replies to enquiries, scores, outreach drafts, onboarding plans, account reviews). Nothing is sent and no stage changes;
+ * a first reply waits in Approvals.
  */
 export async function runAutopilot(deps: RuntimeDeps, orgId: string, max = 3, force = false): Promise<{ ran: { key: string; agentId: string; status: string }[]; skipped: string }> {
   const store = deps.store;
@@ -20,7 +21,7 @@ export async function runAutopilot(deps: RuntimeDeps, orgId: string, max = 3, fo
   const ran: { key: string; agentId: string; status: string }[] = [];
   for (const a of todo) {
     const agent = getAgent(a.agentId!);
-    const goal = autoGoal(a);
+    const goal = autoGoal(a, crm.contacts.find((c) => c.id === a.contactId));
     if (!agent || !goal) continue;
     try {
       const task = await createTask(store, orgId, agent.id, goal);

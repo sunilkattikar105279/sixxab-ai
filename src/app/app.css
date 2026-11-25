@@ -359,3 +359,6 @@ th { color: var(--sub); font-weight: 500; font-size: 12px; text-transform: upper
 .mk-trend .small { white-space: nowrap; }
 .mk-app-top .app-user a { color: inherit; }
 @media (max-width: 520px) { .mk-trend { gap: 3px; } .mk-trend .muted.small { font-size: 10px; } }
+.check { display: flex; align-items: center; gap: 8px; align-self: end; padding: 8px 0; }
+.origin-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.flow-terms { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); margin-top: 8px; }
